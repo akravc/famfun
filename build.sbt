@@ -1,5 +1,5 @@
 lazy val root = (project in file("."))
   .settings(
-    name := "famfun",
+    name := "famlang",
     scalaVersion := "3.0.0"
   )
