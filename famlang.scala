@@ -87,12 +87,12 @@ def typ(exp: Expression, t: Type, G: Map[String, Type], K: Map[FamilyPath, Linka
     case Nexp(n) => Some(N)
     case Bexp(b) => Some(B)
     case Var(x) => G.get(x)
-    case Lam(Var(x), xtype, body) => (wf(xtype, K), typ(body, G + (x -> xtype), K)) match {
-        case (true, Some(otype)) => Some(FunType(xtype, otype))
+    case Lam(Var(x), xtype, body) => typ(body, G + (x -> xtype), K) match {
+        case Some(otype) if wf(xtype, K) => Some(FunType(xtype, otype))
         case _ => None
     }
     case App(e1, e2) => (typ(e1, G, K), typ(e2, G, K)) match {
-        case (Some(FunType(itype, otype)), Some(expt)) => if (itype == expt) { Some(otype) } else None
+        case (Some(FunType(itype, otype)), Some(expt)) if (itype == expt) =>  Some(otype)
         case _ => None
     }
     case Rec(fields) => None // need to return a new map here of fields to types
