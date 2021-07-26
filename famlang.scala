@@ -41,7 +41,7 @@ object famlang {
   case object PlusEq extends Marker // type being extended
   case object Eq extends Marker // type definition
   case class Linkage(self: SelfFamily, sup: SelfFamily, types: Map[String, (Marker, RecType)], 
-                                    adts: Map[String, (Marker, ADT)], funs: Map[String, (FunType, Lam)])
+    adts: Map[String, (Marker, ADT)], funs: Map[String, (FunType, Lam)])
   
   
   // Values
@@ -62,8 +62,8 @@ object famlang {
     case B => true
     case FamType(path, name) => 
         K.get(path) match { 
-        case None => false
-        case Some(lkg) => lkg.types.contains(name)
+          case None => false
+          case Some(lkg) => lkg.types.contains(name)
         }
     case FunType(t1,t2) => wf(t1, K) && wf(t2, K)
     case RecType(m) => m.filter{case (_,t) => !wf(t, K)}.isEmpty
