@@ -24,8 +24,8 @@ object famlang {
   case class App(e1: Expression, e2: Expression) extends Expression
   case class Rec(fields: Map[String, Expression]) extends Expression
   case class Proj(e: Expression, name: String) extends Expression
-  case class Inst(t: FamType, fields: Rec) extends Expression
-  case class InstADT(t: FamType, cname: String, fields: Rec) extends Expression
+  case class Inst(t: FamType, rec: Rec) extends Expression
+  case class InstADT(t: FamType, cname: String, rec: Rec) extends Expression
   case class Match(e: Expression, cases: Map[String, Lam]) extends Expression
   case class Nexp(n: Int) extends Expression
   case class Bexp(b: Boolean) extends Expression
@@ -70,19 +70,9 @@ object famlang {
     case _ => false
   }
 
-// Typing Rules
-// G is the typing context, K is the linkage context
 
-/**  FAILED TRY:
-def typ(exp: Expression, t: Type, G: Map[String, Type], K: Map[FamilyPath, Linkage]): Boolean = (exp, t) match {
-    case (Nexp(n), N) => true
-    case (Bexp(b), B) => true
-    case (Var(x), t) => G.get(x) == Some(t)
-    case (Lam(Var(x), xtype, body), FunType(it, ot)) => (xtype == it) && wf(it, K) && typ(body, ot, (G + (x -> it)), K)
-    case (App(e1, e2), t) => typ(e1, FunType(it, ot), 
-    FAIL: NEED TO "compute" a type here....
-    */
-    
+ // Typing Rules
+ // G is the typing context, K is the linkage context
   def typ(exp: Expression, G: Map[String, Type], K: Map[FamilyPath, Linkage]): Option[Type] = exp match {
     case Nexp(n) => Some(N)
     case Bexp(b) => Some(B)
@@ -99,26 +89,63 @@ def typ(exp: Expression, t: Type, G: Map[String, Type], K: Map[FamilyPath, Linka
         case (Some(FunType(itype, otype)), Some(expt)) if (itype == expt) =>  Some(otype)
         case _ => None
     }
-    case Rec(fields) => None // need to return a new map here of fields to types
+    case Rec(fields) => val mp = fields.map{case (fname, fex) =>  (fname, typ(fex, G, K))};
+                                    if mp.exists{case (_,t) => t == None} then { None }  // checks for fields with None types
+                                    else { Some(RecType(mp.map{case (f, Some(t)) => (f, t)})) }
+    case Proj(e, f) => typ(e, G, K) match {
+                                    case Some(RecType(mp)) => mp.get(f)
+                                    case _ => None
+                                 }
+    case FamFun(path, name) => K.get(path) match {
+                                                        case Some(lkg) => 
+                                                            lkg.funs.get(name) match {
+                                                                case Some(funtype, body) if wf(funtype, K) => Some(funtype)
+                                                                case _ => None
+                                                            }
+                                                        case _ => None
+                                                    }
+    case Inst(ftype, rec) => K.get(ftype.path) match {
+                                                case Some(lkg) => 
+                                                    lkg.types.get(ftype.name) match {
+                                                        case Some(_, rt) => // assuming marker is = at this point, complete linkages
+                                                            if rt.fields.map{case(f, t) => (f, Some(t))} == rec.fields.map{case(f, e) => (f, typ(e, G, K))} 
+                                                            then Some(ftype) else None
+                                                        case _ => None
+                                                     }
+                                                case _ => None
+                                             }
+    case InstADT(ftype, cname, rec) => K.get(ftype.path) match {
+                                                                    case Some(lkg) => 
+                                                                        lkg.adts.get(ftype.name) match {
+                                                                            case Some(_, adt) => adt.cs.get(cname) match {
+                                                                                case Some(RecType(fields)) => 
+                                                                                    if fields.map{case(f, t) => (f, Some(t))} == rec.fields.map{case(f, e) => (f, typ(e, G, K))}
+                                                                                    then Some(ftype) else None
+                                                                                case _ => None 
+                                                                                }
+                                                                            case _ => None 
+                                                                            }
+                                                                    case _ => None
+                                                                    }
+    case Match(e, cases) => typ(e, G, K) match {
+                                                case Some(FamType(path, name)) => 
+                                                    K.get(path) match {
+                                                        case Some(lkg) => 
+                                                            lkg.adts.get(name) match {
+                                                                case Some(_, adt) => 
+                                                                    val funtypes = cases.map{case (c, lam) => (c, typ(lam, G, K))};
+                                                                    if funtypes.exists{case (_,t) => t != Some(FunType(_,_))} then { None } // check for ill-formed functions g_i
+                                                                    else {
+                                                                        // TODO: finish checking that each g_i has a proper input and output type that matches ADT definition
+                                                                        None
+                                                                    }
+                                                                case _ => None
+                                                            }
+                                                        case _ => None
+                                                    }
+                                                case _ => None
+                                             }
     case _ => None
   }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    
-
-    
-    
   
-}
+  } // eof
