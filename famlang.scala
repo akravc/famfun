@@ -97,9 +97,9 @@ object famlang {
   }
 
 
-  // Typing Rules
+  // Type Inference
   // G is the typing context, K is the linkage context
-  def typ(exp: Expression, G: Map[String, Type], K: Map[FamilyPath, Linkage]): Option[Type] = exp match {
+  def typInf(exp: Expression, G: Map[String, Type], K: Map[FamilyPath, Linkage]): Option[Type] = exp match {
 
     // _________________ T_Num
     //  G |- n : N
@@ -120,7 +120,7 @@ object famlang {
     //  G |- lam (x : T). body : T -> T'
     case Lam(Var(x), xtype, body) =>
       if wf(xtype, K) then {
-        typ(body, G + (x -> xtype), K).map { otype => FunType(xtype, otype) }
+        typInf(body, G + (x -> xtype), K).map { otype => FunType(xtype, otype) }
       } else None
 
     //  G |- e : T
@@ -128,7 +128,7 @@ object famlang {
     //___________________ T_App
     //  G |- g e : T'
     case App(e1, e2) =>
-      (typ(e1, G, K), typ(e2, G, K)) match { // type e1 and e2
+      (typInf(e1, G, K), typInf(e2, G, K)) match { // type e1 and e2
         case (Some(FunType(itype, otype)), Some(expt)) if (itype == expt) => Some(otype)
         case _ => None
       }
@@ -137,7 +137,7 @@ object famlang {
     //_____________________________________ T_Rec
     //  G |- {(f_i = e_i)*} : {(f_i: T_i)*}
     case Rec(fields) =>
-      val ftypes = fields.map { case (fname, fex) => (fname, typ(fex, G, K)) }; // type all expressions
+      val ftypes = fields.map { case (fname, fex) => (fname, typInf(fex, G, K)) }; // type all expressions
       if ftypes.exists { case (_, t) => t == None } then None // check for fields with None types
       else {
         Some(RecType(ftypes.map { case (f, Some(t)) => (f, t) }))
@@ -148,7 +148,7 @@ object famlang {
     //_______________________________ T_RecField
     //  G |- e.f : T
     case Proj(e, f) =>
-      typ(e, G, K).flatMap { case RecType(ftypes) => ftypes.get(f) case _ => None }
+      typInf(e, G, K).flatMap { case RecType(ftypes) => ftypes.get(f) case _ => None }
 
     //  WF(T -> T')
     //  m : (T -> T') = (lam (x : T). body) in [[a]]
@@ -173,8 +173,13 @@ object famlang {
           lkg.types.get(ftype.name).flatMap {
             (marker, rt) =>
               assert(marker == Eq); // should be Eq in a complete linkage, check with assertion
-              if rt.fields.map { case (f, t) => (f, Some(t)) } == rec.fields.map { case (f, e) => (f, typ(e, G, K)) }
-              then Some(ftype) else None
+              assert(wf(rt, K)); // should be well-formed in linkage, check
+              if rec.fields.filter { (f, e) => // typeCheck all fields wrt linkage definition
+                rt.fields.get(f) match {
+                  case Some(typedef) => !typCheck(e, typedef, G, K)
+                  case _ => false
+                }
+              }.isEmpty then Some(ftype) else None
           }
       }
 
@@ -191,7 +196,7 @@ object famlang {
               assert(marker == Eq); // should be Eq in a complete linkage, check with assertion
               adt.cs.get(cname).flatMap {
                 case RecType(fields) =>
-                  if fields.map { case (f, t) => (f, Some(t)) } == rec.fields.map { case (f, e) => (f, typ(e, G, K)) }
+                  if fields.map { case (f, t) => (f, Some(t)) } == rec.fields.map { case (f, e) => (f, typInf(e, G, K)) }
                   then Some(ftype) else None
               }
           }
@@ -203,25 +208,74 @@ object famlang {
     //____________________________________________ T_Match
     //  G |- match e with (C_i => g_i)* : T'
     case Match(e, cases) =>
-      typ(e, G, K).flatMap {
+      typInf(e, G, K).flatMap {
         case FamType(path, name) =>
           K.get(path).flatMap {
             lkg =>
               lkg.adts.get(name).flatMap {
                 (marker, adt) =>
                   assert(marker == Eq); // should be Eq in a complete linkage, check with assertion
-                  val funtypes = cases.map { case (c, lam) => (c, typ(lam, G, K)) };
-                  if funtypes.exists { case (_, t) => t != Some(FunType(_, _)) } then None // check for ill-formed functions g_i
-                  else {
-                    // TODO: finish checking that each g_i has a proper input and output type that matches ADT definition
-                    None
-                  }
+                  val funtypes = cases.map { case (c, lam) => (c, typInf(lam, G, K)) }; // infer types of g_i's
+                  if funtypes.exists {
+                    case (c, Some (FunType(infrt, otype))) =>
+                      adt.cs.get(c) match {
+                        // all output types are not the same OR inferred input type doesn't match definition
+                        case Some(defrt) => funtypes.head._2 != Some(otype) || infrt != defrt
+                        case _ => true
+                      }
+                    case _ => true // if not, or if something doesn't have a function type
+                  } then None else funtypes.head._2 // first function output type since all are the same
               }
           }
       }
 
     // All other cases
     case _ => None
-  } // end typing
+  } // end fun
+
+
+  // Type Checking
+  // G is the typing context, K is the linkage context
+  // t is the expected type
+  def typCheck(exp: Expression, t: Type, G: Map[String, Type], K: Map[FamilyPath, Linkage]): Boolean =
+    val inftype = typInf(exp, G, K);
+    if inftype == Some(t) then true else {
+      (inftype, t) match {
+        //  forall i, (f_i: T_i) \in (f_j: T_j)*
+        //______________________________________ T_SubRec
+        //  {(f_j: T_j)*} <: {(f_i: T_i)*}
+        case (Some(RecType(fdsinf)), RecType(fdst)) =>
+          !fdst.exists{case (f, ft) =>
+            fdsinf.get(f) match {
+              case Some(v) => (v == ft)
+              case None => false
+            }
+          }
+
+        //  R = T in [[a]]
+        //__________________ T_Expansion
+        //  a.R <: T
+        case (Some(FamType(path, name)), t) =>
+          K.get{path} match {
+            case Some(lkg) =>
+              lkg.types.get(name) match {
+                case Some((marker, typedef)) =>
+                  assert(marker == Eq); // should be Eq, check
+                  assert(wf(typedef, K)); // should be well formed in linkage, check
+                  (typedef == t)
+                case None => false
+              }
+            case None => false
+          }
+
+        case _ => false
+      }
+    }
+
+
+
+
+
+
 
 } // eof
