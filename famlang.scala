@@ -128,8 +128,8 @@ object famlang {
     //___________________ T_App
     //  G |- g e : T'
     case App(e1, e2) =>
-      (typInf(e1, G, K), typInf(e2, G, K)) match { // type e1 and e2
-        case (Some(FunType(itype, otype)), Some(expt)) if (itype == expt) => Some(otype)
+      typInf(e1, G, K) match { // type e1
+        case Some(FunType(itype, otype)) if typCheck(e2, itype, G, K) => Some(otype)
         case _ => None
       }
 
@@ -217,7 +217,7 @@ object famlang {
                   assert(marker == Eq); // should be Eq in a complete linkage, check with assertion
                   val funtypes = cases.map { case (c, lam) => (c, typInf(lam, G, K)) }; // infer types of g_i's
                   if funtypes.exists {
-                    case (c, Some (FunType(infrt, otype))) =>
+                    case (c, Some(FunType(infrt, otype))) =>
                       adt.cs.get(c) match {
                         // all output types are not the same OR inferred input type doesn't match definition
                         case Some(defrt) => funtypes.head._2 != Some(otype) || infrt != defrt
@@ -241,36 +241,73 @@ object famlang {
     val inftype = typInf(exp, G, K);
     if inftype == Some(t) then true else {
       (inftype, t) match {
-        //  forall i, (f_i: T_i) \in (f_j: T_j)*
-        //______________________________________ T_SubRec
-        //  {(f_j: T_j)*} <: {(f_i: T_i)*}
-        case (Some(RecType(fdsinf)), RecType(fdst)) =>
-          !fdst.exists{case (f, ft) =>
-            fdsinf.get(f) match {
-              case Some(v) => (v == ft)
-              case None => false
-            }
-          }
-
-        //  R = T in [[a]]
-        //__________________ T_Expansion
-        //  a.R <: T
-        case (Some(FamType(path, name)), t) =>
-          K.get{path} match {
-            case Some(lkg) =>
-              lkg.types.get(name) match {
-                case Some((marker, typedef)) =>
-                  assert(marker == Eq); // should be Eq, check
-                  assert(wf(typedef, K)); // should be well formed in linkage, check
-                  (typedef == t)
-                case None => false
+      //  forall i, (f_i: T_i) \in (f_j: T_j)*
+      //______________________________________ T_SubRec
+      //  {(f_j: T_j)*} <: {(f_i: T_i)*}
+      case (Some(RecType(fdsinf)), RecType(fdsexp)) =>
+        fdsexp.forall { case (f, texp) => // texp is the expected type of field f
+          fdsinf.get(f) match {
+            case Some(tinf) => // tinf is the inferred type of field f
+              assert(exp.isInstanceOf[Rec]); // expression should be a record
+              exp.asInstanceOf[Rec].fields.get(f) match { // retrieve field expression to typecheck recursively
+                case Some(e) => typCheck(e, texp, G, K)
+                case _ => false
               }
             case None => false
           }
+        }
 
-        case _ => false
-      }
+      //  R = T in [[a]]
+      //__________________ T_Expansion
+      //  a.R <: T
+      case (Some(FamType(path, name)), t) =>
+        K.get(path) match {
+          case Some(lkg) =>
+            lkg.types.get(name) match {
+              case Some((marker, typedef)) =>
+                assert(marker == Eq); // should be Eq, check
+                assert(wf(typedef, K)); // should be well formed in linkage, check
+                (typedef == t)
+              case None => false
+            }
+          case None => false
+        }
+      case _ => false
     }
+  }
+
+
+    // is T1 a subtype of T2? (or equal to T2)
+  def subtype(t1: Type, t2: Type, G: Map[String, Type], K: Map[FamilyPath, Linkage]): Boolean =
+    (t1, t2) match {
+      // a.R <: t2 means we pull out the definition of R from linkage
+      // and check if subtype of t2
+      case (FamType(path, name), t2) =>
+        K.get(path).flatMap{
+          lkg => lkg.types.get(name).flatMap{
+            (marker, rectype) =>
+              assert(marker == Eq); // should be Eq in a complete linkage, check
+              Some(subtype(rectype, t2, G, K))
+          }
+        } match {case Some(b) => b case _ => false} // pull out boolean from option
+
+      // conventional arrow type subtyping
+      case (FunType(it1, ot1), FunType(it2, ot2)) =>
+        subtype(it2, it1, G, K) && subtype(ot1, ot2, G, K)
+
+      // {(fi : Ti)*} <: {(fj : Tj)*}
+      case (RecType(fds1), RecType(fds2)) =>
+        // width subtyping: all fields in T2 appear in T1
+        fds2.forall { case (fj, tj) =>
+          fds1.get(fj) match {
+            case Some(ti) => subtype(ti, tj, G, K) // depth subtyping
+            case _ => false
+          }
+        }
+
+      case (_, _) => (t1 == t2) // defer to equality
+    }
+
 
 
 
