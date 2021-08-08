@@ -99,6 +99,7 @@ object famlang {
 
   // Type Inference
   // G is the typing context, K is the linkage context
+  // Infer the type of expression exp
   def typInf(exp: Expression, G: Map[String, Type], K: Map[FamilyPath, Linkage]): Option[Type] = exp match {
 
     // _________________ T_Num
@@ -138,7 +139,7 @@ object famlang {
     //  G |- {(f_i = e_i)*} : {(f_i: T_i)*}
     case Rec(fields) =>
       val ftypes = fields.map { case (fname, fex) => (fname, typInf(fex, G, K)) }; // type all expressions
-      if ftypes.exists { case (_, t) => t == None } then None // check for fields with None types
+      if ftypes.exists { (_, t) => t == None } then None // check for fields with None types
       else {
         Some(RecType(ftypes.map { case (f, Some(t)) => (f, t) }))
       } // extract types from options
@@ -174,12 +175,12 @@ object famlang {
             (marker, rt) =>
               assert(marker == Eq); // should be Eq in a complete linkage, check with assertion
               assert(wf(rt, K)); // should be well-formed in linkage, check
-              if rec.fields.filter { (f, e) => // typeCheck all fields wrt linkage definition
+              if rec.fields.exists { (f, e) => // typeCheck all fields wrt linkage definition
                 rt.fields.get(f) match {
-                  case Some(typedef) => !typCheck(e, typedef, G, K)
-                  case _ => false
+                  case Some(typedef) => !typCheck(e, typedef, G, K) // if any exp in record does not typecheck
+                  case _ => true // or field does not exist in the type
                 }
-              }.isEmpty then Some(ftype) else None
+              } then None else Some(ftype)
           }
       }
 
@@ -189,6 +190,7 @@ object famlang {
     //_________________________________________________ T_ADT
     //  G |- a.R(C {(f_i = e_i)*}) : a.R
     case InstADT(ftype, cname, rec) =>
+      val inferredtypes = rec.fields.map { case (f, e) => (f, typInf(e, G, K)) };
       K.get(ftype.path).flatMap {
         lkg =>
           lkg.adts.get(ftype.name).flatMap {
@@ -196,7 +198,8 @@ object famlang {
               assert(marker == Eq); // should be Eq in a complete linkage, check with assertion
               adt.cs.get(cname).flatMap {
                 case RecType(fields) =>
-                  if fields.map { case (f, t) => (f, Some(t)) } == rec.fields.map { case (f, e) => (f, typInf(e, G, K)) }
+                  val linkagetypes = fields.map { case (f, t) => (f, Some(t)) };
+                  if  inferredtypes.equals(linkagetypes) // we do not allow subtyping within ADT records right now
                   then Some(ftype) else None
               }
           }
@@ -227,6 +230,7 @@ object famlang {
                   } then None else funtypes.head._2 // first function output type since all are the same
               }
           }
+        case _ => None
       }
 
     // All other cases
@@ -236,49 +240,18 @@ object famlang {
 
   // Type Checking
   // G is the typing context, K is the linkage context
-  // t is the expected type
+  // does expression exp have the expected type t?
   def typCheck(exp: Expression, t: Type, G: Map[String, Type], K: Map[FamilyPath, Linkage]): Boolean =
-    val inftype = typInf(exp, G, K);
-    if inftype == Some(t) then true else {
-      (inftype, t) match {
-      //  forall i, (f_i: T_i) \in (f_j: T_j)*
-      //______________________________________ T_SubRec
-      //  {(f_j: T_j)*} <: {(f_i: T_i)*}
-      case (Some(RecType(fdsinf)), RecType(fdsexp)) =>
-        fdsexp.forall { case (f, texp) => // texp is the expected type of field f
-          fdsinf.get(f) match {
-            case Some(tinf) => // tinf is the inferred type of field f
-              assert(exp.isInstanceOf[Rec]); // expression should be a record
-              exp.asInstanceOf[Rec].fields.get(f) match { // retrieve field expression to typecheck recursively
-                case Some(e) => typCheck(e, texp, G, K)
-                case _ => false
-              }
-            case None => false
-          }
-        }
-
-      //  R = T in [[a]]
-      //__________________ T_Expansion
-      //  a.R <: T
-      case (Some(FamType(path, name)), t) =>
-        K.get(path) match {
-          case Some(lkg) =>
-            lkg.types.get(name) match {
-              case Some((marker, typedef)) =>
-                assert(marker == Eq); // should be Eq, check
-                assert(wf(typedef, K)); // should be well formed in linkage, check
-                (typedef == t)
-              case None => false
-            }
-          case None => false
-        }
+    typInf(exp, G, K) match {
+      case Some(inft) => subtype(inft, t, K)
       case _ => false
     }
-  }
 
 
-    // is T1 a subtype of T2? (or equal to T2)
-  def subtype(t1: Type, t2: Type, G: Map[String, Type], K: Map[FamilyPath, Linkage]): Boolean =
+  // Subtyping
+  // K is the linkage context
+  // is T1 a subtype of T2? (or equal to T2)
+  def subtype(t1: Type, t2: Type, K: Map[FamilyPath, Linkage]): Boolean =
     (t1, t2) match {
       // a.R <: t2 means we pull out the definition of R from linkage
       // and check if subtype of t2
@@ -287,20 +260,20 @@ object famlang {
           lkg => lkg.types.get(name).flatMap{
             (marker, rectype) =>
               assert(marker == Eq); // should be Eq in a complete linkage, check
-              Some(subtype(rectype, t2, G, K))
+              Some(subtype(rectype, t2, K))
           }
         } match {case Some(b) => b case _ => false} // pull out boolean from option
 
       // conventional arrow type subtyping
       case (FunType(it1, ot1), FunType(it2, ot2)) =>
-        subtype(it2, it1, G, K) && subtype(ot1, ot2, G, K)
+        subtype(it2, it1, K) && subtype(ot1, ot2, K)
 
       // {(fi : Ti)*} <: {(fj : Tj)*}
       case (RecType(fds1), RecType(fds2)) =>
         // width subtyping: all fields in T2 appear in T1
         fds2.forall { case (fj, tj) =>
           fds1.get(fj) match {
-            case Some(ti) => subtype(ti, tj, G, K) // depth subtyping
+            case Some(ti) => subtype(ti, tj, K) // depth subtyping
             case _ => false
           }
         }
