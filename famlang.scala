@@ -8,6 +8,7 @@ object famlang {
 
   case class SelfFamily(fam: Family) extends FamilyPath
 
+
   // Types
   sealed class Type
 
