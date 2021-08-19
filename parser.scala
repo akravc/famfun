@@ -48,7 +48,7 @@ class FamParser extends RegexParsers with PackratParsers {
   def ntype: Parser[Type] = "N" ^^ (_ => N)
   def btype: Parser[Type] = "B" ^^ (_ => B)
 
-  def typ: Parser[Type] = funtype | rectype | famtype | ntype | btype
+  def typ: Parser[Type] = funtype | rectype | famtype | ntype | btype | "(" ~> typ <~ ")"
 
   // ADTS
   def adt_constructor: Parser[(String, RecType)] = constructor_name ~ rectype ^^ {case k ~ v => k -> v}
