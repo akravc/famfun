@@ -52,7 +52,7 @@ class FamParser extends RegexParsers with PackratParsers {
 
   // ADTS
   def adt_constructor: Parser[(String, RecType)] = constructor_name ~ rectype ^^ {case k ~ v => k -> v}
-  def adt_def: Parser[ADT] = repsep(adt_constructor, "|") ^^ {case lst => ADT(lst.toMap)}
+  def adt: Parser[ADT] = repsep(adt_constructor, "|") ^^ {case lst => ADT(lst.toMap)}
 
   // EXPRESSIONS
   def exp_bool_true: Parser[Bexp] = "true" ^^ {_ => Bexp(true)}
@@ -78,6 +78,24 @@ class FamParser extends RegexParsers with PackratParsers {
 
   def exp: Parser[Expression] = exp_match | exp_inst_adt | exp_inst | exp_rec | exp_lam | exp_app
     | exp_famfun | exp_proj | exp_bool_true | exp_bool_false | exp_nat | exp_var
+
+  // MARKERS
+  def marker: Parser[Marker] =
+    "=" ^^ {_ => Eq} | "+=" ^^ {_ => PlusEq}
+
+  // DEFINITIONS
+  def typedef: Parser[(String, (Marker, RecType))] =
+    "type" ~> type_name ~ marker ~ rectype ^^ {case n~m~rt => (n -> (m -> rt))}
+  def adtdef: Parser[(String, (Marker, ADT))] =
+    "type" ~> type_name ~ marker ~ adt ^^ {case n~m~a => (n -> (m -> a))}
+  def fundef: Parser[(String, (FunType, Lam))] =
+    "val" ~> function_name ~ ":" ~ funtype ~ "=" ~ exp_lam ^^ {case m~":"~t~"="~b => m -> (t -> b)}
+
+  def famdef: Parser[Linkage] =
+    "Family" ~> family_name ~ "extends" ~ family_name ~ "{" ~ rep(typedef) ~ rep(adtdef) ~ rep(fundef) <~ "}" ^^
+    {case a~_~b~_~typs~adts~funs =>
+      Linkage(SelfFamily(Family(a)), SelfFamily(Family(b)), typs.toMap, adts.toMap, funs.toMap)}
+
 }
 
 object TestFamParser extends FamParser {
