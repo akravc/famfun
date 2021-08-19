@@ -80,6 +80,7 @@ class FamParser extends RegexParsers with PackratParsers {
     exp_lam | exp_famfun | exp_bool_true | exp_bool_false | exp_nat | exp_var
   | exp_match | exp_inst_adt | exp_inst | exp_rec
   | exp_proj | exp_app
+  | "(" ~> exp <~ ")"
 
   // MARKERS
   def marker: Parser[Marker] =
