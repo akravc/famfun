@@ -76,8 +76,10 @@ class FamParser extends RegexParsers with PackratParsers {
   def exp_match: Parser[Match] =
     "match" ~> exp ~ "with" ~ repsep(match_case, "|") <~ "." ^^ {case e~_~lst => Match(e, lst.toMap)}
 
-  def exp: Parser[Expression] = exp_match | exp_inst_adt | exp_inst | exp_rec | exp_lam | exp_app
-    | exp_famfun | exp_proj | exp_bool_true | exp_bool_false | exp_nat | exp_var
+  def exp: Parser[Expression] =
+    exp_lam | exp_famfun | exp_bool_true | exp_bool_false | exp_nat | exp_var
+  | exp_match | exp_inst_adt | exp_inst | exp_rec
+  | exp_proj | exp_app
 
   // MARKERS
   def marker: Parser[Marker] =
