@@ -65,7 +65,7 @@ class FamParser extends RegexParsers with PackratParsers {
 
   def exp_famfun: Parser[FamFun] = fampath ~ "." ~ function_name ^^ {case p~"."~n => FamFun(p, n)}
   def exp_app: Parser[App] = exp ~ exp ^^ {case e~g => App(e, g)}
-  def exp_proj: Parser[Proj] = exp ~ field_name ^^ {case e~n => Proj(e, n)}
+  def exp_proj: Parser[Proj] = exp ~ "." ~ field_name ^^ {case e~_~n => Proj(e, n)}
   def field_val: Parser[(String, Expression)] = field_name ~ "=" ~ exp ^^ {case k~":"~v => k -> v}
   def exp_rec: Parser[Rec] = "{"~> repsep(field_val, ",") <~"}" ^^ {case lst => Rec(lst.toMap)}
   def exp_inst: Parser[Inst] = famtype ~ "(" ~ exp_rec <~ ")" ^^ {case t~"("~r => Inst(t, r)}
