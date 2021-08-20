@@ -71,6 +71,8 @@ object famlang {
                      adts: Map[String, (Marker, ADT)], funs: Map[String, (FunType, Lam)])
 
 
+  /*====================================== VALUES ======================================*/
+
   // Values
   def is_value(e: Expression): Boolean = e match {
     case Lam(v, t, body) => true
@@ -81,6 +83,8 @@ object famlang {
     case Bexp(b) => true
     case _ => false
   }
+
+  /*====================================== TYPE WELL-FORMEDNESS ======================================*/
 
   // Well-Formedness Rules
   // K is the linkage context
@@ -96,6 +100,8 @@ object famlang {
     case RecType(m) => m.filter { case (_, t) => !wf(t, K) }.isEmpty
     case _ => false
   }
+
+  /*====================================== TYPING ======================================*/
 
 
   // Type Inference
@@ -248,6 +254,7 @@ object famlang {
       case _ => false
     }
 
+  /*====================================== SUBTYPING ======================================*/
 
   // Subtyping
   // K is the linkage context
@@ -283,9 +290,87 @@ object famlang {
     }
 
 
+  /*====================================== LINKAGE WELL-FORMEDNESS  ======================================*/
 
+//  case class Linkage(self: SelfFamily, sup: SelfFamily, types: Map[String, (Marker, RecType)],
+//                     adts: Map[String, (Marker, ADT)], funs: Map[String, (FunType, Lam)])
 
+  // G is the typing context
+  // K is the linkage context
+  def linkage_ok (lkg: Linkage, G: Map[String, Type], K: Map[FamilyPath, Linkage]): Boolean = {
+    // forall (R = {(f: T)*}) in TYPES, WF({(f: T)*})
+    (lkg.types.filter{case (s, (m, rt)) => !wf(rt, K)}.isEmpty &&
 
+    // forall (R = \overline{C {(f: T)*}}) in ADTS, WF({(f: T)*})
+    lkg.adts.filter{ case (s, (m, adt)) =>
+        adt.cs.exists{ case (s, rt) => !wf(rt, K)} // exists an ADT that's not well-formed
+    }.isEmpty &&
+
+    // forall (m : (T -> T') = (lam (x : T). body)),
+    //    G |- lam (x : T). body : T -> T'
+    lkg.funs.filter{ case (s, (ft, lam)) => !typCheck(lam, ft, G, K)}.isEmpty)
+  }
+
+  /*====================================== LINKAGE CONCATENATION  ======================================*/
+
+  // the assumption is that all linkages in K are incomplete
+  def complete_linkage(fam: FamilyPath, K: Map[FamilyPath, Linkage]): Linkage = {
+    fam match {
+      // K |- self(A) ~> [[self(A)]]
+      // ____________________________ L-Qual
+      // K |- A ~> [[A]]
+      case AbsoluteFamily(f) => complete_linkage(SelfFamily(f), K)
+
+      // A ~> [self(A)] in K
+      // K |- super(A) ~> [[self(P)]]
+      // [[self(P)]] + [self(A)] = [[self(A)]]
+      // _______________________________________ L-Self
+      // K |- self(A) ~> [[self(A)]]
+      case _ => K.get(fam) match { // do we have a linkage for this family?
+        case Some(lkg) => // have an incomplete? let's build a complete one
+          if (lkg.sup == null) then { // no parent? no problem
+            concat(null, lkg) // concat with empty complete linkage and return
+          } else {
+            val parent = lkg.sup;
+            val complete_super = complete_linkage(parent, K)
+            concat(complete_super, lkg)
+          }
+        case _ => null // none? tough luck :c
+      }
+    }
+  }
+
+  // concatenates two linkages
+  // lkg1 is complete
+  // lkg2 is incomplete
+  def concat(lkg1: Linkage, lkg2: Linkage): Linkage = {
+
+    // TODO: Syntactic Transformation
+    // In linkage for Family A, replace self(A) with self(B).
+
+    Linkage(lkg2.self, lkg1.self, concat_types(lkg1.types, lkg2.types),
+      concat_adts(lkg1.adts, lkg2.adts), concat_funs(lkg1.funs, lkg2.funs))
+  }
+
+  def concat_types(types1: Map[String, (Marker, RecType)], types2: Map[String, (Marker, RecType)]) : Map[String, (Marker, RecType)] = {
+    // not extended in the child
+    val unchanged_parent_types = types1.filter{case (k,(m,v)) => !types2.contains(k)}
+    // types that are being extended in the child
+    val extended_types = types2.filter{case (k, (m,v)) => types1.contains(k)}
+    // types that are completely new in child
+    val new_types = types2.filter{case (k, (m,v)) => !types1.contains(k)}
+
+    null
+
+  }
+
+  def concat_adts(adts1: Map[String, (Marker, ADT)], adts2: Map[String, (Marker, ADT)]) : Map[String, (Marker, ADT)] = {
+    null
+  }
+
+  def concat_funs(funs1: Map[String, (FunType, Lam)], funs2: Map[String, (FunType, Lam)]) : Map[String, (FunType, Lam)] = {
+    null
+  }
 
 
 
