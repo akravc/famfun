@@ -356,16 +356,40 @@ object famlang {
     // not extended in the child
     val unchanged_parent_types = types1.filter{case (k,(m,v)) => !types2.contains(k)}
     // types that are being extended in the child
-    val extended_types = types2.filter{case (k, (m,v)) => types1.contains(k)}
+    val types_to_extend = types2.filter{case (k, (m,v)) => types1.contains(k)}
     // types that are completely new in child
     val new_types = types2.filter{case (k, (m,v)) => !types1.contains(k)}
 
-    null
-
+    // actually extending the types
+    val extended_types = types_to_extend.map{
+      case (k, (m,rt)) =>
+        types1.get(k) match {
+          case Some((_, rtype)) => (k, (Eq, RecType((rt.fields).++(rtype.fields)))) // this can be done w/o overriding
+          case _ => assert(false) // unreachable by definition
+        }
+    }
+    // the actual result is all of these combined
+    (unchanged_parent_types.++(extended_types)).++(new_types)
   }
 
   def concat_adts(adts1: Map[String, (Marker, ADT)], adts2: Map[String, (Marker, ADT)]) : Map[String, (Marker, ADT)] = {
-    null
+    // not extended in the child
+    val unchanged_parent_adts = adts1.filter{case (k,(m,a)) => !adts2.contains(k)}
+    // adts that are being extended in the child
+    val adts_to_extend = adts2.filter{case (k, (m,a)) => adts1.contains(k)}
+    // adts that are completely new in child
+    val new_adts = adts2.filter{case (k, (m,a)) => !adts1.contains(k)}
+
+    // actually extending the adts
+    val extended_adts = adts_to_extend.map{
+      case (k, (m, a)) =>
+        adts1.get(k) match {
+          case Some((_, adt)) => (k, (Eq, ADT((a.cs).++(adt.cs)))) // this can be done w/o overriding
+          case _ => assert(false) // unreachable by definition
+        }
+    }
+    // the actual result is all of these combined
+    (unchanged_parent_adts.++(extended_adts)).++(new_adts)
   }
 
   def concat_funs(funs1: Map[String, (FunType, Lam)], funs2: Map[String, (FunType, Lam)]) : Map[String, (FunType, Lam)] = {
