@@ -110,4 +110,11 @@ object TestFamParser extends FamParser {
       case Error(msg,_) => println(s"ERROR: $msg")
     }
   }
+
+  def canParse[T](p: PackratParser[T], inp: String) = parseAll(phrase(p), inp).successful
+  def parse1[T](p: PackratParser[T], inp: String, r: Any) = parseAll(phrase(p), inp) match {
+    case Success(matched, _) if matched == r => true
+    case Success(matched, _) => println(matched); false
+    case _ => false
+  }
 }
