@@ -393,7 +393,26 @@ object famlang {
   }
 
   def concat_funs(funs1: Map[String, (FunType, Lam)], funs2: Map[String, (FunType, Lam)]) : Map[String, (FunType, Lam)] = {
-    null
+    // functions from parent, not overridden in child
+    val unchanged_parent_funs = funs1.filter{case (k,(ft,lam)) => !funs2.contains(k)}
+    // functions that child overrides
+    val funs_to_override = funs2.filter{case (k, (ft, lam)) => funs1.contains(k)}
+    // new functions in child
+    val new_funs = funs2.filter{case (k, (ft, lam)) => !funs1.contains(k)}
+
+    val overridden_funs = funs_to_override.map{
+      case (k, (ft, lam)) =>
+        funs1.get(k) match {
+          case Some((ftype, fdef)) =>
+            if (ft != ftype) then {
+              throw new Exception("Attempting to override function with conflicting type.")
+            } else (k, (ft, fdef)) // otherwise, just use new definition from child (fdef)
+          case _ => assert(false) // unreachable by definition
+        }
+    }
+
+    // the actual result is all of these combined
+    (unchanged_parent_funs.++(overridden_funs)).++(new_funs)
   }
 
 
