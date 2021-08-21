@@ -1,5 +1,4 @@
 import org.scalatest.funsuite.AnyFunSuite
-import scala.util.Success
 import famlang._
 import TestFamParser._
 
