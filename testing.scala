@@ -5,6 +5,6 @@ import TestFamParser._
 class Testing extends AnyFunSuite {
   test("types: nat") {
     assert(canParse(typ, "N"))
-    assert(parse1(typ, "N", N))
+    assertResult(N){parseSuccess(typ, "N")}
   }
 }

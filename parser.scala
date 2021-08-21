@@ -111,10 +111,7 @@ object TestFamParser extends FamParser {
     }
   }
 
-  def canParse[T](p: PackratParser[T], inp: String) = parseAll(phrase(p), inp).successful
-  def parse1[T](p: PackratParser[T], inp: String, r: Any) = parseAll(phrase(p), inp) match {
-    case Success(matched, _) if matched == r => true
-    case Success(matched, _) => println(matched); false
-    case _ => false
-  }
+  def parse0[T](p: PackratParser[T], inp: String) = parseAll(phrase(p), inp)
+  def canParse[T](p: PackratParser[T], inp: String) = parse0(p, inp).successful
+  def parseSuccess[T](p: PackratParser[T], inp: String) = parse0(p, inp).get
 }
