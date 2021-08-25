@@ -1,7 +1,7 @@
 import scala.util.Success
 import scala.util.parsing.combinator.*
+import scala.util.parsing.combinator.lexical.StdLexical
 import famlang._
-
 
 /*
 Family A (extends B)? {
@@ -9,23 +9,9 @@ Family A (extends B)? {
     type R (+)?= \overline{C {(f: T)*}}         % extensible ADTs
     val m : (T -> T') = (lam (x : T). body)     % functions w/ inputs
 }
-
-FamilyDef has a family, a super, type defs, ADT defs, fundefs
  */
 
-
-sealed class Definition
-case class FunDef(name: String, t: FunType, df: Lam)
-case class TypeDef(name: String, t: RecType)
-case class ADTDef(name: String, adt: ADT)
-
-
-class FamParser extends RegexParsers with PackratParsers {
-
-  // optional punctuation
-  def oparen: Parser[String] = """\(?""".r ^^ { _.toString }
-  def cparen: Parser[String] = """\)?""".r ^^ { _.toString }
-  def comma: Parser[String] = """,?""".r ^^ { _.toString }
+class FamParser extends StdLexical with RegexParsers with PackratParsers {
 
   // NAMES
   def var_name: Parser[String] = """[a-z]""".r ^^ { _.toString }
@@ -35,14 +21,18 @@ class FamParser extends RegexParsers with PackratParsers {
   def field_name: Parser[String] = """([a-z0-9])+""".r ^^ { _.toString }
   def constructor_name: Parser[String] = """[A-Z][a-z]*""".r ^^ { _.toString }
 
+  // KEYWORDS
+  def kw_match : Parser[Token] = """match""".r ^^ { _ => Keyword("match")}
+  def kw_with : Parser[Token] = """with""".r ^^ { _ => Keyword("with")}
+
   // FAMILY PATHS
   lazy val fampath : PackratParser[FamilyPath] =
     family_name ^^ {s => AbsoluteFamily(Family(s))}
     | "self(" ~> family_name <~ ")" ^^ {s => SelfFamily(Family(s))}
 
   // TYPES
-  lazy val funtype: PackratParser[FunType] = "(" ~> typ ~ "->" ~ typ <~ ")" ^^ { case inp~_~out => FunType(inp, out)}
-  lazy val recfield: PackratParser[(String, Type)] = field_name ~ ":" ~ typ ^^ {case k~":"~v => k -> v}
+  lazy val funtype: PackratParser[FunType] = typ ~ "->" ~ typ ^^ { case inp~_~out => FunType(inp, out)}
+  lazy val recfield: PackratParser[(String, Type)] = field_name ~ ":" ~ typ ^^ {case k~_~v => k -> v}
   lazy val rectype: PackratParser[RecType] = "{"~> repsep(recfield, ",") <~"}" ^^ {case lst => RecType(lst.toMap)}
   lazy val famtype: PackratParser[FamType] = fampath ~ "." ~ type_name ^^ { case p~_~t => FamType(p, t)}
   lazy val ntype: PackratParser[Type] = "N" ^^ (_ => N)
@@ -59,27 +49,27 @@ class FamParser extends RegexParsers with PackratParsers {
   lazy val exp_bool_false: PackratParser[Bexp] = "false" ^^ {_ => Bexp(false)}
   lazy val exp_nat: PackratParser[Nexp] = """(0|[1-9]\d*)""".r ^^ { n => Nexp(n.toInt) }
   lazy val exp_var: PackratParser[Var] = var_name ^^ {id => Var(id)}
-  lazy val lam_input: PackratParser[(Var, Type)] = "(" ~> exp_var ~ ":" ~ typ <~ ")" ^^ {case v~":"~t => v -> t}
+  lazy val lam_input: PackratParser[(Var, Type)] = "(" ~> exp_var ~ ":" ~ typ <~ ")" ^^ {case v~_~t => v -> t}
   lazy val exp_lam: PackratParser[Lam] =
     "lam" ~> lam_input ~ "." ~ exp ^^ {case inp~_~body => Lam(inp._1, inp._2, body)}
 
-  lazy val exp_famfun: PackratParser[FamFun] = fampath ~ "." ~ function_name ^^ {case p~"."~n => FamFun(p, n)}
+  lazy val exp_famfun: PackratParser[FamFun] = fampath ~ "." ~ function_name ^^ {case p~_~n => FamFun(p, n)}
   lazy val exp_app: PackratParser[App] = exp ~ exp ^^ {case e~g => App(e, g)}
   lazy val exp_proj: PackratParser[Proj] = exp ~ "." ~ field_name ^^ {case e~_~n => Proj(e, n)}
-  lazy val field_val: PackratParser[(String, Expression)] = field_name ~ "=" ~ exp ^^ {case k~":"~v => k -> v}
+  lazy val field_val: PackratParser[(String, Expression)] = field_name ~ "=" ~ exp ^^ {case k~_~v => k -> v}
   lazy val exp_rec: PackratParser[Rec] = "{"~> repsep(field_val, ",") <~"}" ^^ {case lst => Rec(lst.toMap)}
-  lazy val exp_inst: PackratParser[Inst] = famtype ~ "(" ~ exp_rec <~ ")" ^^ {case t~"("~r => Inst(t, r)}
+  lazy val exp_inst: PackratParser[Inst] = famtype ~ "(" ~ exp_rec <~ ")" ^^ {case t~_~r => Inst(t, r)}
   lazy val exp_inst_adt: PackratParser[InstADT] =
-    famtype ~ "(" ~ constructor_name ~ exp_rec <~ ")" ^^ {case t~"("~c~r => InstADT(t, c, r)}
+    famtype ~ "(" ~ constructor_name ~ exp_rec <~ ")" ^^ {case t~_~c~r => InstADT(t, c, r)}
 
-  lazy val match_case: PackratParser[(String, Lam)] = constructor_name ~ "=>" ~ exp_lam ^^ {case k~"=>"~v => k -> v}
+  lazy val match_case: PackratParser[(String, Lam)] = constructor_name ~ "=>" ~ exp_lam ^^ {case k~_~v => k -> v}
   lazy val exp_match: PackratParser[Match] =
-    "match" ~> exp ~ "with" ~ repsep(match_case, "|") <~ "." ^^ {case e~_~lst => Match(e, lst.toMap)}
+    kw_match ~> exp ~ kw_with ~ repsep(match_case, "|") ^^ {case e~_~lst => Match(e, lst.toMap)}
 
   lazy val exp: PackratParser[Expression] =
-    exp_app | exp_proj | exp_famfun
+  exp_match | exp_app | exp_proj | exp_famfun
   | exp_lam | exp_bool_true | exp_bool_false | exp_nat
-  | exp_match | exp_inst_adt | exp_inst | exp_rec
+  | exp_inst_adt | exp_inst | exp_rec
   | exp_var
   | "(" ~> exp <~ ")"
 
@@ -93,7 +83,7 @@ class FamParser extends RegexParsers with PackratParsers {
   lazy val adtdef: PackratParser[(String, (Marker, ADT))] =
     "type" ~> type_name ~ marker ~ adt ^^ {case n~m~a => (n -> (m -> a))}
   lazy val fundef: PackratParser[(String, (FunType, Lam))] =
-    "val" ~> function_name ~ ":" ~ funtype ~ "=" ~ exp_lam ^^ {case m~":"~t~"="~b => m -> (t -> b)}
+    "val" ~> function_name ~ ":" ~ funtype ~ "=" ~ exp_lam ^^ {case m~_~t~_~b => m -> (t -> b)}
 
   lazy val famdef: PackratParser[Linkage] =
     "Family" ~> family_name ~ "extends" ~ family_name ~ "{" ~ rep(typedef) ~ rep(adtdef) ~ rep(fundef) <~ "}" ^^
