@@ -10,9 +10,14 @@ Family A (extends B)? {
  */
 
 class FamParser extends RegexParsers with PackratParsers {
+  // KEYWORDS
+  val kwMatch = "match\\b".r
+  val kwWith = "with\\b".r
+
+  val reserved: Parser[String] = ( kwMatch | kwWith )
 
   // NAMES
-  def var_name: Parser[String] = """[a-z]""".r ^^ { _.toString }
+  def var_name: Parser[String] = not(reserved) ~> """[a-z]""".r ^^ { _.toString }
   def family_name: Parser[String] = """[A-Z][a-z]*""".r ^^ { _.toString }
   def type_name: Parser[String] = """[A-Z][a-z]*""".r ^^ { _.toString }
   def function_name: Parser[String] = """[a-z]+""".r ^^ { _.toString }
