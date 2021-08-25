@@ -100,16 +100,7 @@ class ParserTesting extends AnyFunSuite {
       InstADT(FamType(AbsoluteFamily(Family("A")), "R"), "C", Rec(Map()))
     ){parseSuccess(exp, "A.R(C {})")}
   }
-
-  test("exp: kw testing") {
-    assert(canParse(kw_match, "match"))
-    assertResult(Keyword("match")){parseSuccess(kw_match, "match")}
-  }
-
-  test("exp: kw testing 2") {
-    assert(canParse(kw_with, "with"))
-    assertResult(Keyword("with")){parseSuccess(kw_with, "with")}
-  }
+  
 
   test("exp: match") {
     assert(canParse(exp, " match x with A => lam (y: B). true | B => lam (z: N). z "))

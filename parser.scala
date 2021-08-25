@@ -21,10 +21,6 @@ class FamParser extends StdLexical with RegexParsers with PackratParsers {
   def field_name: Parser[String] = """([a-z0-9])+""".r ^^ { _.toString }
   def constructor_name: Parser[String] = """[A-Z][a-z]*""".r ^^ { _.toString }
 
-  // KEYWORDS
-  def kw_match : Parser[Token] = """match""".r ^^ { _ => Keyword("match")}
-  def kw_with : Parser[Token] = """with""".r ^^ { _ => Keyword("with")}
-
   // FAMILY PATHS
   lazy val fampath : PackratParser[FamilyPath] =
     family_name ^^ {s => AbsoluteFamily(Family(s))}
@@ -64,7 +60,7 @@ class FamParser extends StdLexical with RegexParsers with PackratParsers {
 
   lazy val match_case: PackratParser[(String, Lam)] = constructor_name ~ "=>" ~ exp_lam ^^ {case k~_~v => k -> v}
   lazy val exp_match: PackratParser[Match] =
-    kw_match ~> exp ~ kw_with ~ repsep(match_case, "|") ^^ {case e~_~lst => Match(e, lst.toMap)}
+    "match" ~> exp ~ "with" ~ repsep(match_case, "|") ^^ {case e~_~lst => Match(e, lst.toMap)}
 
   lazy val exp: PackratParser[Expression] =
   exp_match | exp_app | exp_proj | exp_famfun
