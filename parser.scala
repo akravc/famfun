@@ -1,6 +1,4 @@
-import scala.util.Success
 import scala.util.parsing.combinator.*
-import scala.util.parsing.combinator.lexical.StdLexical
 import famlang._
 
 /*
@@ -11,7 +9,7 @@ Family A (extends B)? {
 }
  */
 
-class FamParser extends StdLexical with RegexParsers with PackratParsers {
+class FamParser extends RegexParsers with PackratParsers {
 
   // NAMES
   def var_name: Parser[String] = """[a-z]""".r ^^ { _.toString }
