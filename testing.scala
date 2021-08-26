@@ -100,12 +100,121 @@ class ParserTesting extends AnyFunSuite {
       InstADT(FamType(AbsoluteFamily(Family("A")), "R"), "C", Rec(Map()))
     ){parseSuccess(exp, "A.R(C {})")}
   }
-  
 
   test("exp: match") {
-    assert(canParse(exp, " match x with A => lam (y: B). true | B => lam (z: N). z "))
-    print(parseSuccess(exp, "match x with A => lam (y: B). true | B => lam (z: N). z"))
+    assert(canParse(exp, " match x with A => lam (y: B). true | C => lam (z: N). z "))
+    assertResult(
+      Match(Var("x"), Map("A"->Lam(Var("y"), B, Bexp(true)), "C"->Lam(Var("z"), N, Var("z"))))
+    ){parseSuccess(exp, "match x with A => lam (y: B). true | C => lam (z: N). z")}
   }
+
+  // Parsing Families
+  test("famdef one type") {
+    assert(canParse(
+      famdef, "Family A { type T = {f: B, n: N}}"
+    ))
+    assertResult(
+      Linkage(SelfFamily(Family("A")), null, Map("T"->(Eq, RecType(Map("f"->B, "n"->N)))), Map(), Map())
+    ){parseSuccess(famdef, "Family A { type T = {f: B, n: N}}")}
+  }
+
+  test("famdef extends") {
+    assert(canParse(
+      famdef, "Family A extends C { type T = {f: B, n: N}}"
+    ))
+    assertResult(
+      Linkage(SelfFamily(Family("A")), SelfFamily(Family("C")),
+        Map("T"->(Eq, RecType(Map("f"->B, "n"->N)))), Map(), Map())
+    ){parseSuccess(famdef, "Family A extends C { type T = {f: B, n: N}}")}
+  }
+
+  test("famdef extends and plusEquals") {
+    assert(canParse(
+      famdef, "Family A extends C { type T += {f: B, n: N}}"
+    ))
+    assertResult(
+      Linkage(SelfFamily(Family("A")), SelfFamily(Family("C")),
+        Map("T"->(PlusEq, RecType(Map("f"->B, "n"->N)))), Map(), Map())
+    ){parseSuccess(famdef, "Family A extends C { type T += {f: B, n: N}}")}
+  }
+
+  test("famdef multiple types") {
+    assert(canParse(famdef,
+      "Family A { " +
+        "type T = {f: B, n: N} " +
+        "type R = {s: self(A).T}" +
+        "}"
+    ))
+    assertResult(
+      Linkage(SelfFamily(Family("A")), null,
+        Map("T"->(Eq, RecType(Map("f"->B, "n"->N))),
+            "R"->(Eq, RecType(Map("s"->FamType(SelfFamily(Family("A")), "T"))))),
+        Map(), Map())
+    ){parseSuccess(famdef,
+      "Family A { " +
+      "type T = {f: B, n: N} " +
+      "type R = {s: self(A).T}" +
+      "}")}
+  }
+
+  test("famdef types + ADTs") {
+    assert(canParse(famdef,
+      "Family A { " +
+        "type T = {f: B, n: N} " +
+        "type R = {s: self(A).T}" +
+        "type List = Nil {} | Cons {x: N, tail: self(A).List}" +
+        "}"
+    ))
+    assertResult(
+      Linkage(SelfFamily(Family("A")), null,
+        // types
+        Map("T"->(Eq, RecType(Map("f"->B, "n"->N))),
+          "R"->(Eq, RecType(Map("s"->FamType(SelfFamily(Family("A")), "T"))))),
+        // adts
+        Map("List"->
+          (Eq, ADT(Map(
+            "Nil"->RecType(Map()),
+            "Cons"->RecType(Map("x"->N, "tail"->FamType(SelfFamily(Family("A")), "List"))))))),
+        Map())
+    ){parseSuccess(famdef,
+      "Family A { " +
+        "type T = {f: B, n: N} " +
+        "type R = {s: self(A).T}" +
+        "type List = Nil {} | Cons {x: N, tail: self(A).List}" +
+        "}")}
+  }
+
+  test("famdef can parse multiple types and ADTs") {
+    assert(canParse(famdef,
+      "Family A { " +
+        "type T = {f: B, n: N} " +
+        "type R = {s: self(A).T}" +
+        "type List = Nil {} | Cons {x: N, tail: self(A).List}" +
+        "type Weekend = Sat {} | Sun {}" +
+        "}"
+    ))
+  }
+
+  test("famdef can parse types, adts, functions") {
+    assert(canParse(famdef,
+      "Family A { " +
+        "type T = {f: B, n: N} " +
+        "type R = {s: self(A).T}" +
+        "type List = Nil {} | Cons {x: N, tail: self(A).List}" +
+        "type Weekend = Sat {} | Sun {}" +
+        "val identity: (B -> B) = lam (x: B). x" +
+        "}"
+    ))
+  }
+
+
+
+
+
+
+
+
+
 
 
 
