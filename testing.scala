@@ -207,6 +207,21 @@ class ParserTesting extends AnyFunSuite {
     ))
   }
 
+  // Testing Exceptions
+  test("exception: duplicate fields in record") {
+    assertThrows[Exception](parse(exp, "{f: N, f: B}"))
+  }
+
+  test("exception: duplicate constructors in ADT") {
+    assertThrows[Exception](parse(adt, "A {} | A {}"))
+  }
+
+
+
+
+
+
+
 
 
 
