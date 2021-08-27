@@ -1,72 +1,47 @@
 object famlang {
   // Families & Paths
   case class Family(name: String)
-
-  sealed class FamilyPath
-
-  case class AbsoluteFamily(fam: Family) extends FamilyPath
-
-  case class SelfFamily(fam: Family) extends FamilyPath
-
+  sealed class FamilyPath // a
+  case class AbsoluteFamily(fam: Family) extends FamilyPath // A
+  case class SelfFamily(fam: Family) extends FamilyPath // self(A)
 
   // Types
   sealed class Type
-
   case object N extends Type
-
   case object B extends Type
-
-  case class FamType(path: FamilyPath, name: String) extends Type
-
-  case class FunType(input: Type, output: Type) extends Type
-
-  case class RecType(fields: Map[String, Type]) extends Type
+  case class FamType(path: FamilyPath, name: String) extends Type // a.R
+  case class FunType(input: Type, output: Type) extends Type // T -> T'
+  case class RecType(fields: Map[String, Type]) extends Type // {(f: T)*}
 
   // ADTs
   case class ADT(cs: Map[String, RecType])
 
   // Expressions
   sealed class Expression
-
-  case class Var(id: String) extends Expression
-
-  case class Lam(v: Var, t: Type, body: Expression) extends Expression
-
-  case class FamFun(path: FamilyPath, name: String) extends Expression
-
-  case class App(e1: Expression, e2: Expression) extends Expression
-
-  case class Rec(fields: Map[String, Expression]) extends Expression
-
-  case class Proj(e: Expression, name: String) extends Expression
-
-  case class Inst(t: FamType, rec: Rec) extends Expression
-
-  case class InstADT(t: FamType, cname: String, rec: Rec) extends Expression
-
-  case class Match(e: Expression, cases: Map[String, Lam]) extends Expression
-
+  case class Var(id: String) extends Expression // x
+  case class Lam(v: Var, t: Type, body: Expression) extends Expression // lam (x: T). body
+  case class FamFun(path: FamilyPath, name: String) extends Expression // a.m
+  case class App(e1: Expression, e2: Expression) extends Expression // e g
+  case class Rec(fields: Map[String, Expression]) extends Expression // {(f = e)*}
+  case class Proj(e: Expression, name: String) extends Expression // e.f
+  case class Inst(t: FamType, rec: Rec) extends Expression // a.R({(f = e)*})
+  case class InstADT(t: FamType, cname: String, rec: Rec) extends Expression // a.R(C {(f = e)*})
+  case class Match(e: Expression, cases: Map[String, Lam]) extends Expression // match e with (C => g)*
   case class Nexp(n: Int) extends Expression
-
   case class Bexp(b: Boolean) extends Expression
 
-  // Linkages
   /*
-
   [ SELF = self(A)                                                            ]
   | SUPER = self(B)                                                           |
   | TYPES = \overline{ R (+)?= {(f: T)*} }                                    | % types
   | ADTS = \overline{ R (+)?= \overline{C {(f: T)*}} }                        | % ADTs
   [ FUNS = \overline{ m : (T -> T') = (lam (x : T). body) }                   ] % function defs
-
   */
 
+  // Linkages
   sealed class Marker // either += or =
-
-  case object PlusEq extends Marker // type extension
-
-  case object Eq extends Marker // type definition
-
+  case object PlusEq extends Marker // type extension marker
+  case object Eq extends Marker // type definition marker
   case class Linkage(self: SelfFamily, sup: SelfFamily, types: Map[String, (Marker, RecType)],
                      adts: Map[String, (Marker, ADT)], funs: Map[String, (FunType, Lam)])
 
@@ -88,6 +63,7 @@ object famlang {
 
   // Well-Formedness Rules
   // K is the linkage context
+  // ASSUMPTION: Linkages in K are complete and well-formed
   def wf(t: Type, K: Map[FamilyPath, Linkage]): Boolean = t match {
     case N => true
     case B => true
@@ -103,10 +79,10 @@ object famlang {
 
   /*====================================== TYPING ======================================*/
 
-
   // Type Inference
   // G is the typing context, K is the linkage context
   // Infer the type of expression exp
+  // ASSUMPTION: Linkages are complete and well-formed
   def typInf(exp: Expression, G: Map[String, Type], K: Map[FamilyPath, Linkage]): Option[Type] = exp match {
 
     // _________________ T_Num
@@ -289,33 +265,12 @@ object famlang {
       case (_, _) => (t1 == t2) // defer to equality
     }
 
-
-  /*====================================== LINKAGE WELL-FORMEDNESS  ======================================*/
-
-//  case class Linkage(self: SelfFamily, sup: SelfFamily, types: Map[String, (Marker, RecType)],
-//                     adts: Map[String, (Marker, ADT)], funs: Map[String, (FunType, Lam)])
-
-  // G is the typing context
-  // K is the linkage context
-  def linkage_ok (lkg: Linkage, G: Map[String, Type], K: Map[FamilyPath, Linkage]): Boolean = {
-    // forall (R = {(f: T)*}) in TYPES, WF({(f: T)*})
-    (lkg.types.filter{case (s, (m, rt)) => !wf(rt, K)}.isEmpty &&
-
-    // forall (R = \overline{C {(f: T)*}}) in ADTS, WF({(f: T)*})
-    lkg.adts.filter{ case (s, (m, adt)) =>
-        adt.cs.exists{ case (s, rt) => !wf(rt, K)} // exists an ADT that's not well-formed
-    }.isEmpty &&
-
-    // forall (m : (T -> T') = (lam (x : T). body)),
-    //    G |- lam (x : T). body : T -> T'
-    lkg.funs.filter{ case (s, (ft, lam)) => !typCheck(lam, ft, G, K)}.isEmpty)
-  }
-
   /*====================================== LINKAGE CONCATENATION  ======================================*/
 
-  // the assumption is that all linkages in K are incomplete
-  def complete_linkage(fam: FamilyPath, K: Map[FamilyPath, Linkage]): Linkage = {
-    fam match {
+  // Given a context of incomplete linkages, produce a complete linkage for some family path fpath
+  // ASSUMPTION: linkages in K are incomplete
+  def complete_linkage(fpath: FamilyPath, K: Map[FamilyPath, Linkage]): Linkage = {
+    fpath match {
       // K |- self(A) ~> [[self(A)]]
       // ____________________________ L-Qual
       // K |- A ~> [[A]]
@@ -326,30 +281,77 @@ object famlang {
       // [[self(P)]] + [self(A)] = [[self(A)]]
       // _______________________________________ L-Self
       // K |- self(A) ~> [[self(A)]]
-      case _ => K.get(fam) match { // do we have a linkage for this family?
+      case SelfFamily(Family(fname)) => K.get(fpath) match { // do we have a linkage for this family?
         case Some(lkg) => // have an incomplete? let's build a complete one
           if (lkg.sup == null) then { // no parent? no problem
             concat(null, lkg) // concat with empty complete linkage and return
           } else {
+            // A ~> [self(A)] in K
+            // K |- [self(A)].super ~> [[self(P)]]
+            // _____________________________________ L-Super
+            // K |- super(A) ~> [[self(P)]]
             val parent = lkg.sup;
             val complete_super = complete_linkage(parent, K)
             concat(complete_super, lkg)
           }
-        case _ => null // none? tough luck :c
+        case _ => throw new Exception("No incomplete linkage exists for family " + fname) // none? tough luck :c
       }
+      case _ => assert(false) // path is neither self nor absolute
+    }
+  }
+
+  // HELPERS for concatenating linkages: replace self(A) with self(B) in types and expressions
+
+  // replace self-paths p1 with self-paths p2 in a type
+  def update_self_in_type(t: Type, p1: SelfFamily, p2: SelfFamily): Type = {
+    t match {
+      case FamType(path, name) =>
+        if (path == p1) then FamType(p2, name) else FamType(path, name)
+      case FunType(t1, t2) => FunType(update_self_in_type(t1, p1, p2), update_self_in_type(t2, p1, p2))
+      case RecType(m) => RecType(m.map{case (s, ft) => (s, update_self_in_type(ft, p1, p2))})
+      case _ => t
+    }
+  }
+
+  // replace self-paths p1 with self-paths p2 in an expression
+  def update_self_in_exp(e: Expression, p1: SelfFamily, p2: SelfFamily): Expression = {
+    e match {
+      case Lam(v, t, body) => Lam(v, update_self_in_type(t, p1, p2), update_self_in_exp(body, p1, p2))
+      case FamFun(path, name) => if (path == p1) then FamFun(p2, name) else FamFun(path, name)
+      case App(e1, e2) => App(update_self_in_exp(e1, p1, p2), update_self_in_exp(e2, p1, p2))
+      case Rec(m) => Rec(m.map{case (s, fex) => (s, update_self_in_exp(fex, p1, p2))})
+      case Proj(exp, name) => Proj(update_self_in_exp(exp, p1, p2), name)
+      case Inst(t, rec) =>
+        Inst(update_self_in_type(t, p1, p2).asInstanceOf[FamType], update_self_in_exp(rec, p1, p2).asInstanceOf[Rec])
+      case InstADT(t, cname, rec) =>
+        InstADT(update_self_in_type(t, p1, p2).asInstanceOf[FamType], cname, update_self_in_exp(rec, p1, p2).asInstanceOf[Rec])
+      case Match(exp, cases) =>
+        Match(update_self_in_exp(exp, p1, p2),
+          cases.map{case (s, l) => (s, update_self_in_exp(l, p1, p2).asInstanceOf[Lam])})
+      case _ => e
     }
   }
 
   // concatenates two linkages
-  // lkg1 is complete
-  // lkg2 is incomplete
-  def concat(lkg1: Linkage, lkg2: Linkage): Linkage = {
+  // ASSUMPTION: lkgA is complete, lkgB is incomplete
+  def concat(lkgA: Linkage, lkgB: Linkage): Linkage = {
 
-    // TODO: Syntactic Transformation
+    // Syntactic Transformation
     // In linkage for Family A, replace self(A) with self(B).
+    val p1 = lkgA.self
+    val p2 = lkgB.self
+    val updated_types =
+      lkgA.types.map{case (s, (m, rt)) => (s, (m, update_self_in_type(rt, p1, p2).asInstanceOf[RecType]))}
+    val updated_adts =
+      lkgA.adts.map{case (s, (m, adt)) =>
+        (s, (m, ADT(adt.cs.map{case(s, rt) => (s, update_self_in_type(rt, p1, p2).asInstanceOf[RecType])})))}
+    val updated_funs =
+      lkgA.funs.map{case (s, (ft, lm)) =>
+        (s, (update_self_in_type(ft, p1, p2).asInstanceOf[FunType], update_self_in_exp(lm, p1, p2).asInstanceOf[Lam]))}
 
-    Linkage(lkg2.self, lkg1.self, concat_types(lkg1.types, lkg2.types),
-      concat_adts(lkg1.adts, lkg2.adts), concat_funs(lkg1.funs, lkg2.funs))
+    // Concat and create new, complete linkage
+    Linkage(lkgB.self, lkgA.self, concat_types(updated_types, lkgB.types),
+      concat_adts(updated_adts, lkgB.adts), concat_funs(updated_funs, lkgB.funs))
   }
 
   def concat_types(types1: Map[String, (Marker, RecType)], types2: Map[String, (Marker, RecType)]) : Map[String, (Marker, RecType)] = {
@@ -364,7 +366,12 @@ object famlang {
     val extended_types = types_to_extend.map{
       case (k, (m,rt)) =>
         types1.get(k) match {
-          case Some((_, rtype)) => (k, (Eq, RecType((rt.fields).++(rtype.fields)))) // this can be done w/o overriding
+          case Some((_, rtype)) =>
+            // make sure we're not repeating any fields
+            val combined = (rt.fields).++(rtype.fields)
+            if (combined.size != rt.fields.size + rtype.fields.size)
+            then throw new Exception("Concatenation resulted in duplicate fields in a record type.")
+            else (k, (Eq, RecType(combined)))
           case _ => assert(false) // unreachable by definition
         }
     }
@@ -384,7 +391,12 @@ object famlang {
     val extended_adts = adts_to_extend.map{
       case (k, (m, a)) =>
         adts1.get(k) match {
-          case Some((_, adt)) => (k, (Eq, ADT((a.cs).++(adt.cs)))) // this can be done w/o overriding
+          case Some((_, adt)) =>
+            // make sure we're not repeating any constructors
+            val combined = (a.cs).++(adt.cs)
+            if (combined.size != a.cs.size + adt.cs.size)
+            then throw new Exception("Concatenation resulted in duplicate constructors in an ADT.")
+            else (k, (Eq, ADT(combined)))
           case _ => assert(false) // unreachable by definition
         }
     }
@@ -415,6 +427,30 @@ object famlang {
     (unchanged_parent_funs.++(overridden_funs)).++(new_funs)
   }
 
+  /*====================================== LINKAGE WELL-FORMEDNESS  ======================================*/
 
+  // G is the typing context
+  // K is the linkage context
+  // ASSUMPTION: all linkages are complete
+  def linkage_ok (lkg: Linkage, G: Map[String, Type], K: Map[FamilyPath, Linkage]): Boolean = {
+    // forall (R = {(f: T)*}) in TYPES, WF({(f: T)*})
+    (lkg.types.filter{case (s, (m, rt)) => !wf(rt, K)}.isEmpty &&
+
+      // forall (R = \overline{C {(f: T)*}}) in ADTS, WF({(f: T)*})
+      lkg.adts.filter{ case (s, (m, adt)) =>
+        adt.cs.exists{ case (s, rt) => !wf(rt, K)} // exists an ADT that's not well-formed
+      }.isEmpty &&
+
+      // forall (m : (T -> T') = (lam (x : T). body)),
+      //    G |- lam (x : T). body : T -> T'
+      lkg.funs.filter{ case (s, (ft, lam)) => !typCheck(lam, ft, G, K)}.isEmpty)
+  }
+
+
+  /*====================================== PUTTING IT ALL TOGETHER  ======================================*/
+
+  // TODO: function that takes a program, performs the syntactic transformations, parses families into incomplete
+  // linkages, then concatenates to complete linkages, then does linkage checking, and returns a context of complete
+  // linkages for use with type checking and so on
 
 } // eof
