@@ -43,7 +43,8 @@ object famlang {
   case object PlusEq extends Marker // type extension marker
   case object Eq extends Marker // type definition marker
   case class Linkage(self: SelfFamily, sup: SelfFamily, types: Map[String, (Marker, RecType)],
-                     adts: Map[String, (Marker, ADT)], funs: Map[String, (FunType, Lam)])
+                     defaults: Map[String, (Marker, Rec)], adts: Map[String, (Marker, ADT)],
+                     funs: Map[String, (FunType, Lam)])
 
 
   /*====================================== VALUES ======================================*/
@@ -342,6 +343,8 @@ object famlang {
     val p2 = lkgB.self
     val updated_types =
       lkgA.types.map{case (s, (m, rt)) => (s, (m, update_self_in_type(rt, p1, p2).asInstanceOf[RecType]))}
+    val updated_defaults =
+      lkgA.defaults.map{case (s, (m, r)) => (s, (m, update_self_in_exp(r, p1, p2).asInstanceOf[Rec]))}
     val updated_adts =
       lkgA.adts.map{case (s, (m, adt)) =>
         (s, (m, ADT(adt.cs.map{case(s, rt) => (s, update_self_in_type(rt, p1, p2).asInstanceOf[RecType])})))}
@@ -351,7 +354,8 @@ object famlang {
 
     // Concat and create new, complete linkage
     Linkage(lkgB.self, lkgA.self, concat_types(updated_types, lkgB.types),
-      concat_adts(updated_adts, lkgB.adts), concat_funs(updated_funs, lkgB.funs))
+      concat_defaults(updated_defaults, lkgB.defaults), concat_adts(updated_adts, lkgB.adts),
+      concat_funs(updated_funs, lkgB.funs))
   }
 
   def concat_types(types1: Map[String, (Marker, RecType)], types2: Map[String, (Marker, RecType)]) : Map[String, (Marker, RecType)] = {
@@ -377,6 +381,31 @@ object famlang {
     }
     // the actual result is all of these combined
     (unchanged_parent_types.++(extended_types)).++(new_types)
+  }
+
+  def concat_defaults(defaults1: Map[String, (Marker, Rec)], defaults2: Map[String, (Marker, Rec)]) : Map[String, (Marker, Rec)] = {
+    // not extended in the child
+    val unchanged_parent_defaults = defaults1.filter{case (k,(m,v)) => !defaults2.contains(k)}
+    // defaults for types that are being extended in the child
+    val defaults_to_extend = defaults2.filter{case (k, (m,v)) => defaults1.contains(k)}
+    // defaults for types that are completely new in child
+    val new_defaults = defaults2.filter{case (k, (m,v)) => !defaults1.contains(k)}
+
+    // actually extending the defaults for extended types
+    val extended_defaults = defaults_to_extend.map{
+      case (k, (m,r)) =>
+        defaults1.get(k) match {
+          case Some((_, rcrd)) =>
+            // make sure we're not repeating any fields
+            val combined = (r.fields).++(rcrd.fields)
+            if (combined.size != r.fields.size + rcrd.fields.size)
+            then throw new Exception("Concatenation resulted in duplicate fields in a record of defaults.")
+            else (k, (Eq, Rec(combined)))
+          case _ => assert(false) // unreachable by definition
+        }
+    }
+    // the actual result is all of these combined
+    (unchanged_parent_defaults.++(extended_defaults)).++(new_defaults)
   }
 
   def concat_adts(adts1: Map[String, (Marker, ADT)], adts2: Map[String, (Marker, ADT)]) : Map[String, (Marker, ADT)] = {
@@ -435,6 +464,15 @@ object famlang {
   def linkage_ok (lkg: Linkage, G: Map[String, Type], K: Map[FamilyPath, Linkage]): Boolean = {
     // forall (R = {(f: T)*}) in TYPES, WF({(f: T)*})
     (lkg.types.filter{case (s, (m, rt)) => !wf(rt, K)}.isEmpty &&
+
+      // check that for every default record there is a type corresponding to it and the defaults typecheck
+      lkg.defaults.filter{
+        case (s, (m, r)) => !is_value(r) || // if the default is not a value or...
+          (lkg.types.get(s) match {
+            case Some(m, rt) => (rt != typInf(r, G, K).asInstanceOf[RecType]) // ...or the default has the wrong type
+            case _ => assert(false)
+          })
+      }.isEmpty &&
 
       // forall (R = \overline{C {(f: T)*}}) in ADTS, WF({(f: T)*})
       lkg.adts.filter{ case (s, (m, adt)) =>

@@ -111,57 +111,66 @@ class ParserTesting extends AnyFunSuite {
   // Parsing Families
   test("famdef one type") {
     assert(canParse(
-      famdef, "Family A { type T = {f: B, n: N}}"
+      famdef, "Family A { type T = {f: B = true, n: N = 3}}"
     ))
     assertResult(
-      Linkage(SelfFamily(Family("A")), null, Map("T"->(Eq, RecType(Map("f"->B, "n"->N)))), Map(), Map())
-    ){parseSuccess(famdef, "Family A { type T = {f: B, n: N}}")}
+      Linkage(SelfFamily(Family("A")), null,
+        Map("T"->(Eq, RecType(Map("f"->B, "n"->N)))),
+        Map("T"->(Eq, Rec(Map("f"->Bexp(true), "n"->Nexp(3))))),
+        Map(), Map())
+    ){parseSuccess(famdef, "Family A { type T = {f: B = true, n: N = 3}}")}
   }
 
   test("famdef extends") {
     assert(canParse(
-      famdef, "Family A extends C { type T = {f: B, n: N}}"
+      famdef, "Family A extends C { type T = {f: B = true, n: N = 3}}"
     ))
     assertResult(
       Linkage(SelfFamily(Family("A")), SelfFamily(Family("C")),
-        Map("T"->(Eq, RecType(Map("f"->B, "n"->N)))), Map(), Map())
-    ){parseSuccess(famdef, "Family A extends C { type T = {f: B, n: N}}")}
+        Map("T"->(Eq, RecType(Map("f"->B, "n"->N)))),
+        Map("T"->(Eq, Rec(Map("f"->Bexp(true), "n"->Nexp(3))))),
+        Map(), Map())
+    ){parseSuccess(famdef, "Family A extends C { type T = {f: B = true, n: N = 3}}")}
   }
 
   test("famdef extends and plusEquals") {
     assert(canParse(
-      famdef, "Family A extends C { type T += {f: B, n: N}}"
+      famdef, "Family A extends C { type T += {f: B = true, n: N = 3}}"
     ))
     assertResult(
       Linkage(SelfFamily(Family("A")), SelfFamily(Family("C")),
-        Map("T"->(PlusEq, RecType(Map("f"->B, "n"->N)))), Map(), Map())
-    ){parseSuccess(famdef, "Family A extends C { type T += {f: B, n: N}}")}
+        Map("T"->(PlusEq, RecType(Map("f"->B, "n"->N)))),
+        Map("T"->(PlusEq, Rec(Map("f"->Bexp(true), "n"->Nexp(3))))),
+        Map(), Map())
+    ){parseSuccess(famdef, "Family A extends C { type T += {f: B = true, n: N = 3}}")}
   }
 
   test("famdef multiple types") {
     assert(canParse(famdef,
       "Family A { " +
-        "type T = {f: B, n: N} " +
-        "type R = {s: self(A).T}" +
+        "type T = {f: B = true, n: N = 3} " +
+        "type R = {s: self(A).T = {}}" + // TODO: discuss default handling like this
         "}"
     ))
     assertResult(
       Linkage(SelfFamily(Family("A")), null,
         Map("T"->(Eq, RecType(Map("f"->B, "n"->N))),
             "R"->(Eq, RecType(Map("s"->FamType(SelfFamily(Family("A")), "T"))))),
+        Map("T"->(Eq, Rec(Map("f"->Bexp(true), "n"->Nexp(3)))),
+            "R"-> (Eq, Rec(Map("s"->Rec(Map()))))),
         Map(), Map())
     ){parseSuccess(famdef,
       "Family A { " +
-      "type T = {f: B, n: N} " +
-      "type R = {s: self(A).T}" +
+      "type T = {f: B = true, n: N = 3} " +
+      "type R = {s: self(A).T = {}}" +
       "}")}
   }
 
   test("famdef types + ADTs") {
     assert(canParse(famdef,
       "Family A { " +
-        "type T = {f: B, n: N} " +
-        "type R = {s: self(A).T}" +
+        "type T = {f: B = true, n: N = 3} " +
+        "type R = {s: self(A).T = {}}" +
         "type List = Nil {} | Cons {x: N, tail: self(A).List}" +
         "}"
     ))
@@ -170,6 +179,9 @@ class ParserTesting extends AnyFunSuite {
         // types
         Map("T"->(Eq, RecType(Map("f"->B, "n"->N))),
           "R"->(Eq, RecType(Map("s"->FamType(SelfFamily(Family("A")), "T"))))),
+        // defaults
+        Map("T"->(Eq, Rec(Map("f"->Bexp(true), "n"->Nexp(3)))),
+          "R"-> (Eq, Rec(Map("s"->Rec(Map()))))),
         // adts
         Map("List"->
           (Eq, ADT(Map(
@@ -178,8 +190,8 @@ class ParserTesting extends AnyFunSuite {
         Map())
     ){parseSuccess(famdef,
       "Family A { " +
-        "type T = {f: B, n: N} " +
-        "type R = {s: self(A).T}" +
+        "type T = {f: B = true, n: N = 3} " +
+        "type R = {s: self(A).T = {}}" +
         "type List = Nil {} | Cons {x: N, tail: self(A).List}" +
         "}")}
   }
@@ -187,8 +199,8 @@ class ParserTesting extends AnyFunSuite {
   test("famdef can parse multiple types and ADTs") {
     assert(canParse(famdef,
       "Family A { " +
-        "type T = {f: B, n: N} " +
-        "type R = {s: self(A).T}" +
+        "type T = {f: B = true, n: N = 3} " +
+        "type R = {s: self(A).T = {}}" +
         "type List = Nil {} | Cons {x: N, tail: self(A).List}" +
         "type Weekend = Sat {} | Sun {}" +
         "}"
@@ -198,8 +210,8 @@ class ParserTesting extends AnyFunSuite {
   test("famdef can parse types, adts, functions") {
     assert(canParse(famdef,
       "Family A { " +
-        "type T = {f: B, n: N} " +
-        "type R = {s: self(A).T}" +
+        "type T = {f: B = true, n: N = 3} " +
+        "type R = {s: self(A).T = {}}" +
         "type List = Nil {} | Cons {x: N, tail: self(A).List}" +
         "type Weekend = Sat {} | Sun {}" +
         "val identity: (B -> B) = lam (x: B). x" +
@@ -215,6 +227,22 @@ class ParserTesting extends AnyFunSuite {
   test("exception: duplicate constructors in ADT") {
     assertThrows[Exception](parse(adt, "A {} | A {}"))
   }
+
+  // Testing helper function duplicate_headers
+  test("helper: duplicate headers absent") {
+    assertResult(false) {
+      duplicate_headers(List(("foo", (FunType(B, N), null)), ("foo", (FunType(N, N), Lam(Var("x"), N, Bexp(true))))))
+    }
+  }
+
+  test("helper: duplicate headers present") {
+    assertResult(true){
+      duplicate_headers(List(("foo", (FunType(B, N), null)), ("foo", (FunType(B, N), Lam(Var("x"), B, Bexp(true))))))
+    }
+  }
+
+
+
 
 
 
