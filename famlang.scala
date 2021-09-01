@@ -44,7 +44,7 @@ object famlang {
   case object Eq extends Marker // type definition marker
   case class Linkage(self: SelfFamily, sup: SelfFamily, types: Map[String, (Marker, RecType)],
                      defaults: Map[String, (Marker, Rec)], adts: Map[String, (Marker, ADT)],
-                     funs: Map[String, (FunType, Lam)])
+                     funs: Map[String, (FunType, Lam)], cases: Map[String, (FunType, Map[String, Lam])])
 
 
   /*====================================== VALUES ======================================*/
@@ -353,9 +353,10 @@ object famlang {
         (s, (update_self_in_type(ft, p1, p2).asInstanceOf[FunType], update_self_in_exp(lm, p1, p2).asInstanceOf[Lam]))}
 
     // Concat and create new, complete linkage
+    // in a complete linkage, there's no need for cases  as we have already incorporated them during concatenation
     Linkage(lkgB.self, lkgA.self, concat_types(updated_types, lkgB.types),
       concat_defaults(updated_defaults, lkgB.defaults), concat_adts(updated_adts, lkgB.adts),
-      concat_funs(updated_funs, lkgB.funs))
+      concat_funs(updated_funs, lkgB.funs, lkgB.cases), null)
   }
 
   def concat_types(types1: Map[String, (Marker, RecType)], types2: Map[String, (Marker, RecType)]) : Map[String, (Marker, RecType)] = {
@@ -433,7 +434,34 @@ object famlang {
     (unchanged_parent_adts.++(extended_adts)).++(new_adts)
   }
 
-  def concat_funs(funs1: Map[String, (FunType, Lam)], funs2: Map[String, (FunType, Lam)]) : Map[String, (FunType, Lam)] = {
+  // helper for updating existing matches with extra cases from child
+  def extend_nth_match(body: Expression, pmid: Int, extras: Map[String, Lam], ctr: Int): Expression = {
+    body match {
+      // match case
+      case Match(exp, cases) =>
+        if (pmid == ctr) // this is the match we want to extend
+        then {
+          val new_cases = cases.++(extras)
+          if (new_cases.size == cases.size + extras.size) // no duplicates here
+          then Match(exp, new_cases)
+          else throw new Exception("Attempting to duplicate constructors in extended match.")
+        } else
+          Match(extend_nth_match(exp, pmid, extras, ctr+1),
+            cases.map{ case (s, l) => (s, extend_nth_match(l, pmid, extras, ctr+1).asInstanceOf[Lam])})
+      // other cases
+      case Lam(v, t, b) => Lam(v, t, extend_nth_match(b, pmid, extras, ctr))
+      case App(e1, e2) => App(extend_nth_match(e1, pmid, extras, ctr), extend_nth_match(e2, pmid, extras, ctr))
+      case Rec(f) => Rec(f.map{case (s, e) => (s, extend_nth_match(e, pmid, extras, ctr))})
+      case Proj(e, n) => Proj(extend_nth_match(e, pmid, extras, ctr), n)
+      case Inst(t, rec) => Inst(t, extend_nth_match(rec, pmid, extras, ctr).asInstanceOf[Rec])
+      case InstADT(t, cn, rec) => InstADT(t, cn, extend_nth_match(rec, pmid, extras, ctr).asInstanceOf[Rec])
+      case _ => body
+    }
+  }
+
+  def concat_funs(funs1: Map[String, (FunType, Lam)],
+                  funs2: Map[String, (FunType, Lam)],
+                  cases: Map[String, (FunType, Map[String, Lam])]) : Map[String, (FunType, Lam)] = {
     // functions from parent, not overridden in child
     val unchanged_parent_funs = funs1.filter{case (k,(ft,lam)) => !funs2.contains(k)}
     // functions that child overrides
@@ -453,7 +481,21 @@ object famlang {
     }
 
     // the actual result is all of these combined
-    (unchanged_parent_funs.++(overridden_funs)).++(new_funs)
+    var all_funs = (unchanged_parent_funs.++(overridden_funs)).++(new_funs)
+
+    // Now we need to expand all matches using the cases in the child linkage
+    for ((k,v) <- cases)
+      var pmid = k.split('_').last // pattern match id isolated as a string
+      var fun_name = k.substring(0, k.indexOfSlice(pmid) - 1) // function name isolated
+      all_funs.get(fun_name) match { // get the info about this function that we need to extend
+        case Some((funtype, Lam(x, t, body))) =>
+          var newlam = Lam(x, t, extend_nth_match(body, pmid.toInt, v._2, 1)) // update the body with the extended match
+          var updated_funs = all_funs + (fun_name -> (funtype, newlam)) // update the mapping
+          all_funs = updated_funs // update original variable for all funs
+        case _ => throw new Exception("Encountered cases for extension of non-existing function.")
+      }
+
+    all_funs // return this updated version
   }
 
   /*====================================== LINKAGE WELL-FORMEDNESS  ======================================*/

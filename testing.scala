@@ -117,7 +117,7 @@ class ParserTesting extends AnyFunSuite {
       Linkage(SelfFamily(Family("A")), null,
         Map("T"->(Eq, RecType(Map("f"->B, "n"->N)))),
         Map("T"->(Eq, Rec(Map("f"->Bexp(true), "n"->Nexp(3))))),
-        Map(), Map())
+        Map(), Map(), Map())
     ){parseSuccess(famdef, "Family A { type T = {f: B = true, n: N = 3}}")}
   }
 
@@ -129,7 +129,7 @@ class ParserTesting extends AnyFunSuite {
       Linkage(SelfFamily(Family("A")), SelfFamily(Family("C")),
         Map("T"->(Eq, RecType(Map("f"->B, "n"->N)))),
         Map("T"->(Eq, Rec(Map("f"->Bexp(true), "n"->Nexp(3))))),
-        Map(), Map())
+        Map(), Map(), Map())
     ){parseSuccess(famdef, "Family A extends C { type T = {f: B = true, n: N = 3}}")}
   }
 
@@ -141,7 +141,7 @@ class ParserTesting extends AnyFunSuite {
       Linkage(SelfFamily(Family("A")), SelfFamily(Family("C")),
         Map("T"->(PlusEq, RecType(Map("f"->B, "n"->N)))),
         Map("T"->(PlusEq, Rec(Map("f"->Bexp(true), "n"->Nexp(3))))),
-        Map(), Map())
+        Map(), Map(), Map())
     ){parseSuccess(famdef, "Family A extends C { type T += {f: B = true, n: N = 3}}")}
   }
 
@@ -158,7 +158,7 @@ class ParserTesting extends AnyFunSuite {
             "R"->(Eq, RecType(Map("s"->FamType(SelfFamily(Family("A")), "T"))))),
         Map("T"->(Eq, Rec(Map("f"->Bexp(true), "n"->Nexp(3)))),
             "R"-> (Eq, Rec(Map("s"->Rec(Map()))))),
-        Map(), Map())
+        Map(), Map(), Map())
     ){parseSuccess(famdef,
       "Family A { " +
       "type T = {f: B = true, n: N = 3} " +
@@ -187,7 +187,7 @@ class ParserTesting extends AnyFunSuite {
           (Eq, ADT(Map(
             "Nil"->RecType(Map()),
             "Cons"->RecType(Map("x"->N, "tail"->FamType(SelfFamily(Family("A")), "List"))))))),
-        Map())
+        Map(), Map())
     ){parseSuccess(famdef,
       "Family A { " +
         "type T = {f: B = true, n: N = 3} " +
@@ -242,7 +242,15 @@ class ParserTesting extends AnyFunSuite {
   }
 
 
+  test("can parse case ids") {
+    assertResult(true){canParse(case_id, "hello_world_1")}
+  }
 
+  test("can parse cases by themselves") {
+    assertResult(true){
+      canParse(cases_def, "cases hello_world_1: B -> N = A => lam (x: B). 3 | C => lam (x: B). 4")
+    }
+  }
 
 
 

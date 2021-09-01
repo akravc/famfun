@@ -23,9 +23,10 @@ class FamParser extends RegexParsers with PackratParsers {
   val kwN = "N\\b".r
   val kwB = "B\\b".r
   val kwSelf = "self\\b".r
+  val kwCases = "cases\\b".r
 
   val reserved: Parser[String] = ( kwMatch | kwWith | kwTrue | kwFalse | kwLam  | kwType | kwVal | kwFamily
-    | kwExtends | kwN | kwB | kwSelf )
+    | kwExtends | kwN | kwB | kwSelf | kwCases)
 
   // NAMES
   def var_name: Parser[String] = not(reserved) ~> """[a-z]""".r ^^ { _.toString }
@@ -34,6 +35,7 @@ class FamParser extends RegexParsers with PackratParsers {
   def function_name: Parser[String] = not(reserved) ~> """[a-z_]+""".r ^^ { _.toString }
   def field_name: Parser[String] = not(reserved) ~> """([a-z0-9])+""".r ^^ { _.toString }
   def constructor_name: Parser[String] = not(reserved) ~> """[A-Z][a-z]*""".r ^^ { _.toString }
+  def case_id: Parser[String] = not(reserved) ~> """([a-z_]+)_([1-9]\d*)""".r ^^ { _.toString }
 
   // FAMILY PATHS
   lazy val fampath : PackratParser[FamilyPath] =
@@ -128,6 +130,10 @@ class FamParser extends RegexParsers with PackratParsers {
     kwVal ~> function_name ~ ":" ~ "(" ~ funtype ~ ")" ~ "=" ~ exp_lam ^^ {case m~_~_~t~_~_~b => m -> (t -> b)}
     | kwVal ~> function_name ~ ":" ~ funtype ~ "=" ~ exp_lam ^^ {case m~_~t~_~b => m -> (t -> b)}
 
+  lazy val cases_def: PackratParser[(String, (FunType, Map[String, Lam]))] =
+    kwCases ~> case_id ~ ":" ~ funtype ~ "=" ~ repsep(match_case, "|") ^^
+      { case id~_~t~_~lst => (id, (t, lst.toMap))}
+
   // helper to check for duplicate function headers
   // returns true if there are duplicates
   def duplicate_headers(m1: List[(String, (FunType, Lam))]): Boolean =
@@ -137,8 +143,8 @@ class FamParser extends RegexParsers with PackratParsers {
   // A family can extend another family. If it does not, the parent is null.
   lazy val famdef: PackratParser[Linkage] =
     // family extends another
-    kwFamily ~> family_name ~ kwExtends ~ family_name ~ "{" ~ rep(typedef) ~ rep(adtdef) ~ rep(fundef) <~ "}" ^^
-      {case a~_~b~_~typs~adts~funs =>
+    kwFamily ~> family_name ~ kwExtends ~ family_name ~ "{" ~ rep(typedef) ~ rep(adtdef) ~ rep(fundef) ~ rep(cases_def) <~ "}" ^^
+      {case a~_~b~_~typs~adts~funs~cases =>
         if (a == b) then throw new Exception("Parsing a family that extends itself.")
         else if (typs.size != typs.unzip._1.distinct.size) then throw new Exception("Parsing duplicate type names.")
         else if (adts.size != adts.unzip._1.distinct.size) then throw new Exception("Parsing duplicate ADT names.")
@@ -146,17 +152,17 @@ class FamParser extends RegexParsers with PackratParsers {
         else {
           val typedefs = typs.collect{case (s, (m, (rt, r))) => (s, (m, rt))}.toMap
           val defaults = typs.collect{case (s, (m, (rt, r))) => (s, (m, r))}.toMap
-          Linkage(SelfFamily(Family(a)), SelfFamily(Family(b)), typedefs, defaults, adts.toMap, funs.toMap) }} |
+          Linkage(SelfFamily(Family(a)), SelfFamily(Family(b)), typedefs, defaults, adts.toMap, funs.toMap, cases.toMap) }} |
     // family does not extend another
-    kwFamily ~> family_name ~ "{" ~ rep(typedef) ~ rep(adtdef) ~ rep(fundef) <~ "}" ^^
-      {case a~_~typs~adts~funs =>
+    kwFamily ~> family_name ~ "{" ~ rep(typedef) ~ rep(adtdef) ~ rep(fundef) ~ rep(cases_def) <~ "}" ^^
+      {case a~_~typs~adts~funs~cases =>
         if (typs.size != typs.unzip._1.distinct.size) then throw new Exception("Parsing duplicate type names.")
         else if (adts.size != adts.unzip._1.distinct.size) then throw new Exception("Parsing duplicate ADT names.")
         else if (duplicate_headers(funs)) then throw new Exception("Parsing duplicate function names.")
         else {
           val typedefs = typs.collect{case (s, (m, (rt, r))) => (s, (m, rt))}.toMap
           val defaults = typs.collect{case (s, (m, (rt, r))) => (s, (m, r))}.toMap
-          Linkage(SelfFamily(Family(a)), null, typedefs, defaults, adts.toMap, funs.toMap) }}
+          Linkage(SelfFamily(Family(a)), null, typedefs, defaults, adts.toMap, funs.toMap, cases.toMap) }}
 }
 
 object TestFamParser extends FamParser {
