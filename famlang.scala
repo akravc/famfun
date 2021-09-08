@@ -70,7 +70,7 @@ object famlang {
     case B => true
     case FamType(path, name) =>
       K.get(path) match {
-        case Some(lkg) => lkg.types.contains(name)
+        case Some(lkg) => lkg.types.contains(name) || lkg.adts.contains(name)
         case None => false
       }
     case FunType(t1, t2) => wf(t1, K) && wf(t2, K)
@@ -237,6 +237,7 @@ object famlang {
   // K is the linkage context
   // is T1 a subtype of T2? (or equal to T2)
   def subtype(t1: Type, t2: Type, K: Map[FamilyPath, Linkage]): Boolean =
+    if (t1 == t2) then true else
     (t1, t2) match {
       // a.R <: t2 means we pull out the definition of R from linkage
       // and check if subtype of t2
@@ -263,7 +264,7 @@ object famlang {
           }
         }
 
-      case (_, _) => (t1 == t2) // defer to equality
+      case (_, _) => false
     }
 
   /*====================================== LINKAGE CONCATENATION  ======================================*/
