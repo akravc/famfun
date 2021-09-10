@@ -199,19 +199,30 @@ object famlang {
         case FamType(path, name) =>
           K.get(path).flatMap {
             lkg =>
+              // look up the name of the ADT type in the linkage
               lkg.adts.get(name).flatMap {
                 (marker, adt) =>
                   assert(marker == Eq); // should be Eq in a complete linkage, check with assertion
                   val funtypes = cases.map { case (c, lam) => (c, typInf(lam, G, K)) }; // infer types of g_i's
+                  // output type of the first funtype for equality comparison later
+                  val head_out = funtypes.head._2 match {
+                    case Some(FunType(i, o)) => o
+                    case _ => return None // abandon ship if the first inferred type is not even a function type
+                  }
                   if funtypes.exists {
-                    case (c, Some(FunType(infrt, otype))) =>
+                    // we have inferred input record type (inf_rt) and inferred output type (inf_otype) for each g_i
+                    case (c, Some(FunType(inf_rt, inf_otype))) =>
                       adt.cs.get(c) match {
-                        // all output types are not the same OR inferred input type doesn't match definition
-                        case Some(defrt) => funtypes.head._2 != Some(otype) || infrt != defrt
+                        // defrt is the definition record type for this constructor, from the actual ADT
+                        // bad if the inferred input type doesn't match actual input type
+                        // OR if the inferred output type is not the same for every g_i
+                        case Some(defrt) => inf_rt != defrt || (head_out != inf_otype)
                         case _ => true
                       }
                     case _ => true // if not, or if something doesn't have a function type
-                  } then None else funtypes.head._2 // first function output type since all are the same
+                  } then None else
+                    // if incomplete match
+                    if adt.cs.keys != cases.keys then None else Some(head_out) // first function output type since all are the same
               }
           }
         case _ => None
@@ -337,6 +348,7 @@ object famlang {
   // concatenates two linkages
   // ASSUMPTION: lkgA is complete, lkgB is incomplete
   def concat(lkgA: Linkage, lkgB: Linkage): Linkage = {
+    if lkgA==null then lkgB else {
 
     // Syntactic Transformation
     // In linkage for Family A, replace self(A) with self(B).
@@ -357,7 +369,7 @@ object famlang {
     // in a complete linkage, there's no need for cases  as we have already incorporated them during concatenation
     Linkage(lkgB.self, lkgA.self, concat_types(updated_types, lkgB.types),
       concat_defaults(updated_defaults, lkgB.defaults), concat_adts(updated_adts, lkgB.adts),
-      concat_funs(updated_funs, lkgB.funs, lkgB.cases), null)
+      concat_funs(updated_funs, lkgB.funs, lkgB.cases), null) }
   }
 
   def concat_types(types1: Map[String, (Marker, RecType)], types2: Map[String, (Marker, RecType)]) : Map[String, (Marker, RecType)] = {
