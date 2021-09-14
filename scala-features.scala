@@ -48,3 +48,14 @@ object type_members {
     type X = Cat
   }
 }
+
+object translation_ex1 {
+  val source = """
+Family A {
+  type X = Zero {}
+  val toint: (self(A).X -> N) = lam (x: self(A).X). match x with Zero => lam (i: {}). 0
+}
+"""
+  import TestFamParser._
+  val sourceTree = parse0(famdef, source).get
+}
