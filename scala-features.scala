@@ -26,3 +26,24 @@ object O extends A with B with C
 import O._
 count(Container(Node(Container(Leaf(1)),Leaf(2))))
 }
+
+object type_members {
+  class Animal
+  class Cat extends Animal
+  class HouseCat extends Cat
+  trait A {
+    type X <: Animal
+  }
+  trait B extends A {
+    type X <: Cat
+  }
+  trait C extends B {
+    type X = HouseCat
+  }
+  trait D {
+    type X >: Cat <: Animal
+  }
+  trait E extends D {
+    type X = Cat
+  }
+}
