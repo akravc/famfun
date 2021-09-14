@@ -75,6 +75,8 @@ Family B extends A {
 }
 """
 
+  val mainSource = """B.toint(B.Zero{})"""
+
   object a extends A
   trait A {
     abstract class X
@@ -92,4 +94,6 @@ Family B extends A {
       case _ => super.toint(x)
     }
   }
+
+  val mainTarget = b.toint(b.Zero())
 }
