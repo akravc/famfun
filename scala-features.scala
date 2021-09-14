@@ -31,9 +31,10 @@ object type_members {
   class Animal
   class Cat extends Animal
   class HouseCat extends Cat
-  trait A {
+  trait A { // A.X
     type X <: Animal
   }
+  object a extends A // a.X
   trait B extends A {
     type X <: Cat
   }
