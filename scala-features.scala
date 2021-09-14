@@ -71,7 +71,7 @@ Family A {
   val famB = """
 Family B extends A {
   type X += Succ {pred: self(A).X}
-  cases toint_0: (self(A).X -> N) = Succ => lam (p: {pred: self(A).X}). 1
+  cases toint_0: (self(A).X -> N) = Succ => lam (p: {pred: self(A).X}). 1 //1 + toint(p)
 }
 """
 
