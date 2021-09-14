@@ -59,3 +59,37 @@ Family A {
   import TestFamParser._
   val sourceTree = parse0(famdef, source).get
 }
+
+object translation_ex2 {
+  val famA = """
+Family A {
+  type X = Zero {}
+  val toint: (self(A).X -> N) = lam (x: self(A).X). match x with Zero => lam (i: {}). 0
+}
+"""
+
+  val famB = """
+Family B extends A {
+  type X += Succ {pred: self(A).X}
+  cases toint_0: (self(A).X -> N) = Succ => lam (p: {pred: self(A).X}). 1
+}
+"""
+
+  object a extends A
+  trait A {
+    abstract class X
+    case class Zero() extends X
+    def toint(x: X): Int = x match {
+      case Zero () => 0
+    }
+  }
+
+  object b extends B
+  trait B extends A {
+    case class Succ(pred: X) extends X
+    override def toint(x: X): Int = x match {
+      case Succ(pred) => 1 + toint(pred)
+      case _ => super.toint(x)
+    }
+  }
+}
