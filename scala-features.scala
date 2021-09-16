@@ -1,6 +1,5 @@
 object trait_linearization {
-trait A {
-  abstract class X
+trait A { abstract class X
   case class Leaf(n: Int) extends X
   def count(x: X): Int = x match {
     case Leaf(n) => 1
@@ -97,3 +96,38 @@ Family B extends A {
 
   val mainTarget = b.toint(b.Zero())
 }
+
+"""
+Family A {
+  Family B {
+    type X = M { }
+
+    val g : Unit -> X = lam (_ : Unit). M {}  // X means self(A.B).X
+  }
+
+  Family B2 extends B {
+    type X = M { a : Int = 2 } |  N { b : X }
+  }
+
+  val h : B2.X -> B2.X =                      // B2.X means self(A).B2.X
+    lam (x : B2.X). match x with C_h
+
+  cases C_h for B2.X : B2.X =
+    M => lam (r : { a : Int }). B2.M { a = r.a + 1 }
+    N => lam (r : { b : B2.X }). B2.N { b = h(r.b) }
+}
+
+Family A2 extends A {
+  Family B {
+    type X += P { c : X }
+  }
+
+  cases C_h for B2.X : B2.X +=                // B2.X means self(A2).B2.X
+    P => lam (r : { c : B2.X }). B2.P { c = h(r.c) }
+}
+
+val x0 : A2.B2.X = A2.B2.g()
+val x1 : A2.B2.X = A2.B2.P { c = x0 }
+val x2 : A2.B2.X = A2.B2.N { b = x1 }
+h(x2)
+"""
