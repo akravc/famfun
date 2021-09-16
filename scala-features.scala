@@ -97,7 +97,8 @@ Family B extends A {
   val mainTarget = b.toint(b.Zero())
 }
 
-"""
+object nested_families {
+  val src = """
 Family A {
   Family B {
     type X = M { }
@@ -131,3 +132,4 @@ val x1 : A2.B2.X = A2.B2.P { c = x0 }
 val x2 : A2.B2.X = A2.B2.N { b = x1 }
 h(x2)
 """
+}
