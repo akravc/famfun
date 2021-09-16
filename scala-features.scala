@@ -132,4 +132,46 @@ val x1 : A2.B2.X = A2.B2.P { c = x0 }
 val x2 : A2.B2.X = A2.B2.N { b = x1 }
 h(x2)
 """
+
+  trait A {
+    type B = B_impl
+    trait B_impl {
+      abstract class X
+      case class M() extends X
+
+      def g(): X = M()
+    }
+    val b: B = new B_impl{}
+    type B2 = B2_impl
+    trait B2_impl extends B_impl {
+      case class M_more(a: Int = 2) extends X // not worrying about record addition for now
+      case class N(b: X) extends X
+    }
+    val b2: B2 = new B2_impl{}
+
+    def h(x: b2.X): b2.X = {
+      import b2._
+      x match {
+        case M() => M_more(3)
+        case M_more(a) => M_more(a+1)
+        case N(b) => N(h(b))
+        case _ => x
+      }
+    }
+  }
+  object a extends A
+  trait A2 extends A {
+    trait B_impl_of_A2 extends B_impl {
+      case class P(c: X) extends X
+    }
+    override val b: B = new B_impl_of_A2{}
+    override def h(x: b2.X): b2.X = {
+      import b2._
+      x match {
+        // P is not in scope
+        //case P(c) => P(h(c))
+        case _ => super.h(x)
+      }
+    }
+  }
 }
