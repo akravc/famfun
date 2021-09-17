@@ -29,13 +29,13 @@ class FamParser extends RegexParsers with PackratParsers {
     | kwExtends | kwN | kwB | kwSelf | kwCases)
 
   // NAMES
-  def var_name: Parser[String] = not(reserved) ~> """[a-z]""".r ^^ { _.toString }
+  def var_name: Parser[String] = not(reserved) ~> """[a-z_]+""".r ^^ { _.toString }
   def family_name: Parser[String] = not(reserved) ~> """([A-Z][a-z]*)+""".r ^^ { _.toString }
   def type_name: Parser[String] = not(reserved) ~> """([A-Z][a-z]*)+""".r ^^ { _.toString }
-  def function_name: Parser[String] = not(reserved) ~> """[a-z_]+""".r ^^ { _.toString }
+  def function_name: Parser[String] = not(reserved) ~> """[a-zA-Z_]+""".r ^^ { _.toString }
   def field_name: Parser[String] = not(reserved) ~> """([a-z0-9])+""".r ^^ { _.toString }
-  def constructor_name: Parser[String] = not(reserved) ~> """[A-Z][a-z]*""".r ^^ { _.toString }
-  def case_id: Parser[String] = not(reserved) ~> """([a-z_]+)_([1-9]\d*)""".r ^^ { _.toString }
+  def constructor_name: Parser[String] = not(reserved) ~> """([A-Z][a-z]*)+""".r ^^ { _.toString }
+  def case_id: Parser[String] = not(reserved) ~> """([a-zA-Z_]+)_([1-9]\d*)""".r ^^ { _.toString }
 
   // FAMILY PATHS
   lazy val fampath : PackratParser[FamilyPath] =
