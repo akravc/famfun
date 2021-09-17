@@ -30,21 +30,13 @@ object famlang {
   case class Nexp(n: Int) extends Expression
   case class Bexp(b: Boolean) extends Expression
 
-  /*
-  [ SELF = self(A)                                                            ]
-  | SUPER = self(B)                                                           |
-  | TYPES = \overline{ R (+)?= {(f: T)*} }                                    | % types
-  | ADTS = \overline{ R (+)?= \overline{C {(f: T)*}} }                        | % ADTs
-  [ FUNS = \overline{ m : (T -> T') = (lam (x : T). body) }                   ] % function defs
-  */
-
   // Linkages
   sealed class Marker // either += or =
   case object PlusEq extends Marker // type extension marker
   case object Eq extends Marker // type definition marker
   case class Linkage(self: SelfFamily, sup: SelfFamily, types: Map[String, (Marker, RecType)],
                      defaults: Map[String, (Marker, Rec)], adts: Map[String, (Marker, ADT)],
-                     funs: Map[String, (FunType, Lam)], cases: Map[String, (FunType, Map[String, Lam])])
+                     funs: Map[String, (FunType, Lam)], cases: Map[String, (FunType, Rec)])
 
 
   /*====================================== VALUES ======================================*/
@@ -474,7 +466,7 @@ object famlang {
 
   def concat_funs(funs1: Map[String, (FunType, Lam)],
                   funs2: Map[String, (FunType, Lam)],
-                  cases: Map[String, (FunType, Map[String, Lam])]) : Map[String, (FunType, Lam)] = {
+                  cases: Map[String, (FunType, Rec)]) : Map[String, (FunType, Lam)] = {
     // functions from parent, not overridden in child
     val unchanged_parent_funs = funs1.filter{case (k,(ft,lam)) => !funs2.contains(k)}
     // functions that child overrides
@@ -497,12 +489,17 @@ object famlang {
     var all_funs = (unchanged_parent_funs.++(overridden_funs)).++(new_funs)
 
     // Now we need to expand all matches using the cases in the child linkage
-    for ((k,v) <- cases)
+    for ((k,v) <- cases) // k here is the id of the construct cases, and v is a tuple of (funtype, rec)
       var pmid = k.split('_').last // pattern match id isolated as a string
       var fun_name = k.substring(0, k.indexOfSlice(pmid) - 1) // function name isolated
+      var map_c_to_g = v._2.fields // this is the map of constructor names to functions (extra cases)
+      if (map_c_to_g.exists{(s, exp) => !exp.isInstanceOf[Lam]}) then {
+        throw new Exception("Extension cases must map constructor names to functions.")
+      }
+      var extras : Map[String, Lam] = map_c_to_g.map((s, exp) => (s, exp.asInstanceOf[Lam]))
       all_funs.get(fun_name) match { // get the info about this function that we need to extend
         case Some((funtype, Lam(x, t, body))) =>
-          var newlam = Lam(x, t, extend_nth_match(body, pmid.toInt, v._2, 1)) // update the body with the extended match
+          var newlam = Lam(x, t, extend_nth_match(body, pmid.toInt, extras, 1)) // update the body with the extended match
           var updated_funs = all_funs + (fun_name -> (funtype, newlam)) // update the mapping
           all_funs = updated_funs // update original variable for all funs
         case _ => throw new Exception("Encountered cases for extension of non-existing function.")

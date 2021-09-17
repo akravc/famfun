@@ -130,9 +130,9 @@ class FamParser extends RegexParsers with PackratParsers {
     kwVal ~> function_name ~ ":" ~ "(" ~ funtype ~ ")" ~ "=" ~ exp_lam ^^ {case m~_~_~t~_~_~b => m -> (t -> b)}
     | kwVal ~> function_name ~ ":" ~ funtype ~ "=" ~ exp_lam ^^ {case m~_~t~_~b => m -> (t -> b)}
 
-  lazy val cases_def: PackratParser[(String, (FunType, Map[String, Lam]))] =
+  lazy val cases_def: PackratParser[(String, (FunType, Rec))] =
     kwCases ~> case_id ~ ":" ~ funtype ~ "=" ~ repsep(match_case, "|") ^^
-      { case id~_~t~_~lst => (id, (t, lst.toMap))}
+      { case id~_~t~_~lst => (id, (t, Rec(lst.toMap)))}
 
   // helper to check for duplicate function headers
   // returns true if there are duplicates
