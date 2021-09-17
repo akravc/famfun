@@ -51,7 +51,10 @@ class FamParser extends RegexParsers with PackratParsers {
       if (lst.size == lst.unzip._1.distinct.size) // disallow records with duplicate fields
       then RecType(lst.toMap)
       else throw new Exception("Parsing a record type with duplicate fields.")}
-  lazy val famtype: PackratParser[FamType] = fampath ~ "." ~ type_name ^^ { case p~_~t => FamType(p, t)}
+  lazy val famtype: PackratParser[FamType] =
+    fampath ~ "." ~ type_name ^^ { case p~_~t => FamType(p, t)} |
+    "." ~> type_name ^^ { case t => FamType(null, t)}
+
   lazy val ntype: PackratParser[Type] = kwN ^^ (_ => N)
   lazy val btype: PackratParser[Type] = kwB ^^ (_ => B)
 
@@ -88,7 +91,10 @@ class FamParser extends RegexParsers with PackratParsers {
   lazy val exp_lam: PackratParser[Lam] =
     kwLam ~> lam_input ~ "." ~ exp ^^ {case inp~_~body => Lam(inp._1, inp._2, body)}
 
-  lazy val exp_famfun: PackratParser[FamFun] = fampath ~ "." ~ function_name ^^ {case p~_~n => FamFun(p, n)}
+  lazy val exp_famfun: PackratParser[FamFun] =
+    fampath ~ "." ~ function_name ^^ {case p~_~n => FamFun(p, n)} |
+    "." ~> function_name ^^ {case n => FamFun(null, n)}
+
   lazy val exp_app: PackratParser[App] = exp ~ exp ^^ {case e~g => App(e, g)}
   lazy val exp_proj: PackratParser[Proj] = exp ~ "." ~ field_name ^^ {case e~_~n => Proj(e, n)}
   lazy val field_val: PackratParser[(String, Expression)] = field_name ~ "=" ~ exp ^^ {case k~_~v => k -> v}
@@ -97,7 +103,9 @@ class FamParser extends RegexParsers with PackratParsers {
       if (lst.size == lst.unzip._1.distinct.size) // disallow records with duplicate fields
       then Rec(lst.toMap)
       else throw new Exception("Parsing a record with duplicate fields.")}
-  lazy val exp_inst: PackratParser[Inst] = famtype ~ "(" ~ exp_rec <~ ")" ^^ {case t~_~r => Inst(t, r)}
+
+  lazy val exp_inst: PackratParser[Inst] =
+    famtype ~ "(" ~ exp_rec <~ ")" ^^ {case t~_~r => Inst(t, r)}
   lazy val exp_inst_adt: PackratParser[InstADT] =
     famtype ~ "(" ~ constructor_name ~ exp_rec <~ ")" ^^ {case t~_~c~r => InstADT(t, c, r)}
 

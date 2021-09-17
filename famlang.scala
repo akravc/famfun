@@ -125,7 +125,18 @@ object famlang {
     //_______________________________ T_RecField
     //  G |- e.f : T
     case Proj(e, f) =>
-      typInf(e, G, K).flatMap { case RecType(ftypes) => ftypes.get(f) case _ => None }
+      typInf(e, G, K).flatMap {
+        case RecType(ftypes) => ftypes.get(f)
+        // if we have an instance of a type, the inferred type will be a famtype
+        case FamType(p, n) =>
+          K.get(p).flatMap {
+            lkg =>
+              lkg.types.get(n) match {
+                case Some(_, RecType(fields)) => fields.get(f)
+                case _ => None
+              }
+          }
+        case _ => None }
 
     //  WF(T -> T')
     //  m : (T -> T') = (lam (x : T). body) in [[a]]
