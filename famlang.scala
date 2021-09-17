@@ -547,11 +547,56 @@ object famlang {
       lkg.funs.filter{ case (s, (ft, lam)) => !typCheck(lam, ft, G, K)}.isEmpty)
   }
 
+  /*====================================== LINKAGE SYNTACTIC TRANSFORMATION  ======================================*/
 
-  /*====================================== PUTTING IT ALL TOGETHER  ======================================*/
+  def fill_paths_in_type (t: Type, p: FamilyPath) : Type = {
+    if (p == null) then {
+      throw new Exception("Attempting to update a relative type with a null path.")
+    }
+    t match {
+      case FamType(path, name) => if (path == null) then FamType(p, name) else t
+      case FunType(it, ot) => FunType(fill_paths_in_type(it, p), fill_paths_in_type(ot, p))
+      case RecType(fields) => RecType(fields.map{(str, t) => (str, fill_paths_in_type(t, p))})
+      case _ => t
+    }
+  }
 
-  // TODO: function that takes a program, performs the syntactic transformations, parses families into incomplete
-  // linkages, then concatenates to complete linkages, then does linkage checking, and returns a context of complete
-  // linkages for use with type checking and so on
+  def fill_paths_in_exp (exp: Expression, p: FamilyPath) : Expression = {
+    if (p == null) then {
+      throw new Exception("Attempting to update a relative expression with a null path.")
+    }
+    exp match {
+      case Lam(v, t, body) => Lam(v, fill_paths_in_type(t, p), fill_paths_in_exp(body, p))
+      case FamFun(path, name) => if (path == null) then FamFun(p, name) else exp
+      case App(e1, e2) => App(fill_paths_in_exp(e1, p), fill_paths_in_exp(e2, p))
+      case Rec(fields) => Rec(fields.map{(s, e) => (s, fill_paths_in_exp(e, p))})
+      case Proj(e, name) => Proj(fill_paths_in_exp(e, p), name)
+      case Inst(t, rec) =>
+        Inst(fill_paths_in_type(t, p).asInstanceOf[FamType], fill_paths_in_exp(rec, p).asInstanceOf[Rec])
+      case InstADT(t, cname, rec) =>
+        InstADT(fill_paths_in_type(t, p).asInstanceOf[FamType], cname, fill_paths_in_exp(rec, p).asInstanceOf[Rec])
+      case Match(e, cases) =>
+        Match(fill_paths_in_exp(e, p), cases.map{(s, lam) => (s, fill_paths_in_exp(lam, p).asInstanceOf[Lam])})
+      case _ => exp
+    }
+  }
+
+  def fill_paths (lkg: Linkage) : Linkage = {
+    var p = lkg.self
+    var newtypes =
+      lkg.types.map{case (s, (m, rt)) => (s, (m, fill_paths_in_type(rt, p).asInstanceOf[RecType]))}
+    var newdefaults =
+      lkg.defaults.map{case (s, (m, rec)) => (s, (m, fill_paths_in_exp(rec, p).asInstanceOf[Rec]))}
+    var newadts =
+      lkg.adts.map{case (s, (m, adt)) => (s, (m, ADT(adt.cs.map{(s, rt) => (s, fill_paths_in_type(rt, p).asInstanceOf[RecType])})))}
+    var newfuns = lkg.funs.map{case (s, (ft, lam)) =>
+        (s, (fill_paths_in_type(ft, p).asInstanceOf[FunType], fill_paths_in_exp(lam, p).asInstanceOf[Lam]))}
+    var newcases = lkg.cases.map{case (s, (ft, rec)) =>
+      (s, (fill_paths_in_type(ft, p).asInstanceOf[FunType], fill_paths_in_exp(rec, p).asInstanceOf[Rec]))}
+
+    Linkage(p, lkg.sup, newtypes, newdefaults, newadts, newfuns, newcases)
+  }
+
+
 
 } // eof

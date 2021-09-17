@@ -171,6 +171,9 @@ class FamParser extends RegexParsers with PackratParsers {
           val typedefs = typs.collect{case (s, (m, (rt, r))) => (s, (m, rt))}.toMap
           val defaults = typs.collect{case (s, (m, (rt, r))) => (s, (m, r))}.toMap
           Linkage(SelfFamily(Family(a)), null, typedefs, defaults, adts.toMap, funs.toMap, cases.toMap) }}
+
+  lazy val program: PackratParser[Map[FamilyPath, Linkage]] =
+    rep(famdef) ^^ { case lst => lst.map{lkg => lkg.self}.zip(lst).toMap}
 }
 
 object TestFamParser extends FamParser {
