@@ -123,7 +123,7 @@ object famlang {
       val ftypes = fields.map { case (fname, fex) => (fname, typInf(fex, G, K)) }; // type all expressions
       if ftypes.exists { (_, t) => t == None } then None // check for fields with None types
       else {
-        Some(RecType(ftypes.map { case (f, Some(t)) => (f, t) }))
+        Some(RecType(ftypes.map { case (f, Some(t)) => (f, t) case (f, None) => (f, N) })) // the 2nd case is bogus
       } // extract types from options
 
     //  G |- e : {(f': T')*}
@@ -307,38 +307,39 @@ object famlang {
 
   /*====================================== LINKAGE CONCATENATION  ======================================*/
 
-  // Given a context of incomplete linkages, produce a complete linkage for some family path fpath
-  // ASSUMPTION: linkages in K are incomplete
-//  def complete_linkage(fpath: FamilyPath, K: Map[FamilyPath, Linkage]): Linkage = {
-//    fpath match {
-//      // K |- self(A) ~> [[self(A)]]
-//      // ____________________________ L-Qual
-//      // K |- A ~> [[A]]
-//      case AbsoluteFamily(f) => complete_linkage(SelfFamily(f), K)
-//
-//      // A ~> [self(A)] in K
-//      // K |- super(A) ~> [[self(P)]]
-//      // [[self(P)]] + [self(A)] = [[self(A)]]
-//      // _______________________________________ L-Self
-//      // K |- self(A) ~> [[self(A)]]
-//      case SelfFamily(Family(fname)) => K.get(fpath) match { // do we have a linkage for this family?
-//        case Some(lkg) => // have an incomplete? let's build a complete one
-//          if (lkg.sup == null) then { // no parent? no problem
-//            concat(null, lkg) // concat with empty complete linkage and return
-//          } else {
-//            // A ~> [self(A)] in K
-//            // K |- [self(A)].super ~> [[self(P)]]
-//            // _____________________________________ L-Super
-//            // K |- super(A) ~> [[self(P)]]
-//            val parent = lkg.sup;
-//            val complete_super = complete_linkage(parent, K)
-//            concat(complete_super, lkg)
-//          }
-//        case _ => throw new Exception("No incomplete linkage exists for family " + fname) // none? tough luck :c
-//      }
-//      case _ => assert(false) // path is neither self nor absolute
-//    }
-//  }
+  // Given a context of incomplete, well-formed linkages, produce a complete linkage for some family path fpath
+  // ASSUMPTION: linkages in K are incomplete, but are well-formed
+
+  def complete_linkage(fpath: FamilyPath, K: Map[FamilyPath, Linkage]): Linkage = {
+    fpath match {
+      // K |- self(A) ~> [[self(A)]]
+      // ____________________________ L-Qual
+      // K |- A ~> [[A]]
+      case AbsoluteFamily(f) => complete_linkage(SelfFamily(f), K)
+
+      // A ~> [self(A)] in K
+      // K |- super(A) ~> [[self(P)]]
+      // [[self(P)]] + [self(A)] = [[self(A)]]
+      // _______________________________________ L-Self
+      // K |- self(A) ~> [[self(A)]]
+      case SelfFamily(Family(fname)) => K.get(fpath) match { // do we have a linkage for this family?
+        case Some(lkg) => // have an incomplete? let's build a complete one
+          if (lkg.sup == null) then { // no parent? no problem
+            concat(null, lkg) // concat with empty complete linkage and return
+          } else {
+            // A ~> [self(A)] in K
+            // K |- [self(A)].super ~> [[self(P)]]
+            // _____________________________________ L-Super
+            // K |- super(A) ~> [[self(P)]]
+            val parent = lkg.sup;
+            val complete_super = complete_linkage(parent, K)
+            concat(complete_super, lkg)
+          }
+        case _ => throw new Exception("No incomplete linkage exists for family " + fname) // none? tough luck :c
+      }
+      case _ => assert(false) // path is neither self nor absolute
+    }
+  }
 
   // HELPERS for concatenating linkages: replace self(A) with self(B) in types and expressions
 
@@ -354,194 +355,202 @@ object famlang {
   }
 
   // replace self-paths p1 with self-paths p2 in an expression
-//  def update_self_in_exp(e: Expression, p1: SelfFamily, p2: SelfFamily): Expression = {
-//    e match {
-//      case Lam(v, t, body) => Lam(v, update_self_in_type(t, p1, p2), update_self_in_exp(body, p1, p2))
-//      case FamFun(path, name) => if (path == p1) then FamFun(p2, name) else FamFun(path, name)
-//      case App(e1, e2) => App(update_self_in_exp(e1, p1, p2), update_self_in_exp(e2, p1, p2))
-//      case Rec(m) => Rec(m.map{case (s, fex) => (s, update_self_in_exp(fex, p1, p2))})
-//      case Proj(exp, name) => Proj(update_self_in_exp(exp, p1, p2), name)
-//      case Inst(t, rec) =>
-//        Inst(update_self_in_type(t, p1, p2).asInstanceOf[FamType], update_self_in_exp(rec, p1, p2).asInstanceOf[Rec])
-//      case InstADT(t, cname, rec) =>
-//        InstADT(update_self_in_type(t, p1, p2).asInstanceOf[FamType], cname, update_self_in_exp(rec, p1, p2).asInstanceOf[Rec])
-//      case Match(exp, cases) =>
-//        Match(update_self_in_exp(exp, p1, p2),
-//          cases.map{case (s, l) => (s, update_self_in_exp(l, p1, p2).asInstanceOf[Lam])})
-//      case _ => e
-//    }
-//  }
+  def update_self_in_exp(e: Expression, p1: SelfFamily, p2: SelfFamily): Expression = {
+    e match {
+      case Lam(v, t, body) => Lam(v, update_self_in_type(t, p1, p2), update_self_in_exp(body, p1, p2))
+      case FamFun(path, name) => if (path == p1) then FamFun(p2, name) else e
+      case FamCases(path, name) => if (path == p1) then FamCases(p2, name) else e
+      case App(e1, e2) => App(update_self_in_exp(e1, p1, p2), update_self_in_exp(e2, p1, p2))
+      case Rec(m) => Rec(m.map{case (s, fex) => (s, update_self_in_exp(fex, p1, p2))})
+      case Proj(exp, name) => Proj(update_self_in_exp(exp, p1, p2), name)
+      case Inst(t, rec) =>
+        Inst(update_self_in_type(t, p1, p2).asInstanceOf[FamType], update_self_in_exp(rec, p1, p2).asInstanceOf[Rec])
+      case InstADT(t, cname, rec) =>
+        InstADT(update_self_in_type(t, p1, p2).asInstanceOf[FamType], cname, update_self_in_exp(rec, p1, p2).asInstanceOf[Rec])
+      case Match(exp, g) => Match(update_self_in_exp(exp, p1, p2), update_self_in_exp(g, p1, p2))
+      case _ => e
+    }
+  }
 
   // concatenates two linkages
   // ASSUMPTION: lkgA is complete, lkgB is incomplete
-//  def concat(lkgA: Linkage, lkgB: Linkage): Linkage = {
-//    if lkgA==null then lkgB else {
-//
-//    // Syntactic Transformation
-//    // In linkage for Family A, replace self(A) with self(B).
-//    val p1 = lkgA.self
-//    val p2 = lkgB.self
-//    val updated_types =
-//      lkgA.types.map{case (s, (m, rt)) => (s, (m, update_self_in_type(rt, p1, p2).asInstanceOf[RecType]))}
-//    val updated_defaults =
-//      lkgA.defaults.map{case (s, (m, r)) => (s, (m, update_self_in_exp(r, p1, p2).asInstanceOf[Rec]))}
-//    val updated_adts =
-//      lkgA.adts.map{case (s, (m, adt)) =>
-//        (s, (m, ADT(adt.cs.map{case(s, rt) => (s, update_self_in_type(rt, p1, p2).asInstanceOf[RecType])})))}
-//    val updated_funs =
-//      lkgA.funs.map{case (s, (ft, lm)) =>
-//        (s, (update_self_in_type(ft, p1, p2).asInstanceOf[FunType], update_self_in_exp(lm, p1, p2).asInstanceOf[Lam]))}
-//
-//    // Concat and create new, complete linkage
-//    // in a complete linkage, there's no need for cases  as we have already incorporated them during concatenation
-//    Linkage(lkgB.self, lkgA.self, concat_types(updated_types, lkgB.types),
-//      concat_defaults(updated_defaults, lkgB.defaults), concat_adts(updated_adts, lkgB.adts),
-//      concat_funs(updated_funs, lkgB.funs, lkgB.cases), null) }
-//  }
+  def concat(lkgA: Linkage, lkgB: Linkage): Linkage = {
+    if lkgA==null then lkgB else {
 
-//  def concat_types(types1: Map[String, (Marker, RecType)], types2: Map[String, (Marker, RecType)]) : Map[String, (Marker, RecType)] = {
-//    // not extended in the child
-//    val unchanged_parent_types = types1.filter{case (k,(m,v)) => !types2.contains(k)}
-//    // types that are being extended in the child
-//    val types_to_extend = types2.filter{case (k, (m,v)) => types1.contains(k)}
-//    // types that are completely new in child
-//    val new_types = types2.filter{case (k, (m,v)) => !types1.contains(k)}
-//
-//    // actually extending the types
-//    val extended_types = types_to_extend.map{
-//      case (k, (m,rt)) =>
-//        types1.get(k) match {
-//          case Some((_, rtype)) =>
-//            // make sure we're not repeating any fields
-//            val combined = (rt.fields).++(rtype.fields)
-//            if (combined.size != rt.fields.size + rtype.fields.size)
-//            then throw new Exception("Concatenation resulted in duplicate fields in a record type.")
-//            else (k, (Eq, RecType(combined)))
-//          case _ => assert(false) // unreachable by definition
-//        }
-//    }
-//    // the actual result is all of these combined
-//    (unchanged_parent_types.++(extended_types)).++(new_types)
-//  }
+    // Syntactic Transformation
+    // In linkage for Family A, replace self(A) with self(B).
+    val p1 = lkgA.self
+    val p2 = lkgB.self
+    val updated_types =
+      lkgA.types.map{case (s, (m, rt)) => (s, (m, update_self_in_type(rt, p1, p2).asInstanceOf[RecType]))}
+    val updated_defaults =
+      lkgA.defaults.map{case (s, (m, r)) => (s, (m, update_self_in_exp(r, p1, p2).asInstanceOf[Rec]))}
+    val updated_adts =
+      lkgA.adts.map{case (s, (m, adt)) =>
+        (s, (m, ADT(adt.cs.map{case(s, rt) => (s, update_self_in_type(rt, p1, p2).asInstanceOf[RecType])})))}
+    val updated_funs =
+      lkgA.funs.map{case (s, (ft, lm)) =>
+        (s, (update_self_in_type(ft, p1, p2).asInstanceOf[FunType], update_self_in_exp(lm, p1, p2).asInstanceOf[Lam]))}
+    val updated_depot =
+      lkgA.depot.map{ case (s, (m, ft, lm)) =>
+        (s, (m, update_self_in_type(ft, p1, p2).asInstanceOf[FunType], update_self_in_exp(lm, p1, p2).asInstanceOf[Lam]))}
 
-//  def concat_defaults(defaults1: Map[String, (Marker, Rec)], defaults2: Map[String, (Marker, Rec)]) : Map[String, (Marker, Rec)] = {
-//    // not extended in the child
-//    val unchanged_parent_defaults = defaults1.filter{case (k,(m,v)) => !defaults2.contains(k)}
-//    // defaults for types that are being extended in the child
-//    val defaults_to_extend = defaults2.filter{case (k, (m,v)) => defaults1.contains(k)}
-//    // defaults for types that are completely new in child
-//    val new_defaults = defaults2.filter{case (k, (m,v)) => !defaults1.contains(k)}
-//
-//    // actually extending the defaults for extended types
-//    val extended_defaults = defaults_to_extend.map{
-//      case (k, (m,r)) =>
-//        defaults1.get(k) match {
-//          case Some((_, rcrd)) =>
-//            // make sure we're not repeating any fields
-//            val combined = (r.fields).++(rcrd.fields)
-//            if (combined.size != r.fields.size + rcrd.fields.size)
-//            then throw new Exception("Concatenation resulted in duplicate fields in a record of defaults.")
-//            else (k, (Eq, Rec(combined)))
-//          case _ => assert(false) // unreachable by definition
-//        }
-//    }
-//    // the actual result is all of these combined
-//    (unchanged_parent_defaults.++(extended_defaults)).++(new_defaults)
-//  }
+    // Concat and create new, complete linkage
+    Linkage(lkgB.self, lkgA.self, concat_types(updated_types, lkgB.types),
+      concat_defaults(updated_defaults, lkgB.defaults), concat_adts(updated_adts, lkgB.adts),
+      concat_funs(updated_funs, lkgB.funs), concat_depots(updated_depot, lkgB.depot))
+    }
+  }
 
-//  def concat_adts(adts1: Map[String, (Marker, ADT)], adts2: Map[String, (Marker, ADT)]) : Map[String, (Marker, ADT)] = {
-//    // not extended in the child
-//    val unchanged_parent_adts = adts1.filter{case (k,(m,a)) => !adts2.contains(k)}
-//    // adts that are being extended in the child
-//    val adts_to_extend = adts2.filter{case (k, (m,a)) => adts1.contains(k)}
-//    // adts that are completely new in child
-//    val new_adts = adts2.filter{case (k, (m,a)) => !adts1.contains(k)}
-//
-//    // actually extending the adts
-//    val extended_adts = adts_to_extend.map{
-//      case (k, (m, a)) =>
-//        adts1.get(k) match {
-//          case Some((_, adt)) =>
-//            // make sure we're not repeating any constructors
-//            val combined = (a.cs).++(adt.cs)
-//            if (combined.size != a.cs.size + adt.cs.size)
-//            then throw new Exception("Concatenation resulted in duplicate constructors in an ADT.")
-//            else (k, (Eq, ADT(combined)))
-//          case _ => assert(false) // unreachable by definition
-//        }
-//    }
-//    // the actual result is all of these combined
-//    (unchanged_parent_adts.++(extended_adts)).++(new_adts)
-//  }
+  def concat_types(types1: Map[String, (Marker, RecType)], types2: Map[String, (Marker, RecType)]) : Map[String, (Marker, RecType)] = {
+    // not extended in the child
+    val unchanged_parent_types = types1.filter{case (k,(m,v)) => !types2.contains(k)}
+    // types that are being extended in the child
+    val types_to_extend = types2.filter{case (k, (m,v)) => types1.contains(k)}
+    // types that are completely new in child
+    val new_types = types2.filter{case (k, (m,v)) => !types1.contains(k)}
 
-  // helper for updating existing matches with extra cases from child
-//  def extend_nth_match(body: Expression, pmid: Int, extras: Map[String, Lam], ctr: Int): Expression = {
-//    body match {
-//      // match case
-//      case Match(exp, cases) =>
-//        if (pmid == ctr) // this is the match we want to extend
-//        then {
-//          val new_cases = cases.++(extras)
-//          if (new_cases.size == cases.size + extras.size) // no duplicates here
-//          then Match(exp, new_cases)
-//          else throw new Exception("Attempting to duplicate constructors in extended match.")
-//        } else
-//          Match(extend_nth_match(exp, pmid, extras, ctr+1),
-//            cases.map{ case (s, l) => (s, extend_nth_match(l, pmid, extras, ctr+1).asInstanceOf[Lam])})
-//      // other cases
-//      case Lam(v, t, b) => Lam(v, t, extend_nth_match(b, pmid, extras, ctr))
-//      case App(e1, e2) => App(extend_nth_match(e1, pmid, extras, ctr), extend_nth_match(e2, pmid, extras, ctr))
-//      case Rec(f) => Rec(f.map{case (s, e) => (s, extend_nth_match(e, pmid, extras, ctr))})
-//      case Proj(e, n) => Proj(extend_nth_match(e, pmid, extras, ctr), n)
-//      case Inst(t, rec) => Inst(t, extend_nth_match(rec, pmid, extras, ctr).asInstanceOf[Rec])
-//      case InstADT(t, cn, rec) => InstADT(t, cn, extend_nth_match(rec, pmid, extras, ctr).asInstanceOf[Rec])
-//      case _ => body
-//    }
-//  }
+    // actually extending the types
+    val extended_types = types_to_extend.map{
+      case (k, (m,rt)) =>
+        types1.get(k) match {
+          case Some((_, rtype)) =>
+            // make sure we're not repeating any fields
+            val combined = (rt.fields).++(rtype.fields)
+            if (combined.size != rt.fields.size + rtype.fields.size)
+            then throw new Exception("Concatenation resulted in duplicate fields in a record type.")
+            else (k, (Eq, RecType(combined)))
+          case _ => assert(false) // unreachable by definition
+        }
+    }
+    // the actual result is all of these combined
+    (unchanged_parent_types.++(extended_types)).++(new_types)
+  }
 
-//  def concat_funs(funs1: Map[String, (FunType, Lam)],
-//                  funs2: Map[String, (FunType, Lam)],
-//                  cases: Map[String, (FunType, Rec)]) : Map[String, (FunType, Lam)] = {
-//    // functions from parent, not overridden in child
-//    val unchanged_parent_funs = funs1.filter{case (k,(ft,lam)) => !funs2.contains(k)}
-//    // functions that child overrides
-//    val funs_to_override = funs2.filter{case (k, (ft, lam)) => funs1.contains(k)}
-//    // new functions in child
-//    val new_funs = funs2.filter{case (k, (ft, lam)) => !funs1.contains(k)}
-//
-//    val overridden_funs = funs_to_override.map{
-//      case (k, (ft, lam)) =>
-//        funs1.get(k) match {
-//          case Some((ftype, fdef)) =>
-//            if (ft != ftype) then {
-//              throw new Exception("Attempting to override function with conflicting type.")
-//            } else (k, (ft, fdef)) // otherwise, just use new definition from child (fdef)
-//          case _ => assert(false) // unreachable by definition
-//        }
-//    }
-//
-//    // the actual result is all of these combined
-//    var all_funs = (unchanged_parent_funs.++(overridden_funs)).++(new_funs)
-//
-//    // Now we need to expand all matches using the cases in the child linkage
-//    for ((k,v) <- cases) // k here is the id of the construct cases, and v is a tuple of (funtype, rec)
-//      var pmid = k.split('_').last // pattern match id isolated as a string
-//      var fun_name = k.substring(0, k.indexOfSlice(pmid) - 1) // function name isolated
-//      var map_c_to_g = v._2.fields // this is the map of constructor names to functions (extra cases)
-//      if (map_c_to_g.exists{(s, exp) => !exp.isInstanceOf[Lam]}) then {
-//        throw new Exception("Extension cases must map constructor names to functions.")
-//      }
-//      var extras : Map[String, Lam] = map_c_to_g.map((s, exp) => (s, exp.asInstanceOf[Lam]))
-//      all_funs.get(fun_name) match { // get the info about this function that we need to extend
-//        case Some((funtype, Lam(x, t, body))) =>
-//          var newlam = Lam(x, t, extend_nth_match(body, pmid.toInt, extras, 1)) // update the body with the extended match
-//          var updated_funs = all_funs + (fun_name -> (funtype, newlam)) // update the mapping
-//          all_funs = updated_funs // update original variable for all funs
-//        case _ => throw new Exception("Encountered cases for extension of non-existing function.")
-//      }
-//
-//    all_funs // return this updated version
-//  }
+  def concat_defaults(defaults1: Map[String, (Marker, Rec)], defaults2: Map[String, (Marker, Rec)]) : Map[String, (Marker, Rec)] = {
+    // not extended in the child
+    val unchanged_parent_defaults = defaults1.filter{case (k,(m,v)) => !defaults2.contains(k)}
+    // defaults for types that are being extended in the child
+    val defaults_to_extend = defaults2.filter{case (k, (m,v)) => defaults1.contains(k)}
+    // defaults for types that are completely new in child
+    val new_defaults = defaults2.filter{case (k, (m,v)) => !defaults1.contains(k)}
+
+    // actually extending the defaults for extended types
+    val extended_defaults = defaults_to_extend.map{
+      case (k, (m,r)) =>
+        defaults1.get(k) match {
+          case Some((_, rcrd)) =>
+            // make sure we're not repeating any fields
+            val combined = (r.fields).++(rcrd.fields)
+            if (combined.size != r.fields.size + rcrd.fields.size)
+            then throw new Exception("Concatenation resulted in duplicate fields in a record of defaults.")
+            else (k, (Eq, Rec(combined)))
+          case _ => assert(false) // unreachable by definition
+        }
+    }
+    // the actual result is all of these combined
+    (unchanged_parent_defaults.++(extended_defaults)).++(new_defaults)
+  }
+
+  def concat_adts(adts1: Map[String, (Marker, ADT)], adts2: Map[String, (Marker, ADT)]) : Map[String, (Marker, ADT)] = {
+    // not extended in the child
+    val unchanged_parent_adts = adts1.filter{case (k,(m,a)) => !adts2.contains(k)}
+    // adts that are being extended in the child
+    val adts_to_extend = adts2.filter{case (k, (m,a)) => adts1.contains(k)}
+    // adts that are completely new in child
+    val new_adts = adts2.filter{case (k, (m,a)) => !adts1.contains(k)}
+
+    // actually extending the adts
+    val extended_adts = adts_to_extend.map{
+      case (k, (m, a)) =>
+        adts1.get(k) match {
+          case Some((_, adt)) =>
+            // make sure we're not repeating any constructors
+            val combined = (a.cs).++(adt.cs)
+            if (combined.size != a.cs.size + adt.cs.size)
+            then throw new Exception("Concatenation resulted in duplicate constructors in an ADT.")
+            else (k, (Eq, ADT(combined)))
+          case _ => assert(false) // unreachable by definition
+        }
+    }
+    // the actual result is all of these combined
+    (unchanged_parent_adts.++(extended_adts)).++(new_adts)
+  }
+
+
+  def concat_funs(funs1: Map[String, (FunType, Lam)],
+                  funs2: Map[String, (FunType, Lam)]) : Map[String, (FunType, Lam)] = {
+    // functions from parent, not overridden in child
+    val unchanged_parent_funs = funs1.filter{case (k,(ft,lam)) => !funs2.contains(k)}
+    // functions that child overrides
+    val funs_to_override = funs2.filter{case (k, (ft, lam)) => funs1.contains(k)}
+    // new functions in child
+    val new_funs = funs2.filter{case (k, (ft, lam)) => !funs1.contains(k)}
+
+    val overridden_funs = funs_to_override.map{
+      case (k, (ft, lam)) =>
+        funs1.get(k) match {
+          case Some((ftype, fdef)) =>
+            if (ft != ftype) then {
+              throw new Exception("Attempting to override function with conflicting type.")
+            } else (k, (ft, fdef)) // otherwise, just use new definition from child (fdef)
+          case _ => assert(false) // unreachable by definition
+        }
+    }
+
+    // the actual result is all of these combined
+    (unchanged_parent_funs.++(overridden_funs)).++(new_funs)
+  }
+
+  def concat_depots(dep1: Map[String, (Marker, FunType, Lam)],
+                    dep2: Map[String, (Marker, FunType, Lam)]) : Map[String, (Marker, FunType, Lam)] = {
+    // cases from parent, not overridden in child
+    val unchanged_parent_cases = dep1.filter{case (k,(m, ft,lam)) => !dep2.contains(k)}
+    // cases that child extends
+    val cases_to_extend = dep2.filter{case (k, (m, ft, lam)) => dep1.contains(k)}
+    // new cases in child
+    val new_cases = dep2.filter{case (k, (m, ft, lam)) => !dep1.contains(k)}
+
+    val extended_cases = cases_to_extend.map {
+      case (k, (m2, ft2, lam2)) =>
+        assert(m2 == PlusEq); // the marker on the child cases should be +=
+        dep1.get(k) match {
+          case Some((m1, ft1, lam1)) =>
+            (ft1, ft2) match {
+              case (FunType(in1, out1), FunType(in2, out2)) =>
+                // TODO: here, we should really check that in2 is a subtype of in1, since child cases may take more args
+                assert(out1.isInstanceOf[RecType]);
+                assert(out2.isInstanceOf[RecType]);
+                val out1map = out1.asInstanceOf[RecType].fields
+                val out2map = out2.asInstanceOf[RecType].fields
+                val combined_out = (out1map).++(out2map)
+                if (combined_out.size != out1map.size + out2map.size) then
+                  throw new Exception("Concatenation resulted in duplicate fields in the type of a cases construct.")
+                else {
+                  assert(lam1.isInstanceOf[Lam]); assert(lam2.isInstanceOf[Lam]);
+                  val caserec1 = lam1.body
+                  val caserec2 = lam2.body
+                  assert(caserec1.isInstanceOf[Rec]); assert(caserec2.isInstanceOf[Rec]); // bodies have to be records
+                  val casemap1 = caserec1.asInstanceOf[Rec].fields
+                  val casemap2 = caserec2.asInstanceOf[Rec].fields
+                  val comb_cases = (casemap1).++(casemap2)
+                  if (comb_cases.size != casemap1.size + casemap2.size) then
+                    throw new Exception("Concatenation of cases resulted in duplicate constructors.")
+                  else {
+                    // TODO: need to check that the variable of lam1 and lam2 is the same
+                    // TODO: need to check that the type lam2.t is appropriate
+                    (k, (Eq, FunType(in2, RecType(combined_out)), Lam(lam2.v, lam2.t, Rec(comb_cases))))
+                  }
+                }
+              case (_, _) => throw new Exception("Some cases constructs have non-arrow types.")
+            }
+          case _ => assert(false) // unreachable by definition
+        }
+    }
+
+    // the actual result is all of these combined
+    (unchanged_parent_cases.++(extended_cases)).++(new_cases)
+  }
 
   /*====================================== LINKAGE WELL-FORMEDNESS  ======================================*/
 
