@@ -1,11 +1,13 @@
 import org.scalatest.funsuite.AnyFunSuite
-//import famlang._
-//import TestFamParser._
+import famlang._
+import TestFamParser._
+import famlang_main._
+import scala.language.postfixOps
 
 class FamlangTesting extends AnyFunSuite {
 
   /* ==================================== PARSER TESTING ==================================== */
-/*
+
   // Parsing Types
   test("types: nat") {
     assert(canParse(typ, "N"))
@@ -104,12 +106,12 @@ class FamlangTesting extends AnyFunSuite {
     ){parseSuccess(exp, "A.R(C {})")}
   }
 
-  test("exp: match") {
-    assert(canParse(exp, " match x with A => lam (y: B). true | C => lam (z: N). z "))
-    assertResult(
-      Match(Var("x"), Map("A"->Lam(Var("y"), B, Bexp(true)), "C"->Lam(Var("z"), N, Var("z"))))
-    ){parseSuccess(exp, "match x with A => lam (y: B). true | C => lam (z: N). z")}
-  }
+//  test("exp: match") {
+//    assert(canParse(exp, " match x with A => lam (y: B). true | C => lam (z: N). z "))
+//    assertResult(
+//      Match(Var("x"), Map("A"->Lam(Var("y"), B, Bexp(true)), "C"->Lam(Var("z"), N, Var("z"))))
+//    ){parseSuccess(exp, "match x with A => lam (y: B). true | C => lam (z: N). z")}
+//  }
 
   // Parsing Families
   test("famdef one type") {
@@ -244,13 +246,13 @@ class FamlangTesting extends AnyFunSuite {
     )
   }
 
-
-  test("can parse case ids") {
-    assert(canParse(case_id, "hello_world_1"))
+  test("can parse record fields that are constructors") {
+    assert(canParse(field_name, "HelloWorld"))
   }
 
   test("can parse cases by themselves") {
-    assert(canParse(cases_def, "cases hello_world_1: B -> N = A => lam (x: B). 3 | C => lam (x: B). 4"))
+    assert(canParse(cases_def, "cases hello_world: {} -> {A: B -> N, C: B -> N} = " +
+      "lam (_: {}). {A = lam (x: B). 3, C = lam (x: B). 4}"))
   }
 
   // TODO: more tests involving parsing cases into linkages?
@@ -657,7 +659,7 @@ class FamlangTesting extends AnyFunSuite {
 
   test("typinf: match not on instance of ADT") {
     assertResult(None){
-      typInf(Match(Var("x"), Map()), Map(), Map())
+      typInf(Match(Var("x"), Var("x")), Map(), Map())
     }
   }
 
@@ -666,7 +668,7 @@ class FamlangTesting extends AnyFunSuite {
     // self(A).R({f->true, n->5})
     val exp = Inst(FamType(self_a, "R"), Rec(Map("f"->Bexp(true), "n"->Nexp(5))))
     assertResult(None){
-      typInf(Match(exp, Map()), Map(), Map())
+      typInf(Match(exp, exp), Map(), Map())
     }
   }
 
@@ -675,73 +677,73 @@ class FamlangTesting extends AnyFunSuite {
     // self(A).R({f->true, n->5})
     val exp = InstADT(FamType(self_a, "R"), "C", Rec(Map("f"->Bexp(true), "n"->Nexp(5))))
     assertResult(None){
-      typInf(Match(exp, Map()), Map(), Map())
+      typInf(Match(exp, exp), Map(), Map())
     }
   }
 
-  test("typinf: match on instance of ADT, wrong function type in match") {
-    val self_a = SelfFamily(Family("A"))
-    // self(A).R({f->true, n->5})
-    val exp = InstADT(FamType(self_a, "R"), "C", Rec(Map("f"->Bexp(true), "n"->Nexp(5))))
-    assertResult(None){
-      typInf(Match(exp, Map("C"->Lam(Var("x"), B, Bexp(true)))), Map(),
-        Map(self_a-> Linkage(self_a, null, Map(), Map(),
-          // list of ADTs has R = C {f:B, n:N}
-          Map("R"->(Eq, ADT(Map("C"->RecType(Map("f"->B, "n"->N)))))), Map(), Map())))
-    }
-  }
-
-  // match self(A).R(C {f=true, n=5}) with
-  // C => lam (x: {f:B, n:N}). true
-  // ADTs in the linkage has R = C {f:B, n:N}
-  test("typinf: match on instance of ADT, good match with one constructor") {
-    val self_a = SelfFamily(Family("A"))
-    // self(A).R({f->true, n->5})
-    val exp = InstADT(FamType(self_a, "R"), "C", Rec(Map("f"->Bexp(true), "n"->Nexp(5))))
-    assertResult(Some(B)){
-      // input type of the function is now a record as it should be
-      typInf(Match(exp, Map("C"->Lam(Var("x"), RecType(Map("f"->B, "n"->N)), Bexp(true)))), Map(),
-        Map(self_a-> Linkage(self_a, null, Map(), Map(),
-          // list of ADTs has R = C {f:B, n:N}
-          Map("R"->(Eq, ADT(Map("C"->RecType(Map("f"->B, "n"->N)))))), Map(), Map())))
-    }
-  }
-
-  // match self(A).R(C {f=true, n=5}) with
-  // C => lam (x: {f:B, n:N}). true
-  // K => lam (x: {}). false
-  // ADTs in the linkage has R = C {f:B, n:N} | K {}
-  test("typinf: match on instance of ADT, good match with two constructors") {
-    val self_a = SelfFamily(Family("A"))
-    // self(A).R({f->true, n->5})
-    val exp = InstADT(FamType(self_a, "R"), "C", Rec(Map("f"->Bexp(true), "n"->Nexp(5))))
-    assertResult(Some(B)){
-      // input type of the function is now a record as it should be
-      typInf(Match(exp,
-        Map("C"->Lam(Var("x"), RecType(Map("f"->B, "n"->N)), Bexp(true)),
-          "K"->Lam(Var("x"), RecType(Map()), Bexp(false)))), Map(),
-        Map(self_a-> Linkage(self_a, null, Map(), Map(),
-          // list of ADTs has R = C {f:B, n:N} | K {}
-          Map("R"->(Eq, ADT(Map("C"->RecType(Map("f"->B, "n"->N)), "K"->RecType(Map()))))), Map(), Map())))
-    }
-  }
-
-  // match self(A).R(C {f=true, n=5}) with
-  // C => lam (x: {f:B, n:N}). true
-  // ADTs in the linkage has R = C {f:B, n:N} | K {}
-  test("typinf: match on instance of ADT, incomplete") {
-    val self_a = SelfFamily(Family("A"))
-    // self(A).R({f->true, n->5})
-    val exp = InstADT(FamType(self_a, "R"), "C", Rec(Map("f"->Bexp(true), "n"->Nexp(5))))
-    assertResult(None){
-      // input type of the function is now a record as it should be
-      typInf(Match(exp,
-        Map("C"->Lam(Var("x"), RecType(Map("f"->B, "n"->N)), Bexp(true)))), Map(),
-        Map(self_a-> Linkage(self_a, null, Map(), Map(),
-          // list of ADTs has R = C {f:B, n:N} | K {}
-          Map("R"->(Eq, ADT(Map("C"->RecType(Map("f"->B, "n"->N)), "K"->RecType(Map()))))), Map(), Map())))
-    }
-  }
+//  test("typinf: match on instance of ADT, wrong function type in match") {
+//    val self_a = SelfFamily(Family("A"))
+//    // self(A).R({f->true, n->5})
+//    val exp = InstADT(FamType(self_a, "R"), "C", Rec(Map("f"->Bexp(true), "n"->Nexp(5))))
+//    assertResult(None){
+//      typInf(Match(exp, Map("C"->Lam(Var("x"), B, Bexp(true)))), Map(),
+//        Map(self_a-> Linkage(self_a, null, Map(), Map(),
+//          // list of ADTs has R = C {f:B, n:N}
+//          Map("R"->(Eq, ADT(Map("C"->RecType(Map("f"->B, "n"->N)))))), Map(), Map())))
+//    }
+//  }
+//
+//  // match self(A).R(C {f=true, n=5}) with
+//  // C => lam (x: {f:B, n:N}). true
+//  // ADTs in the linkage has R = C {f:B, n:N}
+//  test("typinf: match on instance of ADT, good match with one constructor") {
+//    val self_a = SelfFamily(Family("A"))
+//    // self(A).R({f->true, n->5})
+//    val exp = InstADT(FamType(self_a, "R"), "C", Rec(Map("f"->Bexp(true), "n"->Nexp(5))))
+//    assertResult(Some(B)){
+//      // input type of the function is now a record as it should be
+//      typInf(Match(exp, Map("C"->Lam(Var("x"), RecType(Map("f"->B, "n"->N)), Bexp(true)))), Map(),
+//        Map(self_a-> Linkage(self_a, null, Map(), Map(),
+//          // list of ADTs has R = C {f:B, n:N}
+//          Map("R"->(Eq, ADT(Map("C"->RecType(Map("f"->B, "n"->N)))))), Map(), Map())))
+//    }
+//  }
+//
+//  // match self(A).R(C {f=true, n=5}) with
+//  // C => lam (x: {f:B, n:N}). true
+//  // K => lam (x: {}). false
+//  // ADTs in the linkage has R = C {f:B, n:N} | K {}
+//  test("typinf: match on instance of ADT, good match with two constructors") {
+//    val self_a = SelfFamily(Family("A"))
+//    // self(A).R({f->true, n->5})
+//    val exp = InstADT(FamType(self_a, "R"), "C", Rec(Map("f"->Bexp(true), "n"->Nexp(5))))
+//    assertResult(Some(B)){
+//      // input type of the function is now a record as it should be
+//      typInf(Match(exp,
+//        Map("C"->Lam(Var("x"), RecType(Map("f"->B, "n"->N)), Bexp(true)),
+//          "K"->Lam(Var("x"), RecType(Map()), Bexp(false)))), Map(),
+//        Map(self_a-> Linkage(self_a, null, Map(), Map(),
+//          // list of ADTs has R = C {f:B, n:N} | K {}
+//          Map("R"->(Eq, ADT(Map("C"->RecType(Map("f"->B, "n"->N)), "K"->RecType(Map()))))), Map(), Map())))
+//    }
+//  }
+//
+//  // match self(A).R(C {f=true, n=5}) with
+//  // C => lam (x: {f:B, n:N}). true
+//  // ADTs in the linkage has R = C {f:B, n:N} | K {}
+//  test("typinf: match on instance of ADT, incomplete") {
+//    val self_a = SelfFamily(Family("A"))
+//    // self(A).R({f->true, n->5})
+//    val exp = InstADT(FamType(self_a, "R"), "C", Rec(Map("f"->Bexp(true), "n"->Nexp(5))))
+//    assertResult(None){
+//      // input type of the function is now a record as it should be
+//      typInf(Match(exp,
+//        Map("C"->Lam(Var("x"), RecType(Map("f"->B, "n"->N)), Bexp(true)))), Map(),
+//        Map(self_a-> Linkage(self_a, null, Map(), Map(),
+//          // list of ADTs has R = C {f:B, n:N} | K {}
+//          Map("R"->(Eq, ADT(Map("C"->RecType(Map("f"->B, "n"->N)), "K"->RecType(Map()))))), Map(), Map())))
+//    }
+//  }
 
   /* ==================================== LINKAGE TESTING ==================================== */
 
@@ -755,7 +757,7 @@ class FamlangTesting extends AnyFunSuite {
     val self_b = SelfFamily(Family("B"))
     assertResult(Linkage(self_b, self_a,
         Map("X"->(Eq, RecType(Map("f"->B))), "Y"->(Eq, RecType(Map("b"->B, "p"->N))), "Z"->(Eq, RecType(Map("n"->N)))),
-        Map(), Map(), Map(), null)){
+        Map(), Map(), Map(), Map())){
       concat(
         Linkage(self_a, null,
           Map("X"->(Eq, RecType(Map("f"->B))), "Y"->(Eq, RecType(Map("p"->N)))), Map(), Map(), Map(), Map()),
@@ -774,7 +776,7 @@ class FamlangTesting extends AnyFunSuite {
       Map("X"->(Eq, ADT(Map("C"->RecType(Map("f"->B))))),
         "Y"->(Eq, ADT(Map("K"->RecType(Map("p"->N)), "J"->RecType(Map("b"->B))))),
         "Z"->(Eq, ADT(Map("P"->RecType(Map("n"->N)))))),
-      Map(), null)){
+      Map(), Map())){
       concat(
         Linkage(self_a, null, Map(), Map(),
           Map("X"->(Eq, ADT(Map("C"->RecType(Map("f"->B))))),
@@ -793,7 +795,7 @@ class FamlangTesting extends AnyFunSuite {
     val self_b = SelfFamily(Family("B"))
     assertResult(Linkage(self_b, self_a, Map(), Map(),Map(),
       Map("m"->(FunType(B, N), Lam(Var("x"), B, Nexp(5))),
-      "id"->(FunType(N, N), Lam(Var("x"), N, Var("x")))), null)){
+      "id"->(FunType(N, N), Lam(Var("x"), N, Var("x")))), Map())){
       concat(
         Linkage(self_a, null, Map(), Map(), Map(),
           Map("m"->(FunType(B, N), Lam(Var("x"), B, Nexp(5)))), Map()),
@@ -808,7 +810,7 @@ class FamlangTesting extends AnyFunSuite {
     val self_c = SelfFamily(Family("C"))
     assertResult(Linkage(self_c, self_b, Map("R"->(Eq, RecType(Map("f"->B)))), Map(), Map(),
       Map("m"->(FunType(B, N), Lam(Var("x"), B, Nexp(5))),
-        "id"->(FunType(N, N), Lam(Var("x"), N, Var("x")))), null)){
+        "id"->(FunType(N, N), Lam(Var("x"), N, Var("x")))), Map())){
       complete_linkage(self_c,
         Map(self_a -> Linkage(self_a, null, Map(), Map(), Map(),
           Map("m"->(FunType(B, N), Lam(Var("x"), B, Nexp(5)))), Map()),
@@ -818,9 +820,99 @@ class FamlangTesting extends AnyFunSuite {
     }
   }
 
+  // assume .plus is defined and exists in the nat library
+  // these are ADTs so they don't need defaults
+  test("sums example: can parse base family and triple extension in sums program") {
+    assert(canParse(program,
+      "Family Base { " +
 
-  // TODO: test concatenation of defaults and make sure they are handled throughout the impl
-*/
+        "type T = C1 {n: N} | C2 {n1: N, n2: N}" +
+
+        "val sum: (.T -> N) = lam (t: .T). match t with <.sum_cases> {arg = t}" +
+
+        "cases sum_cases: {arg: .T} -> {C1: {n: N} -> N, C2: {n1: N, n2: N} -> N} =" +
+          "lam (r: {arg: .T}). {C1 = lam (x: {n: N}). x.n, C2 = lam (x: {n1: N, n2: N}). (.plus x.n1 x.n2)}" +
+
+      "}" +
+
+      "Family Triple extends A {" +
+
+        "type T += C3 {n1: N, n2: N, n3: N}" +
+
+        "cases sum_cases: {arg: .T} -> {C3: {n1: N, n2: N, n3: N} -> N} +=" +
+          "lam (r: {arg: .T}). {C3 = lam (x: {n1: N, n2: N, n3: N}). ((.plus ((.plus x.n1) x.n2)) x.n3)}" +
+
+        "}"
+    ))
+  }
+
+  test("sums example: parsing the program produces correct linkages") {
+    val prog : String =
+      ("Family Base { " +
+
+      "type T = C1 {n: N} | C2 {n1: N, n2: N}" +
+
+      "val plus: (N -> N -> N) = lam (x: N). lam (y: N). 1" +
+
+      "val sum: (.T -> N) = lam (t: .T). match t with <.sum_cases> {arg = t}" +
+
+      "cases sum_cases: {arg: .T} -> {C1: {n: N} -> N, C2: {n1: N, n2: N} -> N} =" +
+        "lam (r: {arg: .T}). {C1 = lam (x: {n: N}). x.n, C2 = lam (x: {n1: N, n2: N}). ((.plus x.n1) x.n2)}" +
+
+      "}" +
+
+      "Family Triple extends Base {" +
+
+      "type T += C3 {n1: N, n2: N, n3: N}" +
+
+      "cases sum_cases: {arg: .T} -> {C3: {n1: N, n2: N, n3: N} -> N} +=" +
+        "lam (r: {arg: .T}). {C3 = lam (x: {n1: N, n2: N, n3: N}). ((.plus ((.plus x.n1) x.n2)) x.n3)}" +
+
+      "}");
+
+    val self_base = SelfFamily(Family("Base"))
+    val self_triple = SelfFamily(Family("Triple"))
+    val lkg_base = Linkage(self_base, null, Map(), Map(),
+      // adts
+      Map("T"->(Eq, ADT(Map("C1"->RecType(Map("n"->N)), "C2"->RecType(Map("n1"->N, "n2"->N)))))),
+      // functions
+      Map("plus"->(FunType(N, FunType(N,N)), Lam(Var("x"), N, Lam(Var("y"), N, Nexp(1)))),
+        "sum"->(FunType(FamType(null, "T"), N), Lam(Var("t"), FamType(null, "T"),
+        Match(Var("t"), App(FamCases(null, "sum_cases"), Rec(Map("arg"->Var("t")))))))),
+      // cases
+      Map("sum_cases"-> (Eq,
+          // the arrow type of cases
+          FunType(RecType(Map("arg"->FamType(null, "T"))),
+            RecType(Map("C1"->FunType(RecType(Map("n"->N)), N),
+                        "C2"->FunType(RecType(Map("n1"->N, "n2"->N)), N)))),
+          // the function body of cases
+          Lam(Var("r"), RecType(Map("arg"->FamType(null, "T"))),
+            Rec(Map("C1"->Lam(Var("x"), RecType(Map("n"->N)), Proj(Var("x"), "n")),
+                    "C2"->Lam(Var("x"), RecType(Map("n1"->N, "n2"->N)),
+                      App(App(FamFun(null, "plus"), Proj(Var("x"), "n1")), Proj(Var("x"), "n2")))))))))
+    val lkg_triple = Linkage(self_triple, self_base, Map(), Map(),
+      // adts
+      Map("T"->(PlusEq, ADT(Map("C3"->RecType(Map("n1"->N, "n2"->N, "n3"->N)))))),
+      Map(),
+      // cases
+      Map("sum_cases"-> (PlusEq,
+        // the arrow type of cases
+        FunType(RecType(Map("arg"->FamType(null, "T"))),
+          RecType(Map("C3"->FunType(RecType(Map("n1"->N, "n2"->N, "n3"->N)), N)))),
+        // the function body of cases
+        Lam(Var("r"), RecType(Map("arg"->FamType(null, "T"))),
+          Rec(Map("C3"->Lam(Var("x"), RecType(Map("n1"->N, "n2"->N, "n3"->N)),
+              App(App(FamFun(null, "plus"),
+                App(App(FamFun(null, "plus"), Proj(Var("x"), "n1")), Proj(Var("x"), "n2"))),
+                Proj(Var("x"), "n3")))))))))
+
+    assertResult(Map(self_base->lkg_base, self_triple->lkg_triple)){parseSuccess(program, prog)}
+    assert(process(prog))
+    // NOTE: must include parens around the first app (.plus x.n1), otherwise it parses apps right to left
+  }
+
+
+
 
 }
 
