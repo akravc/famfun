@@ -18,7 +18,7 @@ object famlang_main {
     map_inc = map_inc.map{case(p, lkg)=> (p, fill_paths(lkg))};
     var complete_map = map_inc.map{case (p, lkg) => (p, complete_linkage(p, map_inc))}
 
-    complete_map.map{case (p, lkg) => print_lkg(lkg)}
+    //complete_map.map{case (p, lkg) => print_lkg(lkg)}
     return !complete_map.exists{ case(p, lkg) => !linkage_ok(lkg, Map(), complete_map)}
   }
 }

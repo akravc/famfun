@@ -228,26 +228,28 @@ object famlang {
               lkg.adts.get(name).flatMap {
                 (marker, adt) =>
                   assert(marker == Eq); // should be Eq in a complete linkage, check with assertion
-                  g match {
-                    case Rec(fields) => // the fields are constructor names, same as the keys of the adt
+                  typInf(g, G, K).flatMap{
+                    case RecType(fields) => // the fields are constructor names, same as the keys of the adt
+                      print("\ngot here\n")
                       if (fields.keySet != adt.cs.keySet) then { // all constructor names must appear in match
                         throw new Exception("Pattern match is not exhaustive.")
                       } else {
-                        val funtypes = fields.map { case (c, lam) => (c, typInf(lam, G, K)) }; // infer types of the functions
-                        // output type of the first funtype for equality comparison later
-                        val head_out = funtypes.head._2 match {
-                          case Some(FunType(i, o)) => o // should be the same output type for each case lambda
+                        // all of these function types must have inputs that correspond to the proper ADT constructor
+                        // and the same output type
+                        val head_out = fields.head._2 match {
+                          case FunType(i, o) => o // should be the same output type for each case lambda
                           case _ => return None // abandon ship if the first inferred type is not even a function type
                         }
                         if fields.forall {
-                          case (c, lam) =>
+                          case (c, FunType(i, o)) =>
                             adt.cs.get(c) match {
-                              case Some(constr_rectype) => typCheck(lam, FunType(constr_rectype, head_out), G, K)
+                              case Some(constr_rectype) => (i == constr_rectype) && (o == head_out)
                               case _ => false
                             }
+                          case _ => false
                         } then Some(head_out) else None
                       }
-                    case _ => None // if the expression g is not a a record
+                    case _ => None // expression g does not have a record type
                   }
               }
           }
