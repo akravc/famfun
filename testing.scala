@@ -1008,6 +1008,41 @@ class FamlangTesting extends AnyFunSuite {
     // NOTE: must include parens around the first app (.plus x.n1), otherwise it parses apps right to left
   }
 
+  test("wrap/unwrap example: the program typechecks") {
+    val prog : String =
+      ("Family A { " +
+        "type T = {n: N = 1}" +
+        "type U = {t: .T = .T({n=1})}" +
+        "val wrap: N->.U = lam (k: N). .U({t= .T({n = k})})" +
+        "val unwrap: .U->N = lam (u: .U). (u.t).n" +
+        "}");
+    assert(process(prog))
+  }
+
+  test("even / odd: the program typechecks") {
+    val prog : String =
+      ("Family Peano { "+
+        "type Nat = O {} | S {n: .Nat}"+ // should be able to have .Nat / self(Peano).Nat here
+        "}" +
+
+      "Family Even {" +
+        "val even: Peano.Nat -> B = lam (n: Peano.Nat). match n with <.even_cases> {arg=n}" +
+        "cases even_cases: {arg: Peano.Nat} -> {O: {} -> B, S: {n: Peano.Nat} -> B} = " +
+          "lam (r: {arg: Peano.Nat}). {O = lam (_:{}). true, S = lam (x: {n: Peano.Nat}). Odd.odd x.n}" +
+
+      "}" +
+
+      "Family Odd {" +
+        "val odd: Peano.Nat -> B = lam (n: Peano.Nat). match n with <.odd_cases> {arg=n}" +
+        "cases odd_cases: {arg: Peano.Nat} -> {O: {} -> B, S: {n: Peano.Nat} -> B} = " +
+        "lam (r: {arg: Peano.Nat}). {O = lam (_:{}). false, S = lam (x: {n: Peano.Nat}). Even.even x.n}" +
+        "}"
+        );
+    assert(process(prog))
+  }
+
+
+
 
 
 

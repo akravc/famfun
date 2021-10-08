@@ -15,10 +15,14 @@ object famlang_main {
     }
     // context of incomplete linkages, fresh from the parser
     var map_inc: Map[FamilyPath, Linkage] = parseSuccess(program, usercode);
-    map_inc = map_inc.map{case(p, lkg)=> (p, fill_paths(lkg))};
+    // update all null paths with self paths (.T is parsed as a family type T with null family)
+    map_inc = map_inc.map{case(p, lkg)=> (p, update_paths(lkg, null, lkg.self))};
+    // for each linkage in the map, build a complete linkage
     var complete_map = map_inc.map{case (p, lkg) => (p, complete_linkage(p, map_inc))}
 
-    //complete_map.map{case (p, lkg) => print_lkg(lkg)}
+    // TESTING ONLY
+    complete_map.map{case (p, lkg) => print_lkg(lkg)}
+    // typecheck everything and return true if linkage typechecks
     return !complete_map.exists{ case(p, lkg) => !linkage_ok(lkg, Map(), complete_map)}
   }
 }

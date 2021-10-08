@@ -36,8 +36,8 @@ object famlang {
   case object PlusEq extends Marker // type extension marker
   case object Eq extends Marker // type definition marker
 
-  case class Linkage(self: SelfFamily, // self
-                     sup: SelfFamily,  // super
+  case class Linkage(self: FamilyPath, // self
+                     sup: FamilyPath,  // super
                      types: Map[String, (Marker, RecType)],
                      defaults: Map[String, (Marker, Rec)],
                      adts: Map[String, (Marker, ADT)],
@@ -60,6 +60,21 @@ object famlang {
 
   /*====================================== TYPE WELL-FORMEDNESS ======================================*/
 
+  // helper that returns the self version or the qualified version of the linkage
+  def get_lkg(p: FamilyPath, K: Map[FamilyPath, Linkage]): Option[Linkage] = {
+    p match {
+      // if our path is a self path, just get the linkage
+      case SelfFamily(Family(f)) => K.get(p)
+      // if we have an absolute path, return the qualified version of the linkage
+      case AbsoluteFamily(Family(f)) =>
+        K.get(SelfFamily(Family(f))) match {
+          case Some(lkg) => Some(update_paths(lkg, SelfFamily(Family(f)), p))
+          case None => None
+        }
+      case _ => None
+    }
+  }
+
   // Well-Formedness Rules
   // K is the linkage context
   // ASSUMPTION: Linkages in K are complete and well-formed
@@ -67,7 +82,7 @@ object famlang {
     case N => true
     case B => true
     case FamType(path, name) =>
-      K.get(path) match {
+      get_lkg(path, K) match {
         case Some(lkg) => lkg.types.contains(name) || lkg.adts.contains(name)
         case None => false
       }
@@ -135,7 +150,7 @@ object famlang {
         case RecType(ftypes) => ftypes.get(f)
         // if we have an instance of a type, the inferred type will be a famtype
         case FamType(p, n) =>
-          K.get(p).flatMap {
+          get_lkg(p, K).flatMap {
             lkg =>
               lkg.types.get(n) match {
                 case Some(_, RecType(fields)) => fields.get(f)
@@ -148,7 +163,7 @@ object famlang {
     //_______________________________________________ T_FamFun
     //  G |- a.m : T -> T'
     case FamFun(path, name) =>
-      K.get(path).flatMap {
+      get_lkg(path, K).flatMap {
         lkg =>
           lkg.funs.get(name).map {
             // funtype should be well-formed, check with assertion
@@ -162,7 +177,7 @@ object famlang {
     // ___________________________________________________ T_Cases
     // G |- a.r : {(f_i:T_i)*} -> {(C_j':T_j'->T_j'')*}
     case FamCases(path, name) =>
-      K.get(path).flatMap {
+      get_lkg(path, K).flatMap {
         lkg =>
           lkg.depot.get(name).map {
             // funtype should be well-formed, check with assertion
@@ -178,7 +193,7 @@ object famlang {
     //______________________________________ T_Constructor
     //  G |- a.R({(f_i = e_i)*}) : a.R
     case Inst(ftype, rec) =>
-      K.get(ftype.path).flatMap {
+      get_lkg(ftype.path, K).flatMap {
         lkg =>
           lkg.types.get(ftype.name).flatMap {
             (marker, rt) =>
@@ -200,7 +215,7 @@ object famlang {
     //  G |- a.R(C {(f_i = e_i)*}) : a.R
     case InstADT(ftype, cname, rec) =>
       val inferredtypes = rec.fields.map { case (f, e) => (f, typInf(e, G, K)) };
-      K.get(ftype.path).flatMap {
+      get_lkg(ftype.path, K).flatMap {
         lkg =>
           lkg.adts.get(ftype.name).flatMap {
             (marker, adt) =>
@@ -222,7 +237,7 @@ object famlang {
     case Match(e, g) =>
       typInf(e, G, K).flatMap {
         case FamType(path, name) =>
-          K.get(path).flatMap {
+          get_lkg(path, K).flatMap {
             lkg =>
               // look up the name of the ADT type in the linkage
               lkg.adts.get(name).flatMap {
@@ -230,7 +245,6 @@ object famlang {
                   assert(marker == Eq); // should be Eq in a complete linkage, check with assertion
                   typInf(g, G, K).flatMap{
                     case RecType(fields) => // the fields are constructor names, same as the keys of the adt
-                      print("\ngot here\n")
                       if (fields.keySet != adt.cs.keySet) then { // all constructor names must appear in match
                         throw new Exception("Pattern match is not exhaustive.")
                       } else {
@@ -255,7 +269,6 @@ object famlang {
           }
         case _ => None
       }
-
 
     // All other cases
     case _ => None
@@ -282,7 +295,7 @@ object famlang {
       // a.R <: t2 means we pull out the definition of R from linkage
       // and check if subtype of t2
       case (FamType(path, name), t2) =>
-        K.get(path).flatMap{
+        get_lkg(path, K).flatMap{
           lkg => lkg.types.get(name).flatMap{
             (marker, rectype) =>
               assert(marker == Eq); // should be Eq in a complete linkage, check
@@ -324,7 +337,7 @@ object famlang {
       // [[self(P)]] + [self(A)] = [[self(A)]]
       // _______________________________________ L-Self
       // K |- self(A) ~> [[self(A)]]
-      case SelfFamily(Family(fname)) => K.get(fpath) match { // do we have a linkage for this family?
+      case SelfFamily(Family(fname)) => get_lkg(fpath, K) match { // do we have a linkage for this family?
         case Some(lkg) => // have an incomplete? let's build a complete one
           if (lkg.sup == null) then { // no parent? no problem
             concat(null, lkg) // concat with empty complete linkage and return
@@ -343,37 +356,6 @@ object famlang {
     }
   }
 
-  // HELPERS for concatenating linkages: replace self(A) with self(B) in types and expressions
-
-  // replace self-paths p1 with self-paths p2 in a type
-  def update_self_in_type(t: Type, p1: SelfFamily, p2: SelfFamily): Type = {
-    t match {
-      case FamType(path, name) =>
-        if (path == p1) then FamType(p2, name) else FamType(path, name)
-      case FunType(t1, t2) => FunType(update_self_in_type(t1, p1, p2), update_self_in_type(t2, p1, p2))
-      case RecType(m) => RecType(m.map{case (s, ft) => (s, update_self_in_type(ft, p1, p2))})
-      case _ => t
-    }
-  }
-
-  // replace self-paths p1 with self-paths p2 in an expression
-  def update_self_in_exp(e: Expression, p1: SelfFamily, p2: SelfFamily): Expression = {
-    e match {
-      case Lam(v, t, body) => Lam(v, update_self_in_type(t, p1, p2), update_self_in_exp(body, p1, p2))
-      case FamFun(path, name) => if (path == p1) then FamFun(p2, name) else e
-      case FamCases(path, name) => if (path == p1) then FamCases(p2, name) else e
-      case App(e1, e2) => App(update_self_in_exp(e1, p1, p2), update_self_in_exp(e2, p1, p2))
-      case Rec(m) => Rec(m.map{case (s, fex) => (s, update_self_in_exp(fex, p1, p2))})
-      case Proj(exp, name) => Proj(update_self_in_exp(exp, p1, p2), name)
-      case Inst(t, rec) =>
-        Inst(update_self_in_type(t, p1, p2).asInstanceOf[FamType], update_self_in_exp(rec, p1, p2).asInstanceOf[Rec])
-      case InstADT(t, cname, rec) =>
-        InstADT(update_self_in_type(t, p1, p2).asInstanceOf[FamType], cname, update_self_in_exp(rec, p1, p2).asInstanceOf[Rec])
-      case Match(exp, g) => Match(update_self_in_exp(exp, p1, p2), update_self_in_exp(g, p1, p2))
-      case _ => e
-    }
-  }
-
   // concatenates two linkages
   // ASSUMPTION: lkgA is complete, lkgB is incomplete
   def concat(lkgA: Linkage, lkgB: Linkage): Linkage = {
@@ -384,18 +366,18 @@ object famlang {
     val p1 = lkgA.self
     val p2 = lkgB.self
     val updated_types =
-      lkgA.types.map{case (s, (m, rt)) => (s, (m, update_self_in_type(rt, p1, p2).asInstanceOf[RecType]))}
+      lkgA.types.map{case (s, (m, rt)) => (s, (m, update_type_paths(rt, p1, p2).asInstanceOf[RecType]))}
     val updated_defaults =
-      lkgA.defaults.map{case (s, (m, r)) => (s, (m, update_self_in_exp(r, p1, p2).asInstanceOf[Rec]))}
+      lkgA.defaults.map{case (s, (m, r)) => (s, (m, update_exp_paths(r, p1, p2).asInstanceOf[Rec]))}
     val updated_adts =
       lkgA.adts.map{case (s, (m, adt)) =>
-        (s, (m, ADT(adt.cs.map{case(s, rt) => (s, update_self_in_type(rt, p1, p2).asInstanceOf[RecType])})))}
+        (s, (m, ADT(adt.cs.map{case(s, rt) => (s, update_type_paths(rt, p1, p2).asInstanceOf[RecType])})))}
     val updated_funs =
       lkgA.funs.map{case (s, (ft, lm)) =>
-        (s, (update_self_in_type(ft, p1, p2).asInstanceOf[FunType], update_self_in_exp(lm, p1, p2).asInstanceOf[Lam]))}
+        (s, (update_type_paths(ft, p1, p2).asInstanceOf[FunType], update_exp_paths(lm, p1, p2).asInstanceOf[Lam]))}
     val updated_depot =
       lkgA.depot.map{ case (s, (m, ft, lm)) =>
-        (s, (m, update_self_in_type(ft, p1, p2).asInstanceOf[FunType], update_self_in_exp(lm, p1, p2).asInstanceOf[Lam]))}
+        (s, (m, update_type_paths(ft, p1, p2).asInstanceOf[FunType], update_exp_paths(lm, p1, p2).asInstanceOf[Lam]))}
 
     // Concat and create new, complete linkage
     Linkage(lkgB.self, lkgA.self, concat_types(updated_types, lkgB.types),
@@ -566,7 +548,7 @@ object famlang {
     val defaults_ok = lkg.defaults.filter{
       case (s, (m, r)) => !is_value(r) || // if the default is not a value or...
         (lkg.types.get(s) match {
-          case Some(m, rt) => (rt != typInf(r, G, K).asInstanceOf[RecType]) // ...or the default has the wrong type
+          case Some(m, rt) => (Some(rt) != typInf(r, G, K)) // ...or the default has the wrong type
           case _ => assert(false)
         })}.isEmpty
     // forall (R = \overline{C {(f: T)*}}) in ADTS, WF({(f: T)*})
@@ -595,53 +577,59 @@ object famlang {
 
   /*====================================== LINKAGE SYNTACTIC TRANSFORMATION  ======================================*/
 
-  def fill_paths_in_type (t: Type, p: FamilyPath) : Type = {
-    if (p == null) then {
-      throw new Exception("Attempting to update a relative type with a null path.")
+  // replaces paths p1 in type t with paths p2
+  def update_type_paths (t: Type, p1: FamilyPath, p2: FamilyPath) : Type = {
+    if (p2 == null) then {
+      throw new Exception("Attempting to update a type with a null path.")
     }
     t match {
-      case FamType(path, name) => if (path == null) then FamType(p, name) else t
-      case FunType(it, ot) => FunType(fill_paths_in_type(it, p), fill_paths_in_type(ot, p))
-      case RecType(fields) => RecType(fields.map{(str, t) => (str, fill_paths_in_type(t, p))})
+      case FamType(path, name) => if (path == p1) then FamType(p2, name) else t
+      case FunType(it, ot) => FunType(update_type_paths(it, p1, p2), update_type_paths(ot, p1, p2))
+      case RecType(fields) => RecType(fields.map{(str, t) => (str, update_type_paths(t, p1, p2))})
       case _ => t
     }
   }
 
-  def fill_paths_in_exp (exp: Expression, p: FamilyPath) : Expression = {
-    if (p == null) then {
-      throw new Exception("Attempting to update a relative expression with a null path.")
+  // replaces paths p1 in expression exp with paths p2
+  def update_exp_paths (exp: Expression, p1: FamilyPath, p2: FamilyPath) : Expression = {
+    if (p2 == null) then {
+      throw new Exception("Attempting to update an expression with a null path.")
     }
     exp match {
-      case Lam(v, t, body) => Lam(v, fill_paths_in_type(t, p), fill_paths_in_exp(body, p))
-      case FamFun(path, name) => if (path == null) then FamFun(p, name) else exp
-      case FamCases(path, name) => if (path == null) then FamCases(p, name) else exp
-      case App(e1, e2) => App(fill_paths_in_exp(e1, p), fill_paths_in_exp(e2, p))
-      case Rec(fields) => Rec(fields.map{(s, e) => (s, fill_paths_in_exp(e, p))})
-      case Proj(e, name) => Proj(fill_paths_in_exp(e, p), name)
+      case Lam(v, t, body) => Lam(v, update_type_paths(t, p1, p2), update_exp_paths(body, p1, p2))
+      case FamFun(path, name) => if (path == p1) then FamFun(p2, name) else exp
+      case FamCases(path, name) => if (path == p1) then FamCases(p2, name) else exp
+      case App(e1, e2) => App(update_exp_paths(e1, p1, p2), update_exp_paths(e2, p1, p2))
+      case Rec(fields) => Rec(fields.map{(s, e) => (s, update_exp_paths(e, p1, p2))})
+      case Proj(e, name) => Proj(update_exp_paths(e, p1, p2), name)
       case Inst(t, rec) =>
-        Inst(fill_paths_in_type(t, p).asInstanceOf[FamType], fill_paths_in_exp(rec, p).asInstanceOf[Rec])
+        Inst(update_type_paths(t, p1, p2).asInstanceOf[FamType], update_exp_paths(rec, p1, p2).asInstanceOf[Rec])
       case InstADT(t, cname, rec) =>
-        InstADT(fill_paths_in_type(t, p).asInstanceOf[FamType], cname, fill_paths_in_exp(rec, p).asInstanceOf[Rec])
+        InstADT(update_type_paths(t, p1, p2).asInstanceOf[FamType], cname, update_exp_paths(rec, p1, p2).asInstanceOf[Rec])
       case Match(e, g) =>
-        Match(fill_paths_in_exp(e, p), fill_paths_in_exp(g, p))
+        Match(update_exp_paths(e, p1, p2), update_exp_paths(g, p1, p2))
       case _ => exp
     }
   }
 
-  def fill_paths (lkg: Linkage) : Linkage = {
-    var p = lkg.self
+  def update_paths (lkg: Linkage, p1: FamilyPath, p2: FamilyPath) : Linkage = {
+    var newself = if (lkg.self == p1) then p2 else lkg.self
+    // NOTE: currently, super serves only for concatenation purposes. it is always a self() path.
+    // we do not need to replace super when updating paths.
+    // sometimes we need to replace self(A) with the qualified version (A), but this does not apply for super.
+    // this may change when we have nested families.
     var newtypes =
-      lkg.types.map{case (s, (m, rt)) => (s, (m, fill_paths_in_type(rt, p).asInstanceOf[RecType]))}
+      lkg.types.map{case (s, (m, rt)) => (s, (m, update_type_paths(rt, p1, p2).asInstanceOf[RecType]))}
     var newdefaults =
-      lkg.defaults.map{case (s, (m, rec)) => (s, (m, fill_paths_in_exp(rec, p).asInstanceOf[Rec]))}
+      lkg.defaults.map{case (s, (m, rec)) => (s, (m, update_exp_paths(rec, p1, p2).asInstanceOf[Rec]))}
     var newadts =
-      lkg.adts.map{case (s, (m, adt)) => (s, (m, ADT(adt.cs.map{(s, rt) => (s, fill_paths_in_type(rt, p).asInstanceOf[RecType])})))}
+      lkg.adts.map{case (s, (m, adt)) => (s, (m, ADT(adt.cs.map{(s, rt) => (s, update_type_paths(rt, p1, p2).asInstanceOf[RecType])})))}
     var newfuns = lkg.funs.map{case (s, (ft, lam)) =>
-        (s, (fill_paths_in_type(ft, p).asInstanceOf[FunType], fill_paths_in_exp(lam, p).asInstanceOf[Lam]))}
+        (s, (update_type_paths(ft, p1, p2).asInstanceOf[FunType], update_exp_paths(lam, p1, p2).asInstanceOf[Lam]))}
     var newdepot = lkg.depot.map{case (s, (m, ft, lam)) =>
-      (s, (m, fill_paths_in_type(ft, p).asInstanceOf[FunType], fill_paths_in_exp(lam, p).asInstanceOf[Lam]))}
+      (s, (m, update_type_paths(ft, p1, p2).asInstanceOf[FunType], update_exp_paths(lam, p1, p2).asInstanceOf[Lam]))}
 
-    Linkage(p, lkg.sup, newtypes, newdefaults, newadts, newfuns, newdepot)
+    Linkage(newself, lkg.sup, newtypes, newdefaults, newadts, newfuns, newdepot)
   }
 
 } // eof
