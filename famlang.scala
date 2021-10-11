@@ -42,7 +42,7 @@ object famlang {
                      defaults: Map[String, (Marker, Rec)],
                      adts: Map[String, (Marker, ADT)],
                      funs: Map[String, (FunType, Lam)],
-                     depot: Map[String, (Marker, FunType, Lam)])
+                     depot: Map[String, (FamType, Marker, FunType, Lam)])
 
 
   /*====================================== VALUES ======================================*/
@@ -180,10 +180,11 @@ object famlang {
       get_lkg(path, K).flatMap {
         lkg =>
           lkg.depot.get(name).map {
-            // funtype should be well-formed, check with assertion
-            (marker, funtype, lam) =>
+            // types should be well-formed, check with assertion
+            (matchtype, marker, funtype, lam) =>
               assert(marker == Eq);
               assert(wf(funtype, K));
+              assert(wf(matchtype, K));
               funtype
           }
       }
@@ -376,8 +377,9 @@ object famlang {
       lkgA.funs.map{case (s, (ft, lm)) =>
         (s, (update_type_paths(ft, p1, p2).asInstanceOf[FunType], update_exp_paths(lm, p1, p2).asInstanceOf[Lam]))}
     val updated_depot =
-      lkgA.depot.map{ case (s, (m, ft, lm)) =>
-        (s, (m, update_type_paths(ft, p1, p2).asInstanceOf[FunType], update_exp_paths(lm, p1, p2).asInstanceOf[Lam]))}
+      lkgA.depot.map{ case (s, (mt, m, ft, lm)) =>
+        (s, (update_type_paths(mt, p1, p2).asInstanceOf[FamType], m,
+          update_type_paths(ft, p1, p2).asInstanceOf[FunType], update_exp_paths(lm, p1, p2).asInstanceOf[Lam]))}
 
     // Concat and create new, complete linkage
     Linkage(lkgB.self, lkgA.self, concat_types(updated_types, lkgB.types),
@@ -486,20 +488,21 @@ object famlang {
     (unchanged_parent_funs.++(overridden_funs)).++(new_funs)
   }
 
-  def concat_depots(dep1: Map[String, (Marker, FunType, Lam)],
-                    dep2: Map[String, (Marker, FunType, Lam)]) : Map[String, (Marker, FunType, Lam)] = {
+  def concat_depots(dep1: Map[String, (FamType, Marker, FunType, Lam)],
+                    dep2: Map[String, (FamType, Marker, FunType, Lam)]) : Map[String, (FamType, Marker, FunType, Lam)] = {
     // cases from parent, not overridden in child
-    val unchanged_parent_cases = dep1.filter{case (k,(m, ft,lam)) => !dep2.contains(k)}
+    val unchanged_parent_cases = dep1.filter{case (k,_) => !dep2.contains(k)}
     // cases that child extends
-    val cases_to_extend = dep2.filter{case (k, (m, ft, lam)) => dep1.contains(k)}
+    val cases_to_extend = dep2.filter{case (k,_) => dep1.contains(k)}
     // new cases in child
-    val new_cases = dep2.filter{case (k, (m, ft, lam)) => !dep1.contains(k)}
+    val new_cases = dep2.filter{case (k, _) => !dep1.contains(k)}
 
     val extended_cases = cases_to_extend.map {
-      case (k, (m2, ft2, lam2)) =>
+      case (k, (mt2, m2, ft2, lam2)) =>
         assert(m2 == PlusEq); // the marker on the child cases should be +=
+        // get stuff from parent depot
         dep1.get(k) match {
-          case Some((m1, ft1, lam1)) =>
+          case Some((mt1, m1, ft1, lam1)) =>
             (ft1, ft2) match {
               case (FunType(in1, out1), FunType(in2, out2)) =>
                 // TODO: here, we should really check that in2 is a subtype of in1, since child cases may take more args
@@ -520,10 +523,11 @@ object famlang {
                   val comb_cases = (casemap1).++(casemap2)
                   if (comb_cases.size != casemap1.size + casemap2.size) then
                     throw new Exception("Concatenation of cases resulted in duplicate constructors.")
+                    // TODO: we can check for exhaustivity here instead of in the typing function
                   else {
                     // TODO: need to check that the variable of lam1 and lam2 is the same
                     // TODO: need to check that the type lam2.t is appropriate
-                    (k, (Eq, FunType(in2, RecType(combined_out)), Lam(lam2.v, lam2.t, Rec(comb_cases))))
+                    (k, (mt2, Eq, FunType(in2, RecType(combined_out)), Lam(lam2.v, lam2.t, Rec(comb_cases))))
                   }
                 }
               case (_, _) => throw new Exception("Some cases constructs have non-arrow types.")
@@ -565,7 +569,7 @@ object famlang {
           true // mark it
         else false
     }.isEmpty
-    val cases_ok = lkg.depot.filter{ case (s, (m, ft, lam)) => !typCheck(lam, ft, G, K)}.isEmpty
+    val cases_ok = lkg.depot.filter{ case (s, (mt, m, ft, lam)) => !typCheck(lam, ft, G, K)}.isEmpty
 
     if !types_ok then throw new Exception("Types in linkage " + lkg.self + " are not well-formed.")
     else if !defaults_ok then throw new Exception("Defaults in linkage " + lkg.self + " don't typecheck.")
@@ -575,7 +579,7 @@ object famlang {
     else true
   }
 
-  /*====================================== LINKAGE SYNTACTIC TRANSFORMATION  ======================================*/
+  /*====================================== LINKAGE TRANSFORMATIONS  ======================================*/
 
   // replaces paths p1 in type t with paths p2
   def update_type_paths (t: Type, p1: FamilyPath, p2: FamilyPath) : Type = {
@@ -612,6 +616,7 @@ object famlang {
     }
   }
 
+  // replace paths with other paths
   def update_paths (lkg: Linkage, p1: FamilyPath, p2: FamilyPath) : Linkage = {
     var newself = if (lkg.self == p1) then p2 else lkg.self
     // NOTE: currently, super serves only for concatenation purposes. it is always a self() path.
@@ -626,10 +631,75 @@ object famlang {
       lkg.adts.map{case (s, (m, adt)) => (s, (m, ADT(adt.cs.map{(s, rt) => (s, update_type_paths(rt, p1, p2).asInstanceOf[RecType])})))}
     var newfuns = lkg.funs.map{case (s, (ft, lam)) =>
         (s, (update_type_paths(ft, p1, p2).asInstanceOf[FunType], update_exp_paths(lam, p1, p2).asInstanceOf[Lam]))}
-    var newdepot = lkg.depot.map{case (s, (m, ft, lam)) =>
-      (s, (m, update_type_paths(ft, p1, p2).asInstanceOf[FunType], update_exp_paths(lam, p1, p2).asInstanceOf[Lam]))}
+    var newdepot = lkg.depot.map{case (s, (mt, m, ft, lam)) =>
+      (s, (update_type_paths(mt, p1, p2).asInstanceOf[FamType], m,
+        update_type_paths(ft, p1, p2).asInstanceOf[FunType], update_exp_paths(lam, p1, p2).asInstanceOf[Lam]))}
 
     Linkage(newself, lkg.sup, newtypes, newdefaults, newadts, newfuns, newdepot)
   }
 
+
+  // unfold wildcards in cases
+  // ASSUMPTION: incomplete linkages, K is the context of incomplete linkages
+  def unfold_wildcards (lkg: Linkage, K: Map[FamilyPath, Linkage]) : Linkage = {
+    val newdepot = lkg.depot.map{ case (k, (mt, m, ft, lam)) =>
+      assert(lam.body.isInstanceOf[Rec]);
+      assert(ft.output.isInstanceOf[RecType]);
+      // a map of case ids in this definition
+      var case_ids = lam.body.asInstanceOf[Rec].fields
+      // output type of cases is a record type map
+      var cases_out_type = ft.output.asInstanceOf[RecType].fields
+      // the output type of each lambda case should be the same, grab the first one
+      val out_type_of_each_lam = cases_out_type.head._2.asInstanceOf[FunType].output
+      if !case_ids.contains("_") then (k, (mt, m, ft, lam)) // quit here if no wildcard cases
+      else {
+        // check mt is a family type, look it up in the linkage for that family
+        mt match {
+          case FamType(path, name) =>
+            get_lkg(path, K) match {
+              // this is the linkage in which the match type appears
+              case Some(typelkg) =>
+                // get the named type from the proper family's linkage
+                typelkg.adts.get(name) match {
+                  // there's an ADT for our match type, yay!
+                  case Some((m, adt)) =>
+                    // retrieve the wildcard case from the cases definition
+                    case_ids.get("_") match {
+                      // case ids are mapped to functions
+                      case Some(Lam(v, t, wild_body)) =>
+                        for (c <- adt.cs.keySet) {
+                          // if some constructor does not appear in the case_ids and the output type,
+                          // it is covered by the wildcard
+                          if !case_ids.contains(c) && !cases_out_type.contains(c) then {
+                            adt.cs.get(c) match {
+                              case Some(constr_rt) =>
+                                // add an unfolded case with a _ variable (will not be used),
+                                // the same input type as the ADT has for this constructor, and
+                                // the body from the wildcard case
+                                case_ids = case_ids.+((c, Lam(Var("_"), constr_rt, wild_body)))
+                                // add to the output type of cases to reflect the new case inserted
+                                cases_out_type = cases_out_type.+((c, FunType(constr_rt, out_type_of_each_lam)))
+                              case _ => assert(false); //that's just not possible
+                            }
+                          }
+                        };
+                        // remove the wildcard case
+                        case_ids = case_ids.-("_");
+                        cases_out_type = cases_out_type.-("_");
+                        // return the updated definition
+                        (k, (mt, m, FunType(ft.input, RecType(cases_out_type)), Lam(lam.v, lam.t, Rec(case_ids))))
+                      case _ => throw new Exception("Wildcard case does not have a lambda abstraction value.")
+                    }
+                  case _ => throw new Exception("Match type does not exist in the specified family, " +
+                    "or does not have an ADT definition.")
+                }
+              case _ => throw new Exception("No linkage exists for family of match type.")
+            }
+          case null => throw new Exception("The match type is null.")
+        }
+      }
+    }
+    // return the updated incomplete linkage
+    Linkage(lkg.self, lkg.sup, lkg.types, lkg.defaults, lkg.adts, lkg.funs, newdepot)
+  }
 } // eof

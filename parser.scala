@@ -6,7 +6,7 @@ Family A (extends B)? {
     type R (+)?= {(f: T = v)*}                  % extensible records w/ defaults
     type R (+)?= \overline{C {(f: T)*}}         % extensible ADTs
     val m : (T -> T') = (lam (x : T). body)     % functions w/ inputs
-    cases r : {(f:T)*} -> {(C': T'->T'')*} =
+    cases r <a.R> : {(f:T)*} -> {(C': T'->T'')*} =
         lam (x:{(f:T)*}). {(C' = lam (x: T'). body)*}
 }
  */
@@ -35,8 +35,9 @@ class FamParser extends RegexParsers with PackratParsers {
   def family_name: Parser[String] = not(reserved) ~> """([A-Z][a-z]*)+""".r ^^ { _.toString }
   def type_name: Parser[String] = not(reserved) ~> """([A-Z][a-z]*)+""".r ^^ { _.toString }
   def function_name: Parser[String] = not(reserved) ~> """[a-zA-Z_]+""".r ^^ { _.toString }
-  // field names can now also be constructor names because of cases
-  def field_name: Parser[String] = not(reserved) ~> """(([a-z0-9])+)|(([A-Z][a-z0-9]*)+)""".r ^^ { _.toString }
+  // field names can also be constructor names or underscores because of cases
+  // is this a problem to allow this for all records?
+  def field_name: Parser[String] = not(reserved) ~> """(([a-z0-9])+)|(([A-Z][a-z0-9]*)+)|_""".r ^^ { _.toString }
   def constructor_name: Parser[String] = not(reserved) ~> """([A-Z][a-z0-9]*)+""".r ^^ { _.toString }
 
   // FAMILY PATHS
@@ -140,11 +141,13 @@ class FamParser extends RegexParsers with PackratParsers {
     kwVal ~> function_name ~ ":" ~ "(" ~ funtype ~ ")" ~ "=" ~ exp_lam ^^ {case m~_~_~t~_~_~b => m -> (t -> b)}
     | kwVal ~> function_name ~ ":" ~ funtype ~ "=" ~ exp_lam ^^ {case m~_~t~_~b => m -> (t -> b)}
 
-  lazy val cases_def: PackratParser[(String, (Marker, FunType, Lam))] =
-    kwCases ~> function_name ~ ":" ~ funtype ~ marker ~ exp_lam ^^
-      { case s~_~t~m~lam => (s, (m, t, lam))}
-    | kwCases ~> function_name ~ ":" ~ "(" ~ funtype ~ ")" ~ marker ~ exp_lam ^^
-      { case s~_~_~t~_~m~lam => (s, (m, t, lam))}
+  lazy val match_type: PackratParser[FamType] = "<" ~> famtype <~ ">" ^^ {case t => t}
+  // mt = match type, m = marker, ft = funtype, lam = body
+  lazy val cases_def: PackratParser[(String, (FamType, Marker, FunType, Lam))] =
+    kwCases ~> function_name ~ match_type ~ ":" ~ funtype ~ marker ~ exp_lam ^^
+      { case s~mt~_~ft~m~lam => (s, (mt, m, ft, lam))}
+    | kwCases ~> function_name ~ match_type ~ ":" ~ "(" ~ funtype ~ ")" ~ marker ~ exp_lam ^^
+      { case s~mt~_~_~ft~_~m~lam => (s, (mt, m, ft, lam))}
 
   // helper to check for duplicate function headers
   // returns true if there are duplicates
