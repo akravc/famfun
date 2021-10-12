@@ -1,3 +1,5 @@
+import scala.util.Random
+
 object famlang {
   // Families & Paths
   case class Family(name: String)
@@ -110,7 +112,9 @@ object famlang {
     //  x: T \in G
     // ______________ T_Var
     //  G |- x : T
-    case Var(x) => G.get(x)
+    case Var(x) =>
+      // don't allow programs that look up a _ variable to typecheck (can only use them as placeholders in lam def)
+      if x == "_" then None else G.get(x)
 
     //  WF(T)
     //  x : T, G |- body : T'
@@ -492,6 +496,54 @@ object famlang {
     (unchanged_parent_funs.++(overridden_funs)).++(new_funs)
   }
 
+  // helper to get all bound vars in an expression
+  def bound_vars (e: Expression) : List[Var] = {
+    e match {
+      case Lam(v, t, body) => v :: bound_vars(body)
+      case App(e1, e2) => bound_vars(e1).++(bound_vars(e2))
+      case Rec(fields) => fields.map{case (s, e) => bound_vars(e)}.flatten.toList
+      case Proj(e, f) => bound_vars(e)
+      case Inst(_, r) => bound_vars(r)
+      case InstADT(_, _, r) => bound_vars(r)
+      case Match(e, g) => bound_vars(e).++(bound_vars(g))
+      case _ => List.empty[Var]
+    }
+  }
+
+  // select a fresh variable name that's not contained in the list
+  def pick_fresh (lst: List[Var]) : Var = {
+    var x = "x"
+    while (lst.contains(Var(x))) {
+      x = Random.alphanumeric.filter(_.isLetter).head.toString
+    }
+    return Var(x)
+  }
+
+  // expression e is the body of a new lambda with bound var v2
+  // we replace necessary instances of v1 with v2
+  // ASSUMPTION: v1 is fresh in e
+  def var_replace(e: Expression, v1: Var, v2: Var) : Expression = {
+    // if we're trying to replace an _ variable, nothing in the expression changes because
+    // underscores are not used in the *bodies* of functions,
+    // only in lam definitions as a placeholder
+    if v1 == Var("_") then return e;
+
+    e match {
+      case Var(x) => if (v1 == Var(x)) then v2 else Var(x)
+      case Lam(v, t, body) =>
+        if (v1 == v) then {
+          throw new Exception("Uh oh! The variable you're trying to replace is bound!")
+        } else Lam(v, t, var_replace(body, v1, v2))
+      case App(e1, e2) => App(var_replace(e1, v1, v2), var_replace(e2, v1, v2))
+      case Rec(fields) => Rec(fields.map{case (s, e) => (s, var_replace(e, v1, v2))})
+      case Proj(e, f) => Proj(var_replace(e, v1, v2), f)
+      case Inst(t, r) => Inst(t, var_replace(r, v1, v2).asInstanceOf[Rec])
+      case InstADT(t, c, r) => InstADT(t, c, var_replace(r, v1, v2).asInstanceOf[Rec])
+      case Match(e, g) => Match(var_replace(e, v1, v2), var_replace(g, v1, v2))
+      case _ => e
+    }
+  }
+
   def concat_depots(dep1: Map[String, (FamType, Marker, FunType, Lam)],
                     dep2: Map[String, (FamType, Marker, FunType, Lam)]) : Map[String, (FamType, Marker, FunType, Lam)] = {
     // cases from parent, not overridden in child
@@ -507,6 +559,11 @@ object famlang {
         // get stuff from parent depot
         dep1.get(k) match {
           case Some((mt1, m1, ft1, lam1)) =>
+            // handle the overriding case: if the name, match type, and the case type are the same,
+            // and the marker is =, we override the definition.
+            if (mt1 == mt2 && ft1 == ft2 && m2 == Eq) then (k, (mt2, m2, ft2, lam2));
+
+            // if the signature does not match exactly, we attempt to extend. typechecker will figure out the rest
             (ft1, ft2) match {
               case (FunType(in1, out1), FunType(in2, out2)) =>
                 // TODO: here, we should really check that in2 is a subtype of in1, since child cases may take more args
@@ -527,11 +584,14 @@ object famlang {
                   val comb_cases = (casemap1).++(casemap2)
                   if (comb_cases.size != casemap1.size + casemap2.size) then
                     throw new Exception("Concatenation of cases resulted in duplicate constructors.")
-                    // TODO: we can check for exhaustivity here instead of in the typing function
                   else {
-                    // TODO: need to check that the variable of lam1 and lam2 is the same
-                    // TODO: need to check that the type lam2.t is appropriate
-                    (k, (mt2, Eq, FunType(in2, RecType(combined_out)), Lam(lam2.v, lam2.t, Rec(comb_cases))))
+                    // make sure that the new lambda variable is fresh
+                    var caserec = Rec(comb_cases)
+                    val bound = lam1.v :: (lam2.v :: bound_vars(caserec))
+                    val freshv = pick_fresh(bound)
+                    caserec = var_replace(caserec, lam1.v, freshv).asInstanceOf[Rec]
+                    caserec = var_replace(caserec, lam2.v, freshv).asInstanceOf[Rec]
+                    (k, (mt2, Eq, FunType(in2, RecType(combined_out)), Lam(freshv, lam2.t, caserec)))
                   }
                 }
               case (_, _) => throw new Exception("Some cases constructs have non-arrow types.")
