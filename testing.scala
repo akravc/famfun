@@ -704,7 +704,7 @@ class FamlangTesting extends AnyFunSuite {
     // self(A).R({f->true, n->5})
     val exp = InstADT(FamType(self_a, "R"), "C", Rec(Map("f"->Bexp(true), "n"->Nexp(5))))
 
-    assertThrows[Exception]{
+    assertResult(None){
       typInf(Match(exp, App(FamCases(self_a, "cs"), Rec(Map()))), Map(),
         Map(self_a->
           Linkage(self_a, null, Map(), Map(),
@@ -969,7 +969,7 @@ class FamlangTesting extends AnyFunSuite {
         "lam (_: {}). {C3 = lam (r: {b: B}). r.b}" +
         "}"
         );
-    assertThrows[Exception](process(prog))
+    assert(!process(prog))
   }
 
 

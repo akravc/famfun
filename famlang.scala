@@ -247,7 +247,8 @@ object famlang {
                   typInf(g, G, K).flatMap{
                     case RecType(fields) => // the fields are constructor names, same as the keys of the adt
                       if (fields.keySet != adt.cs.keySet) then { // all constructor names must appear in match
-                        throw new Exception("Pattern match is not exhaustive.")
+                        print("Pattern match is not exhaustive.");
+                        return None;
                       } else {
                         // all of these function types must have inputs that correspond to the proper ADT constructor
                         // and the same output type
@@ -478,6 +479,9 @@ object famlang {
         funs1.get(k) match {
           case Some((ftype, fdef)) =>
             if (ft != ftype) then {
+              // NOTE: currently we do not allow functions in child with the same names as in parent, but different type
+              // this is due to several things: maps can't store multiple values for the same key, and also
+              // selection of function from a family would require knowing the full type of the function
               throw new Exception("Attempting to override function with conflicting type.")
             } else (k, (ft, fdef)) // otherwise, just use new definition from child (fdef)
           case _ => assert(false) // unreachable by definition
@@ -571,11 +575,11 @@ object famlang {
     }.isEmpty
     val cases_ok = lkg.depot.filter{ case (s, (mt, m, ft, lam)) => !typCheck(lam, ft, G, K)}.isEmpty
 
-    if !types_ok then throw new Exception("Types in linkage " + lkg.self + " are not well-formed.")
-    else if !defaults_ok then throw new Exception("Defaults in linkage " + lkg.self + " don't typecheck.")
-    else if !adts_ok then throw new Exception("ADTs in linkage " + lkg.self + " don't typecheck.")
-    else if !funs_ok then throw new Exception("Functions in linkage " + lkg.self + " don't typecheck.")
-    else if !cases_ok then throw new Exception("Cases in linkage " + lkg.self + " don't typecheck.")
+    if !types_ok then { print("Types in linkage " + lkg.self + " are not well-formed."); return false }
+    else if !defaults_ok then { print("Defaults in linkage " + lkg.self + " don't typecheck."); return false }
+    else if !adts_ok then { print("ADTs in linkage " + lkg.self + " don't typecheck."); return false }
+    else if !funs_ok then { print("Functions in linkage " + lkg.self + " don't typecheck."); return false }
+    else if !cases_ok then { print("Cases in linkage " + lkg.self + " don't typecheck."); return false }
     else true
   }
 
