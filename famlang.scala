@@ -591,6 +591,7 @@ object famlang {
                     val freshv = pick_fresh(bound)
                     caserec = var_replace(caserec, lam1.v, freshv).asInstanceOf[Rec]
                     caserec = var_replace(caserec, lam2.v, freshv).asInstanceOf[Rec]
+                    // TODO: think about lam2.t and the restrictions/requirements for that
                     (k, (mt2, Eq, FunType(in2, RecType(combined_out)), Lam(freshv, lam2.t, caserec)))
                   }
                 }
@@ -603,6 +604,56 @@ object famlang {
     // the actual result is all of these combined
     (unchanged_parent_cases.++(extended_cases)).++(new_cases)
   }
+
+  // for each instance of a type, check that all type fields are instantiated
+  // if not, supplement with fields & values from default.
+  def handle_defaults(e: Expression, K: Map[FamilyPath, Linkage]) : Expression = {
+    e match {
+      case Lam(v, t, body) => Lam(v, t, handle_defaults(e, K))
+      case App(e1, e2) => App(handle_defaults(e1, K), handle_defaults(e2, K))
+      case Rec(fields) => Rec(fields.map{case (s, e) => (s, handle_defaults(e, K))})
+      case Proj(e, name) => Proj(handle_defaults(e, K), name)
+      case Inst(t, rec) =>
+        get_lkg(t.path, K) match {
+          case Some(lkg) =>
+            lkg.types.get(t.name) match {
+              case Some((marker, rectype)) =>
+                // rectype is all the fields that should be in this instance
+                if (rectype.fields.keySet != rec.fields.keySet) then {
+                  // look up the default record
+                  lkg.defaults.get(t.name) match {
+                    case Some((_, default_rec)) =>
+                      var final_rec_fields = rec.fields
+                      // need to add missing fields and values to rec
+                      for (fd <- rectype.fields.keySet) {
+                        if (!rec.fields.contains(fd)) then {
+                          default_rec.fields.get(fd) match {
+                            case Some(e) =>
+                              // add a new binding for this missing field with the default value
+                              final_rec_fields = final_rec_fields.+(fd -> e)
+                            case _ => throw new Exception("No default for field " + fd)
+                          }
+                        }
+                      }
+                      // now after we've added all missing bindings, we can recurse
+                      Inst(t, handle_defaults(Rec(final_rec_fields), K).asInstanceOf[Rec])
+                    case _ => throw new Exception("No default record for type " + t.name)
+                  }
+                } else {
+                  // simply propagate by recursion
+                  Inst(t, handle_defaults(rec, K).asInstanceOf[Rec])
+                }
+              case _ => throw new Exception("No type by the name " + t.name + " found in the linkage.")
+            }
+          case None => throw new Exception("No linkage corresponding to family " + t.path)
+        }
+      case InstADT(t, c, rec) => InstADT(t, c, handle_defaults(e, K).asInstanceOf[Rec])
+      case Match(e, g) => Match(handle_defaults(e, K), handle_defaults(g, K))
+      case _ => e
+    }
+  }
+
+
 
   /*====================================== LINKAGE WELL-FORMEDNESS  ======================================*/
 
