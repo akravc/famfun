@@ -497,8 +497,8 @@ object famlang {
   }
 
   // helper to get all bound vars in an expression
-  def bound_vars (e: Expression) : List[Var] = {
-    e match {
+  def bound_vars (exp: Expression) : List[Var] = {
+    exp match {
       case Lam(v, t, body) => v :: bound_vars(body)
       case App(e1, e2) => bound_vars(e1).++(bound_vars(e2))
       case Rec(fields) => fields.map{case (s, e) => bound_vars(e)}.flatten.toList
@@ -522,13 +522,13 @@ object famlang {
   // expression e is the body of a new lambda with bound var v2
   // we replace necessary instances of v1 with v2
   // ASSUMPTION: v1 is fresh in e
-  def var_replace(e: Expression, v1: Var, v2: Var) : Expression = {
+  def var_replace(exp: Expression, v1: Var, v2: Var) : Expression = {
     // if we're trying to replace an _ variable, nothing in the expression changes because
     // underscores are not used in the *bodies* of functions,
     // only in lam definitions as a placeholder
-    if v1 == Var("_") then return e;
+    if v1 == Var("_") then return exp;
 
-    e match {
+    exp match {
       case Var(x) => if (v1 == Var(x)) then v2 else Var(x)
       case Lam(v, t, body) =>
         if (v1 == v) then {
@@ -540,7 +540,7 @@ object famlang {
       case Inst(t, r) => Inst(t, var_replace(r, v1, v2).asInstanceOf[Rec])
       case InstADT(t, c, r) => InstADT(t, c, var_replace(r, v1, v2).asInstanceOf[Rec])
       case Match(e, g) => Match(var_replace(e, v1, v2), var_replace(g, v1, v2))
-      case _ => e
+      case _ => exp
     }
   }
 
@@ -607,9 +607,9 @@ object famlang {
 
   // for each instance of a type, check that all type fields are instantiated
   // if not, supplement with fields & values from default.
-  def handle_defaults(e: Expression, K: Map[FamilyPath, Linkage]) : Expression = {
-    e match {
-      case Lam(v, t, body) => Lam(v, t, handle_defaults(e, K))
+  def handle_defaults(exp: Expression, K: Map[FamilyPath, Linkage]) : Expression = {
+    exp match {
+      case Lam(v, t, body) => Lam(v, t, handle_defaults(body, K))
       case App(e1, e2) => App(handle_defaults(e1, K), handle_defaults(e2, K))
       case Rec(fields) => Rec(fields.map{case (s, e) => (s, handle_defaults(e, K))})
       case Proj(e, name) => Proj(handle_defaults(e, K), name)
@@ -647,18 +647,26 @@ object famlang {
             }
           case None => throw new Exception("No linkage corresponding to family " + t.path)
         }
-      case InstADT(t, c, rec) => InstADT(t, c, handle_defaults(e, K).asInstanceOf[Rec])
+      case InstADT(t, c, rec) => InstADT(t, c, handle_defaults(rec, K).asInstanceOf[Rec])
       case Match(e, g) => Match(handle_defaults(e, K), handle_defaults(g, K))
-      case _ => e
+      case _ => exp
     }
   }
 
+  def fill_defaults_lkg (lkg: Linkage, K: Map[FamilyPath, Linkage]) : Linkage = {
+    // need to update instances in every expression: defaults, funs, & cases
+    val newdefaults = lkg.defaults.map{ case (s, (m, r)) => (s, (m, handle_defaults(r, K).asInstanceOf[Rec]))}
+    val newfuns = lkg.funs.map{ case (s, (ft, lam)) => (s, (ft, handle_defaults(lam, K).asInstanceOf[Lam]))}
+    val newdepot = lkg.depot.map{ case (s, (mt, m, ft, lam)) =>
+      (s, (mt, m, ft, handle_defaults(lam, K).asInstanceOf[Lam]))}
+
+    Linkage(lkg.self, lkg.sup, lkg.types, newdefaults, lkg.adts, newfuns, newdepot)
+  }
 
 
   /*====================================== LINKAGE WELL-FORMEDNESS  ======================================*/
 
   // G is the typing context
-  // K is the linkage context (incomplete linkages, before concatenation)
   // ASSUMPTION: all linkages are complete
   def linkage_ok (lkg: Linkage, G: Map[String, Type], K: Map[FamilyPath, Linkage]): Boolean = {
     // forall (R = {(f: T)*}) in TYPES, WF({(f: T)*})

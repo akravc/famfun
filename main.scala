@@ -26,6 +26,8 @@ object famlang_main {
     /* ================== BUILD COMPLETE LINKAGES BY CONCATENATION ================== */
     // for each linkage in the map, build a complete linkage
     var complete_map = map_inc.map{case (p, lkg) => (p, complete_linkage(p, map_inc))}
+    // fill in the missing defaults
+    complete_map = complete_map.map{case (p, lkg) => (p, fill_defaults_lkg(lkg, complete_map))}
 
     // TESTING
     //complete_map.map{case (p, lkg) => print_lkg(lkg)}

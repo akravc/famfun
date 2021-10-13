@@ -972,6 +972,28 @@ class FamlangTesting extends AnyFunSuite {
     assert(!process(prog))
   }
 
+  /* ==================================== default handling ==================================== */
+  test("default handling: good") {
+    val prog : String =
+      ("Family Base {" +
+        "type T = {x: N = 1, b: B = true}" +
+        "val f: N -> .T  = lam (k: N). .T({x=k})"+
+        "}"
+        );
+    assert(process(prog))
+  }
+
+  /// TODO: make defaults optional for this test to pass
+//  test("default handling: bad") {
+//    val prog : String =
+//      ("Family Base {" +
+//        "type T = {x: N, b: B}" +
+//        "val f: N -> .T  = lam (k: N). .T({x=k})"+
+//        "}"
+//        );
+//    assert(!process(prog))
+//  }
+
 
   /* ==================================== TYPING EXAMPLE PROGRAMS ==================================== */
 
