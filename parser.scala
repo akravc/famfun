@@ -62,16 +62,16 @@ class FamParser extends RegexParsers with PackratParsers {
   lazy val btype: PackratParser[Type] = kwB ^^ (_ => B)
 
   // separate parser for record field definition with defaults
-  lazy val default_recfield: PackratParser[(String, (Type, Expression))] =
-    field_name ~ ":" ~ typ ~ "=" ~ exp ^^ {case f~_~t~_~e => f->(t->e)}
+  lazy val default_recfield: PackratParser[(String, (Type, Option[Expression]))] =
+    field_name ~ ":" ~ typ ~ ("=".?) ~ (exp.?) ^^ {case f~_~t~_~oe => f->(t->oe)}
   // separate parser for record type definition with defaults
   lazy val default_rectype: PackratParser[(RecType, Rec)] = "{"~> repsep(default_recfield, ",") <~"}" ^^
     {case lst =>
       if (lst.size != lst.unzip._1.distinct.size) // disallow records with duplicate fields
       then throw new Exception("Parsing a record type with duplicate fields.")
       else {
-        val type_fields = lst.collect{case (s, (t, e)) => (s, t)}.toMap;
-        val defaults = lst.collect{case (s, (t, e)) => (s, e)}.toMap;
+        val type_fields = lst.collect{case (s, (t, _)) => (s, t)}.toMap;
+        val defaults = lst.collect{case (s, (t, Some(e))) => (s, e)}.toMap;
         RecType(type_fields) -> Rec(defaults)
       }}
 
