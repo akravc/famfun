@@ -1045,14 +1045,14 @@ class FamlangTesting extends AnyFunSuite {
       "Family Even {" +
         "val even: Peano.Nat -> B = lam (n: Peano.Nat). match n with <.even_cases> {arg=n}" +
         "cases even_cases <Peano.Nat> : {arg: Peano.Nat} -> {O: {} -> B, S: {n: Peano.Nat} -> B} = " +
-          "lam (r: {arg: Peano.Nat}). {O = lam (_:{}). true, S = lam (x: {n: Peano.Nat}). Odd.odd x.n}" +
+          "lam (_: {arg: Peano.Nat}). {O = lam (_:{}). true, S = lam (x: {n: Peano.Nat}). Odd.odd x.n}" +
 
       "}" +
 
       "Family Odd {" +
         "val odd: Peano.Nat -> B = lam (n: Peano.Nat). match n with <.odd_cases> {arg=n}" +
         "cases odd_cases <Peano.Nat>: {arg: Peano.Nat} -> {O: {} -> B, S: {n: Peano.Nat} -> B} = " +
-        "lam (r: {arg: Peano.Nat}). {O = lam (_:{}). false, S = lam (x: {n: Peano.Nat}). Even.even x.n}" +
+        "lam (_: {arg: Peano.Nat}). {O = lam (_:{}). false, S = lam (x: {n: Peano.Nat}). Even.even x.n}" +
         "}"
         );
     assert(process(prog))

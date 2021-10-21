@@ -112,9 +112,7 @@ object famlang {
     //  x: T \in G
     // ______________ T_Var
     //  G |- x : T
-    case Var(x) =>
-      // don't allow programs that look up a _ variable to typecheck (can only use them as placeholders in lam def)
-      if x == "_" then None else G.get(x)
+    case Var(x) => G.get(x)
 
     //  WF(T)
     //  x : T, G |- body : T'
