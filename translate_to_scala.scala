@@ -1,5 +1,6 @@
 import TestFamParser._
 import famlang._
+import java.io._
 
 object famlang_translate_to_scala {
 
@@ -47,7 +48,7 @@ object famlang_translate_to_scala {
         g match {
           // has to be an application of cases to a record of arguments
           case App(FamCases(a, r), Rec(fields)) =>
-            "( " + trans_exp(e, K) + " match { \n" + trans_cases_def(a, r, K) + "})(" + trans_exp(Rec(fields), K) + ")"
+            "( " + trans_exp(e, K) + " match { \n" + trans_cases_def(a, r, K) + "})( new " + trans_exp(Rec(fields), K) + ")"
           case _ => throw new Exception("Improper match structure.")
         }
       case _ => "null"
@@ -55,9 +56,25 @@ object famlang_translate_to_scala {
   }
 
   /* ===================== CASES DEFINITION ===================== */
+
+  def replace_projections(v: Var, exp: Expression): Expression = {
+    exp match {
+      case Proj(e, f) => if (e == v) then  Var(f) else exp
+      case Lam(x, t, body) => Lam(x, t, replace_projections(v, body))
+      case App(e1, e2) => App(replace_projections(v, e1), replace_projections(v, e2))
+      case Rec(fields) => Rec(fields.map{ case (f, e) => (f, replace_projections(v, e))})
+      case Inst(t, r) => Inst(t, replace_projections(v, r).asInstanceOf[Rec])
+      case InstADT(t, c, r) => InstADT(t, c, replace_projections(v, r).asInstanceOf[Rec])
+      case Match(e, g) => Match(replace_projections(v, e), replace_projections(v, g))
+      case _ => exp
+    }
+  }
+
   def trans_cases_def(a: FamilyPath, r: String, K: Map[FamilyPath, Linkage]): String = {
     K.get(a) match {
+      // retrieve linkage for family in which this cases definition appears
       case Some(lkg) =>
+        // retrieve the cases definition from the linkage
         lkg.depot.get(r) match {
           case Some(_, _, _, Lam(x, argtype, rec)) =>
             // needs to have proper structure here
@@ -68,8 +85,15 @@ object famlang_translate_to_scala {
               fields.get(C) match {
                 case Some(exp) =>
                   val handler = exp.asInstanceOf[Lam]
-                  cases = cases + "case _: " + C + " => " +
-                      trans_exp(Lam(handler.v, handler.t, Lam(x, argtype, handler.body)), K) + "; \n"
+                  // handler type is where we get the constructor fields from
+                  assert(handler.t.isInstanceOf[RecType]);
+                  val rtypemap = handler.t.asInstanceOf[RecType].fields;
+                  val rfieldsmap = rtypemap.map {
+                    case (f, t) => if ((f, t) == rtypemap.last) then f else f + ", "
+                  }
+                  val fieldstring = "(" + rfieldsmap.mkString + ")"
+                  cases = cases + "\t\t case " + C + fieldstring + " => " +
+                      trans_exp(Lam(x, argtype, replace_projections(handler.v, handler.body)), K) + "; \n"
                 case _ => assert(false)
               }
             }
@@ -98,8 +122,8 @@ object famlang_translate_to_scala {
       case Some(_, rt) =>
         lkg.defaults.get(typename) match {
           case Some(_, rec) =>
-            return "abstract class " + typename + combine(rt, rec, K)
-          case _ => return "abstract class " + typename + trans_type(rt)
+            return "\t abstract class " + typename + combine(rt, rec, K)
+          case _ => return "\t abstract class " + typename + trans_type(rt)
         }
       case _ => assert(false)
     }
@@ -118,7 +142,7 @@ object famlang_translate_to_scala {
 
   def trans_adt(adt: ADT, typename: String): String = {
     val printmap = adt.cs.map { case (c, rt) =>
-      "case class " + c + trans_adt_fields(rt) + " extends " + typename + "; \n"
+      "\t case class " + c + trans_adt_fields(rt) + " extends " + typename + "; \n"
     }
     return printmap.mkString
   }
@@ -126,7 +150,7 @@ object famlang_translate_to_scala {
   def trans_adtdef(typename: String, lkg: Linkage): String = {
     lkg.adts.get(typename) match {
       case Some(_, adt) =>
-        return "sealed class " + typename + "; \n " + trans_adt(adt, typename)
+        return "\t sealed class " + typename + "; \n" + trans_adt(adt, typename)
       case _ => assert(false)
     }
   }
@@ -136,7 +160,7 @@ object famlang_translate_to_scala {
   def trans_fundef(funname: String, lkg: Linkage, K: Map[FamilyPath, Linkage]): String = {
     lkg.funs.get(funname) match {
       case Some(ftype, lam) =>
-        "val " + funname + " : " + trans_type(ftype) + " = " + trans_exp(lam, K)
+        "\t val " + funname + " : " + trans_type(ftype) + " = " + trans_exp(lam, K)
       case _ => assert(false)
     }
   }
@@ -176,7 +200,7 @@ object famlang_translate_to_scala {
       "}" + "\n"
   }
 
-  def translate (usercode: String): String = {
+  def translate (usercode: String) = {
 
     /* ================== PARSE PROGRAM, CREATE INCOMPLETE LINKAGES ================== */
     if (!canParse(program, usercode)) then {
@@ -197,6 +221,10 @@ object famlang_translate_to_scala {
     complete_map = complete_map.map{case (p, lkg) => (p, fill_defaults_lkg(lkg, complete_map))}
 
     val printmap = complete_map.map { case (p, lkg) => trans_fam(lkg, complete_map)}
-    printmap.mkString
+
+    val pw = new PrintWriter(new File("out.scala" ))
+    pw.write("import reflect.Selectable.reflectiveSelectable \n\n")
+    pw.write(printmap.mkString)
+    pw.close
   }
 }
