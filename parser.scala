@@ -56,7 +56,8 @@ class FamParser extends RegexParsers with PackratParsers {
       else throw new Exception("Parsing a record type with duplicate fields.")}
   lazy val famtype: PackratParser[FamType] =
     fampath ~ "." ~ type_name ^^ { case p~_~t => FamType(p, t)} |
-    "." ~> type_name ^^ { case t => FamType(null, t)}
+    "." ~> type_name ^^ { case t => FamType(null, t)} |
+    type_name ^^ { case t => FamType(null, t)}
 
   lazy val ntype: PackratParser[Type] = kwN ^^ (_ => N)
   lazy val btype: PackratParser[Type] = kwB ^^ (_ => B)
