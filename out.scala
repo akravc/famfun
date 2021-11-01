@@ -1,13 +1,7 @@
 import reflect.Selectable.reflectiveSelectable 
 
-object Base {
-	 sealed class T; 
-	 case class C1(n: Int) extends T; 
-	 case class C2(n1: Int, n2: Int) extends T; 
-
-	 val plus : (Int => (Int => Int)) = (x: Int) => (y: Int) => 1
-	 val sum : (Base.T => Int) = (t: Base.T) => ( t match { 
-		 case C1(n) => (r: { val arg: Base.T; }) => n; 
-		 case C2(n1, n2) => (r: { val arg: Base.T; }) => Base.plus(n1)(n2); 
-})( new { val arg = t; })
+object A {
+	 abstract class  T{ val n1: Int; val n2: Int; val b: Boolean; }
+	 val wrap1 : (Int => A.T) = (k: Int) => (new A.T { val n2 = k; val n1 = 1; val b = true; })
+	 val wrap2 : (Int => (Boolean => A.T)) = (k: Int) => (b: Boolean) => (new A.T { val n2 = k; val b = b; val n1 = 1; })
 }

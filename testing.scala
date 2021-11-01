@@ -1036,6 +1036,18 @@ class FamlangTesting extends AnyFunSuite {
     assert(process(prog))
   }
 
+  // a program in which defaults are used (also use this to test translation to scala)
+  test("wrap example with more defaults: the program typechecks") {
+    val prog : String =
+      ("Family A { " +
+        "type T = {n1: N = 1, n2: N, b: B = true}" +
+        "val wrap1: N -> .T = lam (k: N). .T({n2 = k})" +
+        "val wrap2: N -> B -> .T = lam (k: N). lam (b: B). .T({n2 = k, b = b})" +
+        "}"
+        );
+    assert(process(prog))
+  }
+
   test("even / odd: the program typechecks") {
     val prog : String =
       ("Family Peano { "+

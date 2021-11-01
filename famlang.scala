@@ -673,7 +673,14 @@ object famlang {
     val defaults_ok = lkg.defaults.filter{
       case (s, (m, r)) => !is_value(r) || // if the default is not a value or...
         (lkg.types.get(s) match {
-          case Some(m, rt) => (Some(rt) != typInf(r, G, K)) // ...or the default has the wrong type
+          case Some(m, rt) =>
+            // the inferred type of the default can have fewer fields than the actual type (if not all fields have default values)
+            // therefore the real type should be a subtype of the inferred default type
+            typInf(r, G, K) match {
+              case Some(inferred_deftype) =>
+                !subtype(rt, inferred_deftype, K)
+              case None => true
+            }
           case _ => assert(false)
         })}.isEmpty
     // forall (R = \overline{C {(f: T)*}}) in ADTS, WF({(f: T)*})

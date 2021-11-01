@@ -42,8 +42,8 @@ object famlang_translate_to_scala {
           "val " + f + " = " + trans_exp(e, K) + "; "}
         "{ " + printmap.mkString + "}"
       case Proj(e, f) => trans_exp(e, K) + "." + f
-      case Inst(t, r) => "( new " + trans_type(t) + trans_exp(r, K) + ")"
-      case InstADT(t, c, r) => "( new " + c + trans_exp(r, K) + ")"
+      case Inst(t, r) => "(new " + trans_type(t) + " " + trans_exp(r, K) + ")"
+      case InstADT(t, c, r) => "(new " + c + " " + trans_exp(r, K) + ")"
       case Match(e, g) =>
         g match {
           // has to be an application of cases to a record of arguments
@@ -76,7 +76,7 @@ object famlang_translate_to_scala {
       case Some(lkg) =>
         // retrieve the cases definition from the linkage
         lkg.depot.get(r) match {
-          case Some(_, _, _, Lam(x, argtype, rec)) =>
+          case Some(matchtype, _, _, Lam(x, argtype, rec)) =>
             // needs to have proper structure here
             assert(rec.isInstanceOf[Rec]);
             var cases = ""
@@ -91,8 +91,11 @@ object famlang_translate_to_scala {
                   val rfieldsmap = rtypemap.map {
                     case (f, t) => if ((f, t) == rtypemap.last) then f else f + ", "
                   }
-                  val fieldstring = "(" + rfieldsmap.mkString + ")"
-                  cases = cases + "\t\t case " + C + fieldstring + " => " +
+                  val fieldstring = if rfieldsmap.isEmpty then "" else "(" + rfieldsmap.mkString + ")"
+                  var path = ""
+                  // if the type we're matching on is from a different object, put the path to that object.
+                  if (matchtype.path != a) then path = trans_path(matchtype.path) + ".";
+                  cases = cases + "\t\t case " + path + C + fieldstring + " => " +
                       trans_exp(Lam(x, argtype, replace_projections(handler.v, handler.body)), K) + "; \n"
                 case _ => assert(false)
               }
@@ -106,25 +109,32 @@ object famlang_translate_to_scala {
 
   /* ===================== TYPE DEFINITION ===================== */
 
-  def combine(rt: RecType, rec: Rec, K: Map[FamilyPath, Linkage]): String = {
-    val printmap = rt.fields.map { case (f, t) =>
-      rec.fields.get(f) match {
-        case Some(default) =>
-          "val " + f + ": " + trans_type(t) + " = " + trans_exp(default, K) + "; "
-        case _ => "val " + f + ": " + trans_type(t) + "; "
-      }
-    }
-    return "{ " + printmap.mkString + "}"
-  }
+//  def combine(rt: RecType, rec: Rec, K: Map[FamilyPath, Linkage]): String = {
+//    val printmap = rt.fields.map { case (f, t) =>
+//      rec.fields.get(f) match {
+//        case Some(default) =>
+//          "val " + f + ": " + trans_type(t) + " = " + trans_exp(default, K) + "; "
+//        case _ => "val " + f + ": " + trans_type(t) + "; "
+//      }
+//    }
+//    return "{ " + printmap.mkString + "}"
+//  }
 
-  def trans_typedef(typename: String, lkg: Linkage, K: Map[FamilyPath, Linkage]): String = {
+//  def trans_typedef(typename: String, lkg: Linkage, K: Map[FamilyPath, Linkage]): String = {
+//    lkg.types.get(typename) match {
+//      case Some(_, rt) =>
+//        lkg.defaults.get(typename) match {
+//          case Some(_, rec) =>
+//            return "\t abstract class " + typename + " "+ combine(rt, rec, K)
+//          case _ => return "\t abstract class " + " " + typename + trans_type(rt)
+//        }
+//      case _ => assert(false)
+//    }
+//  }
+
+  def trans_typedef(typename: String, lkg: Linkage): String = {
     lkg.types.get(typename) match {
-      case Some(_, rt) =>
-        lkg.defaults.get(typename) match {
-          case Some(_, rec) =>
-            return "\t abstract class " + typename + combine(rt, rec, K)
-          case _ => return "\t abstract class " + typename + trans_type(rt)
-        }
+      case Some(_, rt) => return "\t abstract class " + " " + typename + trans_type(rt)
       case _ => assert(false)
     }
   }
@@ -142,7 +152,8 @@ object famlang_translate_to_scala {
 
   def trans_adt(adt: ADT, typename: String): String = {
     val printmap = adt.cs.map { case (c, rt) =>
-      "\t case class " + c + trans_adt_fields(rt) + " extends " + typename + "; \n"
+      if rt.fields.isEmpty then "\t case object " + c + " extends " + typename + "; \n"
+      else "\t case class " + c + trans_adt_fields(rt) + " extends " + typename + "; \n"
     }
     return printmap.mkString
   }
@@ -167,10 +178,10 @@ object famlang_translate_to_scala {
 
 
   /* ===================== TYPE, ADT, FUNCTION LISTS ===================== */
-  def trans_list_type(lkg: Linkage, K: Map[FamilyPath, Linkage]): String = {
+  def trans_list_type(lkg: Linkage): String = {
     var alltypes = ""
     for (typename <- lkg.types.keySet) {
-      alltypes = alltypes + trans_typedef(typename, lkg, K) + "\n"
+      alltypes = alltypes + trans_typedef(typename, lkg) + "\n"
     }
     return alltypes
   }
@@ -194,7 +205,7 @@ object famlang_translate_to_scala {
   def trans_fam (lkg: Linkage, K: Map[FamilyPath, Linkage]): String = {
     val fpath = lkg.self;
     "object " + trans_path(fpath) + " {" + "\n" +
-      trans_list_type(lkg, K) +
+      trans_list_type(lkg) +
       trans_list_adt(lkg) +
       trans_list_fun(lkg, K) +
       "}" + "\n"

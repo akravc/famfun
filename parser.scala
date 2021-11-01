@@ -34,7 +34,7 @@ class FamParser extends RegexParsers with PackratParsers {
   def var_name: Parser[String] = not(reserved) ~> """[a-z_]+""".r ^^ { _.toString }
   def family_name: Parser[String] = not(reserved) ~> """([A-Z][a-z]*)+""".r ^^ { _.toString }
   def type_name: Parser[String] = not(reserved) ~> """([A-Z][a-z]*)+""".r ^^ { _.toString }
-  def function_name: Parser[String] = not(reserved) ~> """[a-zA-Z_]+""".r ^^ { _.toString }
+  def function_name: Parser[String] = not(reserved) ~> """[a-zA-Z_0-9]+""".r ^^ { _.toString }
   // field names can also be constructor names or underscores because of cases
   // is this a problem to allow this for all records?
   def field_name: Parser[String] = not(reserved) ~> """(([a-z0-9])+)|(([A-Z][a-z0-9]*)+)|_""".r ^^ { _.toString }
