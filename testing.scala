@@ -1097,7 +1097,7 @@ class FamlangTesting extends AnyFunSuite {
         val wrap: N->U = lam (k: N). U({t= T({n = k})})
         val unwrap: U->N = lam (u: U). (u.t).n
         val moot: N->N = lam (k: N). k
-        }"""
+      }"""
     assert(process(prog))
   }
 }
