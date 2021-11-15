@@ -246,6 +246,10 @@ object famlang {
               lkg.adts.get(name).flatMap {
                 (marker, adt) =>
                   assert(marker == Eq); // should be Eq in a complete linkage, check with assertion
+                  // check that g has proper application shape, cases to args: a.r {(f=e)*}
+                  assert(g.isInstanceOf[App]);
+                  assert(g.asInstanceOf[App].e1.isInstanceOf[FamCases]);
+                  assert(g.asInstanceOf[App].e2.isInstanceOf[Rec]);
                   typInf(g, G, K).flatMap{
                     case RecType(fields) => // the fields are constructor names, same as the keys of the adt
                       if (fields.keySet != adt.cs.keySet) then { // all constructor names must appear in match

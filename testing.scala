@@ -140,6 +140,12 @@ class FamlangTesting extends AnyFunSuite {
     ){parseSuccess(famdef, "Family A extends C { type T = {f: B = true, n: N = 3}}")}
   }
 
+  test("famdef extends and plusEquals, missing defaults") {
+    assertThrows[Exception](canParse(
+      famdef, "Family A extends C { type T += {f: B, n: N = 3}}"
+    ))
+  }
+
   test("famdef extends and plusEquals") {
     assert(canParse(
       famdef, "Family A extends C { type T += {f: B = true, n: N = 3}}"
@@ -1082,6 +1088,20 @@ class FamlangTesting extends AnyFunSuite {
     assert(process(prog))
   }
 
-
+//  test("can parse all relative paths without dots") {
+//    val prog : String =
+//      ("Family A { " +
+//        "type T = {n: N}" +
+//        "type U = {t: T}" +
+//        "val wrap: N->U = (lam (k: N). U({t= T({n = k})}))" +
+//        "val unwrap: N->U = (lam (u: U). (u.t).n)" +
+//        "val moot: N->N = (lam (k: N). unwrap (wrap k))" +
+//        "}"
+//        );
+//    assert(canParse(rep(fundef), "val wrap: N->U = (lam (k: N). U({t= T({n = k})}))" +
+//      "val unwrap: N->U = (lam (u: U). (u.t).n)"))
+//    print(parseSuccess(fundef, "val moot: N->N = lam (k: N). unwrap (wrap k)"))
+//    //assert(process(prog))
+//  }
 }
 
