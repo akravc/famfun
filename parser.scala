@@ -97,11 +97,13 @@ class FamParser extends RegexParsers with PackratParsers {
 
   lazy val exp_famfun: PackratParser[FamFun] =
     fampath ~ "." ~ function_name ^^ {case p~_~n => FamFun(p, n)} |
-    "." ~> function_name ^^ {case n => FamFun(null, n)}
+    "." ~> function_name ^^ {case n => FamFun(null, n)} //|
+    //function_name ^^ {case n => FamFun(null, n)}
 
   lazy val exp_famcases: PackratParser[FamCases] =
     "<" ~> fampath ~ "." ~ function_name <~ ">" ^^ {case p~_~n => FamCases(p, n)} |
-    "<" ~> "." ~ function_name <~ ">" ^^ {case _~n => FamCases(null, n)}
+    "<" ~> "." ~ function_name <~ ">" ^^ {case _~n => FamCases(null, n)} //|
+    //"<" ~> function_name <~ ">" ^^ {case n => FamCases(null, n)}
 
   lazy val exp_app: PackratParser[App] = exp ~ exp ^^ {case e~g => App(e, g)}
   lazy val exp_proj: PackratParser[Proj] = exp ~ "." ~ field_name ^^ {case e~_~n => Proj(e, n)}
@@ -121,12 +123,20 @@ class FamParser extends RegexParsers with PackratParsers {
   lazy val exp_match: PackratParser[Match] =
     kwMatch ~> exp ~ kwWith ~ exp_app ^^ {case e~_~g => Match(e, g)}
 
+  // after change to relpaths
+//  lazy val exp: PackratParser[Expression] =
+//  exp_lam | exp_match | exp_proj | exp_inst_adt | exp_inst | exp_app | exp_rec
+//  | exp_bool_true | exp_bool_false | exp_nat
+//  | exp_famfun | exp_famcases
+//  | exp_var
+//  | "(" ~> exp <~ ")"
+
   lazy val exp: PackratParser[Expression] =
-  exp_match | exp_proj | exp_inst_adt | exp_inst | exp_app | exp_rec
-  | exp_famfun | exp_famcases
-  | exp_lam | exp_bool_true | exp_bool_false | exp_nat
-  | exp_var
-  | "(" ~> exp <~ ")"
+    exp_match | exp_proj | exp_inst_adt | exp_inst | exp_app | exp_rec
+    | exp_famfun | exp_famcases
+    | exp_lam | exp_bool_true | exp_bool_false | exp_nat
+    | exp_var
+    | "(" ~> exp <~ ")"
 
   // MARKERS
   lazy val marker: PackratParser[Marker] =
@@ -166,6 +176,8 @@ class FamParser extends RegexParsers with PackratParsers {
         else if (adts.size != adts.unzip._1.distinct.size) then throw new Exception("Parsing duplicate ADT names.")
         else if (duplicate_headers(funs)) then throw new Exception("Parsing duplicate function names.")
         else {
+          if (typs.exists{case (s, (m, (rt, r))) => (m == PlusEq) && (rt.fields.keySet != r.fields.keySet)}) then
+            throw new Exception("In a type extension, not all fields have defaults.");
           val typedefs = typs.collect{case (s, (m, (rt, r))) => (s, (m, rt))}.toMap
           val defaults = typs.collect{case (s, (m, (rt, r))) => (s, (m, r))}.toMap
           Linkage(SelfFamily(Family(a)), SelfFamily(Family(b)), typedefs, defaults, adts.toMap, funs.toMap, cases.toMap) }} |
