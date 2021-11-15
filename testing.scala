@@ -1090,17 +1090,15 @@ class FamlangTesting extends AnyFunSuite {
 
   test("can parse all relative paths without dots") {
     val prog : String =
-      ("Family A { \n" +
-        "type T = {n: N}\n" +
-        "type U = {t: T}\n" +
-        "val wrap: N->U = lam (k: N). U({t= T({n = k})})\n" +
-        "val unwrap: U->N = lam (u: U). (u.t).n\n" +
-        "val moot: N->N = lam (k: N). k\n" +
-        "}"
-        );
+      """
+      Family A {
+        type T = {n: N}
+        type U = {t: T}
+        val wrap: N->U = lam (k: N). U({t= T({n = k})})
+        val unwrap: U->N = lam (u: U). (u.t).n
+        val moot: N->N = lam (k: N). k
+        }"""
     assert(process(prog))
-
-    print("\n" + parse0(program, prog))
   }
 }
 
