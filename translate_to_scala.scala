@@ -1,8 +1,8 @@
 import TestFamParser._
-import famlang._
+import famfun._
 import java.io._
 
-object famlang_translate_to_scala {
+object famfun_translate_to_scala {
 
   /* ===================== PATHS ===================== */
   def trans_path(p: FamilyPath): String = {

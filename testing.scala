@@ -1,10 +1,10 @@
 import org.scalatest.funsuite.AnyFunSuite
-import famlang._
+import famfun._
 import TestFamParser._
-import famlang_main._
+import famfun_main._
 import scala.language.postfixOps
 import PrettyPrint._
-class FamlangTesting extends AnyFunSuite {
+class FamFunTesting extends AnyFunSuite {
 
   /* ==================================== PARSER TESTING ==================================== */
 
@@ -162,7 +162,7 @@ class FamlangTesting extends AnyFunSuite {
     assert(canParse(famdef,
       "Family A { " +
         "type T = {f: B = true, n: N = 3} " +
-        "type R = {s: self(A).T = {}}" + // TODO: discuss default handling like this
+        "type R = {s: self(A).T = {}}" +
         "}"
     ))
     assertResult(
@@ -262,8 +262,6 @@ class FamlangTesting extends AnyFunSuite {
     assert(canParse(cases_def, "cases hello_world <.T> : {} -> {A: B -> N, C: B -> N} = " +
       "lam (_: {}). {A = lam (x: B). 3, C = lam (x: B). 4}"))
   }
-
-  // TODO: more tests involving parsing cases into linkages?
 
   /* ==================================== TYPECHECKER TESTING ==================================== */
 
@@ -829,21 +827,21 @@ class FamlangTesting extends AnyFunSuite {
     }
   }
 
-//  test("linkage: complete linkage function") {
-//    val self_a = SelfFamily(Family("A"))
-//    val self_b = SelfFamily(Family("B"))
-//    val self_c = SelfFamily(Family("C"))
-//    assertResult(Linkage(self_c, self_b, Map("R"->(Eq, RecType(Map("f"->B)))), Map(), Map(),
-//      Map("m"->(FunType(B, N), Lam(Var("x"), B, Nexp(5))),
-//        "id"->(FunType(N, N), Lam(Var("x"), N, Var("x")))), Map())){
-//      complete_linkage(self_c,
-//        Map(self_a -> Linkage(self_a, null, Map(), Map(), Map(),
-//          Map("m"->(FunType(B, N), Lam(Var("x"), B, Nexp(5)))), Map()),
-//        self_b -> Linkage(self_b, self_a, Map(), Map(), Map(),
-//          Map("id"->(FunType(N, N), Lam(Var("x"), N, Var("x")))), Map()),
-//        self_c -> Linkage(self_c, self_b, Map("R"->(Eq, RecType(Map("f"->B)))), Map(), Map(), Map(), Map())))
-//    }
-//  }
+  test("linkage: complete linkage function") {
+    val self_a = SelfFamily(Family("A"))
+    val self_b = SelfFamily(Family("B"))
+    val self_c = SelfFamily(Family("C"))
+    assertResult(Linkage(self_c, self_b, Map("R"->(Eq, RecType(Map("f"->B)))), Map(), Map(),
+      Map("m"->(FunType(B, N), Lam(Var("x"), B, Nexp(5))),
+        "id"->(FunType(N, N), Lam(Var("x"), N, Var("x")))), Map())){
+      complete_linkage(self_c,
+        Map(self_a -> Linkage(self_a, null, Map(), Map(), Map(),
+          Map("m"->(FunType(B, N), Lam(Var("x"), B, Nexp(5)))), Map()),
+        self_b -> Linkage(self_b, self_a, Map(), Map(), Map(),
+          Map("id"->(FunType(N, N), Lam(Var("x"), N, Var("x")))), Map()),
+        self_c -> Linkage(self_c, self_b, Map("R"->(Eq, RecType(Map("f"->B)))), Map(), Map(), Map(), Map())), Map())._1
+    }
+  }
 
   // assume .plus is defined and exists in the nat library
   // these are ADTs so they don't need defaults
@@ -989,7 +987,6 @@ class FamlangTesting extends AnyFunSuite {
     assert(process(prog))
   }
 
-  //TODO: make defaults optional for this test to pass
   test("default handling: bad") {
     val prog : String =
       ("Family Base {" +

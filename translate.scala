@@ -1,7 +1,7 @@
 import TestFamParser._
-import famlang._
+import famfun._
 
-object famlang_translate {
+object famfun_translate {
 
 
   /* ===================== PATHS ===================== */

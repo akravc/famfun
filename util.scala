@@ -1,4 +1,4 @@
-import famlang._
+import famfun._
 
 object PrettyPrint {
 

@@ -1,9 +1,9 @@
 import scala.util.parsing.combinator.*
-import famlang._
+import famfun._
 
 /*
 Family A (extends B)? {
-    type R (+)?= {(f: T = v)*}                  % extensible records w/ defaults
+    type R (+)?= {(f: T = e)*}                  % extensible records w/ defaults
     type R (+)?= \overline{C {(f: T)*}}         % extensible ADTs
     val m : (T -> T') = (lam (x : T). body)     % functions w/ inputs
     cases r <a.R> : {(f:T)*} -> {(C': T'->T'')*} =

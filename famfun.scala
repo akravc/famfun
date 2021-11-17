@@ -1,6 +1,6 @@
 import scala.util.Random
 
-object famlang {
+object famfun {
   // Families & Paths
   case class Family(name: String)
   sealed class FamilyPath // a
@@ -161,7 +161,7 @@ object famlang {
           }
         case _ => None }
 
-    //  m : (T -> T') = (lam (x : T). body) in [[a]]
+    //  m : (T -> T') = (lam (x : T). body) in {{a}}
     //_______________________________________________ T_FamFun
     //  G |- a.m : T -> T'
     case FamFun(path, name) =>
@@ -175,7 +175,7 @@ object famlang {
 
 
     //  r : {(f_i:T_i)*} -> {(C_j':T_j'->T_j'')*} =
-    //      lam (x: {(f_i:T_i)*}). body) in [[a]]
+    //      lam (x: {(f_i:T_i)*}). body) in {{a}}
     // ___________________________________________________ T_Cases
     // G |- a.r : {(f_i:T_i)*} -> {(C_j':T_j'->T_j'')*}
     case FamCases(path, name) =>
@@ -191,7 +191,7 @@ object famlang {
           }
       }
 
-    //  R = {(f_i: T_i)*} in [[a]]
+    //  R = {(f_i: T_i)*} in {{a}}
     //  forall i, G |- e_i : T_i
     //______________________________________ T_Constructor
     //  G |- a.R({(f_i = e_i)*}) : a.R
@@ -211,7 +211,7 @@ object famlang {
           }
       }
 
-    //  R = \overline{C' {(f': T')*}} in [[a]]
+    //  R = \overline{C' {(f': T')*}} in {{a}}
     //  C {(f_i: T_i)*} in \overline{C' {(f': T')*}}
     //  forall i, G |- e_i : T_i
     //_________________________________________________ T_ADT
@@ -233,7 +233,7 @@ object famlang {
       }
 
     //  G |- e : a.R
-    //  R = \overline{C_i {(f_i: T_i)*}} in [[a]]
+    //  R = \overline{C_i {(f_i: T_i)*}} in {{a}}
     //  G |- g: {(C_i: {(f_i: T_i)*} -> T')*}
     //  ___________________________________________ T_Match
     //    G |- match e with g : T'
@@ -336,9 +336,9 @@ object famlang {
 
   def complete_linkage(fpath: FamilyPath, K: Map[FamilyPath, Linkage], M: Map[FamilyPath, Linkage]): (Linkage, Map[FamilyPath, Linkage])  = {
     fpath match {
-      // K |- self(A) ~> [[self(A)]]
+      // K |- self(A) ~> {{self(A)}}
       // ____________________________ L-Qual
-      // K |- A ~> [[A]]
+      // K |- A ~> {{A}}
       case AbsoluteFamily(f) =>
         // do we have a complete linkage already?
         get_lkg(SelfFamily(f), M) match {
@@ -346,11 +346,11 @@ object famlang {
           case None => complete_linkage(SelfFamily(f), K, M)
         }
 
-      // self(A) ~> [self(A)] in K
-      // K |- super(A) ~> [[self(P)]]
-      // [[self(P)]] + [self(A)] = [[self(A)]]
+      // self(A) ~> {self(A)} in K
+      // K |- super(A) ~> {{self(P)}}
+      // {{self(P)}} + {self(A)} = {{self(A)}}
       // _______________________________________ L-Self
-      // K |- self(A) ~> [[self(A)]]
+      // K |- self(A) ~> {{self(A)}}
       case SelfFamily(Family(fname)) =>
         get_lkg(fpath, M) match {
           case Some(lkg) => (lkg, M)
@@ -362,10 +362,10 @@ object famlang {
                   val updatedM = M.+(fpath->cat)
                   (cat, updatedM)
                 } else {
-                  // self(A) ~> [self(A)] in K
-                  // K |- [self(A)].super ~> [[self(P)]]
+                  // self(A) ~> {self(A)} in K
+                  // K |- {self(A)}.super ~> {{self(P)}}
                   // _____________________________________ L-Super
-                  // K |- super(A) ~> [[self(P)]]
+                  // K |- super(A) ~> {{self(P)}}
                   val parent = lkg.sup;
                   val (complete_super, superM) = complete_linkage(parent, K, M)
                   val cat = concat(complete_super, lkg)
@@ -583,7 +583,7 @@ object famlang {
             // if the signature does not match exactly, we attempt to extend. typechecker will figure out the rest
             (ft1, ft2) match {
               case (FunType(in1, out1), FunType(in2, out2)) =>
-                // TODO: here, we should really check that in2 is a subtype of in1, since child cases may take more args
+                // In the future, we might check that in2 is a subtype of in1, since child cases could take more args
                 assert(out1.isInstanceOf[RecType]);
                 assert(out2.isInstanceOf[RecType]);
                 val out1map = out1.asInstanceOf[RecType].fields
@@ -608,7 +608,6 @@ object famlang {
                     val freshv = pick_fresh(bound)
                     caserec = var_replace(caserec, lam1.v, freshv).asInstanceOf[Rec]
                     caserec = var_replace(caserec, lam2.v, freshv).asInstanceOf[Rec]
-                    // TODO: think about lam2.t and the restrictions/requirements for that
                     (k, (mt2, Eq, FunType(in2, RecType(combined_out)), Lam(freshv, lam2.t, caserec)))
                   }
                 }

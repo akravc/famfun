@@ -1,8 +1,8 @@
-import famlang._
+import famfun._
 import TestFamParser._
 import PrettyPrint._
 
-object famlang_main {
+object famfun_main {
   /*====================================== PUTTING IT ALL TOGETHER  ======================================*/
 
   // function that takes a program, parses out the families and produces incomplete linkages, fixes null family paths
