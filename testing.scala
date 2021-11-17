@@ -829,21 +829,21 @@ class FamlangTesting extends AnyFunSuite {
     }
   }
 
-  test("linkage: complete linkage function") {
-    val self_a = SelfFamily(Family("A"))
-    val self_b = SelfFamily(Family("B"))
-    val self_c = SelfFamily(Family("C"))
-    assertResult(Linkage(self_c, self_b, Map("R"->(Eq, RecType(Map("f"->B)))), Map(), Map(),
-      Map("m"->(FunType(B, N), Lam(Var("x"), B, Nexp(5))),
-        "id"->(FunType(N, N), Lam(Var("x"), N, Var("x")))), Map())){
-      complete_linkage(self_c,
-        Map(self_a -> Linkage(self_a, null, Map(), Map(), Map(),
-          Map("m"->(FunType(B, N), Lam(Var("x"), B, Nexp(5)))), Map()),
-        self_b -> Linkage(self_b, self_a, Map(), Map(), Map(),
-          Map("id"->(FunType(N, N), Lam(Var("x"), N, Var("x")))), Map()),
-        self_c -> Linkage(self_c, self_b, Map("R"->(Eq, RecType(Map("f"->B)))), Map(), Map(), Map(), Map())))
-    }
-  }
+//  test("linkage: complete linkage function") {
+//    val self_a = SelfFamily(Family("A"))
+//    val self_b = SelfFamily(Family("B"))
+//    val self_c = SelfFamily(Family("C"))
+//    assertResult(Linkage(self_c, self_b, Map("R"->(Eq, RecType(Map("f"->B)))), Map(), Map(),
+//      Map("m"->(FunType(B, N), Lam(Var("x"), B, Nexp(5))),
+//        "id"->(FunType(N, N), Lam(Var("x"), N, Var("x")))), Map())){
+//      complete_linkage(self_c,
+//        Map(self_a -> Linkage(self_a, null, Map(), Map(), Map(),
+//          Map("m"->(FunType(B, N), Lam(Var("x"), B, Nexp(5)))), Map()),
+//        self_b -> Linkage(self_b, self_a, Map(), Map(), Map(),
+//          Map("id"->(FunType(N, N), Lam(Var("x"), N, Var("x")))), Map()),
+//        self_c -> Linkage(self_c, self_b, Map("R"->(Eq, RecType(Map("f"->B)))), Map(), Map(), Map(), Map())))
+//    }
+//  }
 
   // assume .plus is defined and exists in the nat library
   // these are ADTs so they don't need defaults

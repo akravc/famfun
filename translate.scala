@@ -195,11 +195,21 @@ object famlang_translate {
 
       /* ================== BUILD COMPLETE LINKAGES BY CONCATENATION ================== */
       // for each linkage in the map, build a complete linkage
-      var complete_map = map_inc.map{case (p, lkg) => (p, complete_linkage(p, map_inc))}
-      // fill in the missing defaults
-      complete_map = complete_map.map{case (p, lkg) => (p, fill_defaults_lkg(lkg, complete_map))}
+      var M = Map[FamilyPath, Linkage]()
+      // for each incomplete linkage, build a complete one using memoization to remember previously computed stuff
+      for (p <- map_inc.keySet) {
+        map_inc.get(p) match {
+          case Some(lkg) =>
+            val (complete_lkg, updatedM) = complete_linkage(p, map_inc, M);
+            M = updatedM;
+          case _ => assert(false);
+        }
+      }
 
-      val printmap = complete_map.map { case (p, lkg) => trans_fam(lkg, complete_map)}
+      // fill in the missing defaults
+      M = M.map{case (p, lkg) => (p, fill_defaults_lkg(lkg, M))}
+
+      val printmap = M.map { case (p, lkg) => trans_fam(lkg, M)}
       printmap.mkString
     }
 }

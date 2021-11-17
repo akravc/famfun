@@ -25,15 +25,25 @@ object famlang_main {
 
     /* ================== BUILD COMPLETE LINKAGES BY CONCATENATION ================== */
     // for each linkage in the map, build a complete linkage
-    var complete_map = map_inc.map{case (p, lkg) => (p, complete_linkage(p, map_inc))}
+    var M = Map[FamilyPath, Linkage]()
+    // for each incomplete linkage, build a complete one using memoization to remember previously computed stuff
+    for (p <- map_inc.keySet) {
+      map_inc.get(p) match {
+        case Some(lkg) =>
+          val (complete_lkg, updatedM) = complete_linkage(p, map_inc, M);
+          M = updatedM;
+        case _ => assert(false);
+      }
+    }
+
     // fill in the missing defaults
-    complete_map = complete_map.map{case (p, lkg) => (p, fill_defaults_lkg(lkg, complete_map))}
+    M = M.map{case (p, lkg) => (p, fill_defaults_lkg(lkg, M))}
 
     // TESTING
     //complete_map.map{case (p, lkg) => print_lkg(lkg)}
 
     /* ================== TYPECHECK ALL LINKAGES ================== */
     // typecheck everything and return true if linkage typechecks
-    return !complete_map.exists{ case(p, lkg) => !linkage_ok(lkg, Map(), complete_map)}
+    return !M.exists{ case(p, lkg) => !linkage_ok(lkg, Map(), M)}
   }
 }

@@ -331,35 +331,50 @@ object famlang {
   /*====================================== LINKAGE CONCATENATION  ======================================*/
 
   // Given a context of incomplete, well-formed linkages, produce a complete linkage for some family path fpath
-  // ASSUMPTION: linkages in K are incomplete, but are well-formed
+  // ASSUMPTION: linkages in K are incomplete
+  // we return the updated map of complete linkages for memoization purposes
 
-  def complete_linkage(fpath: FamilyPath, K: Map[FamilyPath, Linkage]): Linkage = {
+  def complete_linkage(fpath: FamilyPath, K: Map[FamilyPath, Linkage], M: Map[FamilyPath, Linkage]): (Linkage, Map[FamilyPath, Linkage])  = {
     fpath match {
       // K |- self(A) ~> [[self(A)]]
       // ____________________________ L-Qual
       // K |- A ~> [[A]]
-      case AbsoluteFamily(f) => complete_linkage(SelfFamily(f), K)
+      case AbsoluteFamily(f) =>
+        // do we have a complete linkage already?
+        get_lkg(SelfFamily(f), M) match {
+          case Some(lkg) => (lkg, M)
+          case None => complete_linkage(SelfFamily(f), K, M)
+        }
 
-      // A ~> [self(A)] in K
+      // self(A) ~> [self(A)] in K
       // K |- super(A) ~> [[self(P)]]
       // [[self(P)]] + [self(A)] = [[self(A)]]
       // _______________________________________ L-Self
       // K |- self(A) ~> [[self(A)]]
-      case SelfFamily(Family(fname)) => get_lkg(fpath, K) match { // do we have a linkage for this family?
-        case Some(lkg) => // have an incomplete? let's build a complete one
-          if (lkg.sup == null) then { // no parent? no problem
-            concat(null, lkg) // concat with empty complete linkage and return
-          } else {
-            // A ~> [self(A)] in K
-            // K |- [self(A)].super ~> [[self(P)]]
-            // _____________________________________ L-Super
-            // K |- super(A) ~> [[self(P)]]
-            val parent = lkg.sup;
-            val complete_super = complete_linkage(parent, K)
-            concat(complete_super, lkg)
-          }
-        case _ => throw new Exception("No incomplete linkage exists for family " + fname) // none? tough luck :c
-      }
+      case SelfFamily(Family(fname)) =>
+        get_lkg(fpath, M) match {
+          case Some(lkg) => (lkg, M)
+          case None => // don't have a complete linkage calculated yet
+            get_lkg(fpath, K) match { // do we have an incomplete linkage for this family?
+              case Some(lkg) => // have an incomplete? let's build a complete one
+                if (lkg.sup == null) then { // no parent? no problem
+                  val cat = concat(null, lkg) // concat with empty complete linkage and return
+                  val updatedM = M.+(fpath->cat)
+                  (cat, updatedM)
+                } else {
+                  // self(A) ~> [self(A)] in K
+                  // K |- [self(A)].super ~> [[self(P)]]
+                  // _____________________________________ L-Super
+                  // K |- super(A) ~> [[self(P)]]
+                  val parent = lkg.sup;
+                  val (complete_super, superM) = complete_linkage(parent, K, M)
+                  val cat = concat(complete_super, lkg)
+                  val updatedM = superM.+(fpath->cat)
+                  (cat, updatedM)
+                }
+              case _ => throw new Exception("No incomplete linkage exists for family " + fname) // none? tough luck :c
+            }
+        }
       case _ => assert(false) // path is neither self nor absolute
     }
   }
