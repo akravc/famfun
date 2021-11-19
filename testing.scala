@@ -241,19 +241,6 @@ class FamFunTesting extends AnyFunSuite {
     assertThrows[Exception](parse(adt, "A {} | A {}"))
   }
 
-  // Testing helper function duplicate_headers
-  test("helper: duplicate headers absent") {
-    assert(
-      !duplicate_headers(List(("foo", (FunType(B, N), null)), ("foo", (FunType(N, N), Lam(Var("x"), N, Bexp(true))))))
-    )
-  }
-
-  test("helper: duplicate headers present") {
-    assert(
-      duplicate_headers(List(("foo", (FunType(B, N), null)), ("foo", (FunType(B, N), Lam(Var("x"), B, Bexp(true))))))
-    )
-  }
-
   test("can parse record fields that are constructors") {
     assert(canParse(field_name, "HelloWorld"))
   }

@@ -97,13 +97,11 @@ class FamParser extends RegexParsers with PackratParsers {
 
   lazy val exp_famfun: PackratParser[FamFun] =
     fampath ~ "." ~ function_name ^^ {case p~_~n => FamFun(p, n)} |
-    "." ~> function_name ^^ {case n => FamFun(null, n)} //|
-    //function_name ^^ {case n => FamFun(null, n)}
+    "." ~> function_name ^^ {case n => FamFun(null, n)}
 
   lazy val exp_famcases: PackratParser[FamCases] =
     "<" ~> fampath ~ "." ~ function_name <~ ">" ^^ {case p~_~n => FamCases(p, n)} |
-    "<" ~> "." ~ function_name <~ ">" ^^ {case _~n => FamCases(null, n)} //|
-    //"<" ~> function_name <~ ">" ^^ {case n => FamCases(null, n)}
+    "<" ~> "." ~ function_name <~ ">" ^^ {case _~n => FamCases(null, n)}
 
   lazy val exp_app: PackratParser[App] = exp ~ exp ^^ {case e~g => App(e, g)}
   lazy val exp_proj: PackratParser[Proj] = exp ~ "." ~ field_name ^^ {case e~_~n => Proj(e, n)}
@@ -122,14 +120,6 @@ class FamParser extends RegexParsers with PackratParsers {
   // the second expression will be an application of exp_famcases to a record of arguments
   lazy val exp_match: PackratParser[Match] =
     kwMatch ~> exp ~ kwWith ~ exp_app ^^ {case e~_~g => Match(e, g)}
-
-  // after change to relpaths
-//  lazy val exp: PackratParser[Expression] =
-//  exp_lam | exp_match | exp_proj | exp_inst_adt | exp_inst | exp_app | exp_rec
-//  | exp_bool_true | exp_bool_false | exp_nat
-//  | exp_famfun | exp_famcases
-//  | exp_var
-//  | "(" ~> exp <~ ")"
 
   lazy val exp: PackratParser[Expression] =
     exp_match | exp_proj | exp_inst_adt | exp_inst | exp_app | exp_rec
@@ -160,12 +150,6 @@ class FamParser extends RegexParsers with PackratParsers {
     | kwCases ~> function_name ~ match_type ~ ":" ~ "(" ~ funtype ~ ")" ~ marker ~ exp_lam ^^
       { case s~mt~_~_~ft~_~m~lam => (s, (mt, m, ft, lam))}
 
-  // helper to check for duplicate function headers
-  // returns true if there are duplicates
-  def duplicate_headers(m1: List[(String, (FunType, Lam))]): Boolean =
-    val headers: List[(String, FunType)] = m1.collect{case (s, (t, lam)) => (s, t)}
-    headers.size != headers.distinct.size
-
   // A family can extend another family. If it does not, the parent is null.
   lazy val famdef: PackratParser[Linkage] =
     // family extends another
@@ -174,7 +158,8 @@ class FamParser extends RegexParsers with PackratParsers {
         if (a == b) then throw new Exception("Parsing a family that extends itself.")
         else if (typs.size != typs.unzip._1.distinct.size) then throw new Exception("Parsing duplicate type names.")
         else if (adts.size != adts.unzip._1.distinct.size) then throw new Exception("Parsing duplicate ADT names.")
-        else if (duplicate_headers(funs)) then throw new Exception("Parsing duplicate function names.")
+        else if (funs.size != funs.unzip._1.distinct.size) then throw new Exception("Parsing duplicate function names.")
+        else if (cases.size != cases.unzip._1.distinct.size) then throw new Exception("Parsing duplicate cases names.")
         else {
           if (typs.exists{case (s, (m, (rt, r))) => (m == PlusEq) && (rt.fields.keySet != r.fields.keySet)}) then
             throw new Exception("In a type extension, not all fields have defaults.");
@@ -186,7 +171,8 @@ class FamParser extends RegexParsers with PackratParsers {
       {case a~_~typs~adts~funs~cases =>
         if (typs.size != typs.unzip._1.distinct.size) then throw new Exception("Parsing duplicate type names.")
         else if (adts.size != adts.unzip._1.distinct.size) then throw new Exception("Parsing duplicate ADT names.")
-        else if (duplicate_headers(funs)) then throw new Exception("Parsing duplicate function names.")
+        else if (funs.size != funs.unzip._1.distinct.size) then throw new Exception("Parsing duplicate function names.")
+        else if (cases.size != cases.unzip._1.distinct.size) then throw new Exception("Parsing duplicate cases names.")
         else {
           val typedefs = typs.collect{case (s, (m, (rt, r))) => (s, (m, rt))}.toMap
           val defaults = typs.collect{case (s, (m, (rt, r))) => (s, (m, r))}.toMap
