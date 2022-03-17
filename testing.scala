@@ -268,7 +268,7 @@ class FamFunParserTesting extends AnyFunSuite {
   }
 
   test("exception: duplicate constructors in ADT") {
-    assertThrows[Exception](parse(adt, "A {} | B {}"))
+    assertThrows[Exception](parse(adt, "A {} | A {}"))
   }
 
   test("exception: duplicate family names") {
