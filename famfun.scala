@@ -44,7 +44,9 @@ object famfun {
                      defaults: Map[String, (Marker, Rec)],
                      adts: Map[String, (Marker, ADT)],
                      funs: Map[String, (FunType, Lam)],
-                     depot: Map[String, (FamType, Marker, FunType, Lam)])
+                     depot: Map[String, (FamType, Marker, FunType, Lam)],
+                     nested: Map[FamilyPath, Linkage] = Map() // TODO: remove default and handle
+                    )
 
 
   /*====================================== VALUES ======================================*/

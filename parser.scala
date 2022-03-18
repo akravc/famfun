@@ -8,6 +8,7 @@ Family A (extends B)? {
     val m : (T -> T') = (lam (x : T). body)     % functions w/ inputs
     cases r <a.R> : {(f:T)*} -> {(C': T'->T'')*} =
         lam (x:{(f:T)*}). {(C' = lam (x: T'). body)*}
+    Family C (extends D)? { ... }               % nested families
 }
  */
 
@@ -150,33 +151,37 @@ class FamParser extends RegexParsers with PackratParsers {
     | kwCases ~> function_name ~ match_type ~ ":" ~ "(" ~ funtype ~ ")" ~ marker ~ exp_lam ^^
       { case s~mt~_~_~ft~_~m~lam => (s, (mt, m, ft, lam))}
 
+
+  def hasDuplicateName[K, V](kvList: List[(K, V)]): Boolean = kvList.size != kvList.map(_._1).distinct.size
+
   // A family can extend another family. If it does not, the parent is null.
   lazy val famdef: PackratParser[Linkage] =
-    // family extends another
-    kwFamily ~> family_name ~ kwExtends ~ family_name ~ "{" ~ rep(typedef) ~ rep(adtdef) ~ rep(fundef) ~ rep(cases_def) <~ "}" ^^
-      {case a~_~b~_~typs~adts~funs~cases =>
-        if (a == b) then throw new Exception("Parsing a family that extends itself.")
-        else if (typs.size != typs.unzip._1.distinct.size) then throw new Exception("Parsing duplicate type names.")
-        else if (adts.size != adts.unzip._1.distinct.size) then throw new Exception("Parsing duplicate ADT names.")
-        else if (funs.size != funs.unzip._1.distinct.size) then throw new Exception("Parsing duplicate function names.")
-        else if (cases.size != cases.unzip._1.distinct.size) then throw new Exception("Parsing duplicate cases names.")
+    (kwFamily ~> family_name) ~ (kwExtends ~> family_name).? ~
+      ("{" ~> rep(typedef)) ~ rep(adtdef) ~ rep(fundef) ~ rep(cases_def) ~ rep(famdef) <~ "}" ^^
+      { case a~optB~typs~adts~funs~cases~nestedLkgs =>
+        val nestedList = nestedLkgs.map{lkg => (lkg.self, lkg)}
+        if (hasDuplicateName(typs)) then throw new Exception("Parsing duplicate type names.")
+        else if (hasDuplicateName(adts)) then throw new Exception("Parsing duplicate ADT names.")
+        else if (hasDuplicateName(funs)) then throw new Exception("Parsing duplicate function names.")
+        else if (hasDuplicateName(cases)) then throw new Exception("Parsing duplicate cases names.")
+        else if (hasDuplicateName(nestedList)) then throw new Exception("Parsing duplicate family names.")
         else {
-          if (typs.exists{case (s, (m, (rt, r))) => (m == PlusEq) && (rt.fields.keySet != r.fields.keySet)}) then
-            throw new Exception("In a type extension, not all fields have defaults.");
+          val supFam = optB match {
+            case Some(b) =>
+              // family extends another
+              if (a == b) then
+                throw new Exception("Parsing a family that extends itself.")
+              else if (typs.exists{case (s, (m, (rt, r))) => (m == PlusEq) && (rt.fields.keySet != r.fields.keySet)}) then
+                throw new Exception("In a type extension, not all fields have defaults.");
+              else SelfFamily(Family(b))
+            // family does not extend another
+            case None => null
+          }
           val typedefs = typs.collect{case (s, (m, (rt, r))) => (s, (m, rt))}.toMap
           val defaults = typs.collect{case (s, (m, (rt, r))) => (s, (m, r))}.toMap
-          Linkage(SelfFamily(Family(a)), SelfFamily(Family(b)), typedefs, defaults, adts.toMap, funs.toMap, cases.toMap) }} |
-    // family does not extend another
-    kwFamily ~> family_name ~ "{" ~ rep(typedef) ~ rep(adtdef) ~ rep(fundef) ~ rep(cases_def) <~ "}" ^^
-      {case a~_~typs~adts~funs~cases =>
-        if (typs.size != typs.unzip._1.distinct.size) then throw new Exception("Parsing duplicate type names.")
-        else if (adts.size != adts.unzip._1.distinct.size) then throw new Exception("Parsing duplicate ADT names.")
-        else if (funs.size != funs.unzip._1.distinct.size) then throw new Exception("Parsing duplicate function names.")
-        else if (cases.size != cases.unzip._1.distinct.size) then throw new Exception("Parsing duplicate cases names.")
-        else {
-          val typedefs = typs.collect{case (s, (m, (rt, r))) => (s, (m, rt))}.toMap
-          val defaults = typs.collect{case (s, (m, (rt, r))) => (s, (m, r))}.toMap
-          Linkage(SelfFamily(Family(a)), null, typedefs, defaults, adts.toMap, funs.toMap, cases.toMap) }}
+          Linkage(SelfFamily(Family(a)), supFam, typedefs, defaults, adts.toMap, funs.toMap, cases.toMap, nestedList.toMap)
+        }
+      }
 
   lazy val program: PackratParser[Map[FamilyPath, Linkage]] =
     rep(famdef) ^^ { case lst => lst.map{lkg => lkg.self}.zip(lst).toMap}

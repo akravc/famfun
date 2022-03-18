@@ -4,8 +4,8 @@ import TestFamParser._
 import famfun_main._
 import scala.language.postfixOps
 import PrettyPrint._
-class FamFunTesting extends AnyFunSuite {
 
+class FamFunParserTesting extends AnyFunSuite {
   /* ==================================== PARSER TESTING ==================================== */
 
   // Parsing Types
@@ -110,7 +110,7 @@ class FamFunTesting extends AnyFunSuite {
     val prog = "Family A {" +
       "type T = C1 {n: N} | C2 {b: B}" +
       "cases tcase <.T> : {} -> {C1: {n: N} -> N, C2: {b: B} -> N, _: {} -> N} = " +
-        "lam (x: {}). {C1 = lam (y: {n: N}). 1, C2 = lam (z: {b: B}). 1, _ = lam (w: {}). 0}" +
+      "lam (x: {}). {C1 = lam (y: {n: N}). 1, C2 = lam (z: {b: B}). 1, _ = lam (w: {}). 0}" +
       "}"
     assert(canParse(famdef, prog))
   }
@@ -148,7 +148,7 @@ class FamFunTesting extends AnyFunSuite {
 
   test("famdef extends and plusEquals") {
     assert(canParse(
-      famdef, "Family A extends C { type T += {f: B = true, n: N = 3}}"
+      famdef, "Family A extends C {type T += {f: B = true, n: N = 3}}"
     ))
     assertResult(
       Linkage(SelfFamily(Family("A")), SelfFamily(Family("C")),
@@ -168,15 +168,15 @@ class FamFunTesting extends AnyFunSuite {
     assertResult(
       Linkage(SelfFamily(Family("A")), null,
         Map("T"->(Eq, RecType(Map("f"->B, "n"->N))),
-            "R"->(Eq, RecType(Map("s"->FamType(SelfFamily(Family("A")), "T"))))),
+          "R"->(Eq, RecType(Map("s"->FamType(SelfFamily(Family("A")), "T"))))),
         Map("T"->(Eq, Rec(Map("f"->Bexp(true), "n"->Nexp(3)))),
-            "R"-> (Eq, Rec(Map("s"->Rec(Map()))))),
+          "R"-> (Eq, Rec(Map("s"->Rec(Map()))))),
         Map(), Map(), Map())
     ){parseSuccess(famdef,
       "Family A { " +
-      "type T = {f: B = true, n: N = 3} " +
-      "type R = {s: self(A).T = {}}" +
-      "}")}
+        "type T = {f: B = true, n: N = 3} " +
+        "type R = {s: self(A).T = {}}" +
+        "}")}
   }
 
   test("famdef types + ADTs") {
@@ -232,13 +232,47 @@ class FamFunTesting extends AnyFunSuite {
     ))
   }
 
+  test("famdef can parse nested families") {
+    val prog =
+    """
+     |Family A {
+     |  Family C {
+     |    Family D {}
+     |  }
+     |  Family E {}
+     |}
+     |""".stripMargin
+    assert(canParse(famdef, prog))
+  }
+
+  test("famdef can parse nested families with types, adts, functions") {
+    """
+      |Family A {
+      |  type T = {f: B = true, n: N = 3}
+      |  type Weekend = Sat {} | Sun {}
+      |  val identity: (B -> B) = lam (x: B). x
+      |  Family C {
+      |      type R = {s: self(A).T = {}}
+      |      type List = Nil {} | Cons {x: N, tail: self(A).List}
+      |  }
+      |  Family D {
+      |    val add1: (N -> N) = lam (x: N). x + 1
+      |  }
+      |}
+      |""".stripMargin
+  }
+
   // Testing Exceptions
   test("exception: duplicate fields in record") {
-    assertThrows[Exception](parse(exp, "{f: N, f: B}"))
+    assertThrows[Exception](parse0(rectype, "{f: N, f: B}"))
   }
 
   test("exception: duplicate constructors in ADT") {
-    assertThrows[Exception](parse(adt, "A {} | A {}"))
+    assertThrows[Exception](parse0(adt, "A {} | A {}"))
+  }
+
+  test("exception: duplicate family names") {
+    assertThrows[Exception](parse0(famdef, "Family A { Family C {} Family C {} }"))
   }
 
   test("can parse record fields that are constructors") {
@@ -249,7 +283,9 @@ class FamFunTesting extends AnyFunSuite {
     assert(canParse(cases_def, "cases hello_world <.T> : {} -> {A: B -> N, C: B -> N} = " +
       "lam (_: {}). {A = lam (x: B). 3, C = lam (x: B). 4}"))
   }
+}
 
+class FamFunTesting extends AnyFunSuite {
   /* ==================================== TYPECHECKER TESTING ==================================== */
 
   // TESTING IS_VALUE
