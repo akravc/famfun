@@ -1,5 +1,5 @@
 //import TestFamParser._
-import famfun._
+import famfun.*
 import java.io._
 
 /* TODO: uncomment

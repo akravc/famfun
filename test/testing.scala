@@ -3,7 +3,6 @@ import famfun._
 import TestFamParser._
 import famfun_main._
 import scala.language.postfixOps
-import PrettyPrint._
 
 class FamFunParserTesting extends AnyFunSuite {
   /* ==================================== PARSER TESTING ==================================== */
