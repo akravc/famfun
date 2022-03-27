@@ -22,6 +22,10 @@ object famfun {
   case class FunType(input: Type, output: Type) extends Type // T -> T'
   case class RecType(fields: Map[String, Type]) extends Type // {(f: T)*}
 
+  sealed trait Marker // either += or =
+  case object PlusEq extends Marker // type extension marker
+  case object Eq extends Marker // type definition marker
+
   // ADTs
   case class ADT(name: String, marker: Marker, cs: Map[String, RecType])
 
@@ -40,30 +44,26 @@ object famfun {
   case class Nexp(n: Int) extends Expression
   case class Bexp(b: Boolean) extends Expression
 
+  sealed trait DefnBody
+  case class BodyDeclared(lambda: Lam) extends DefnBody
+  case class BodyInherited(from: Path) extends DefnBody
+
   // Functions
-  sealed trait Fun
-  case class FunDeclared(name: String, t: FunType, body: Lam) extends Fun
-  case class FunInherited(name: String, from: Path) extends Fun // TODO: should it know its type too?
+  case class FunDefn(name: String, t: FunType, body: DefnBody)
 
   // Cases
-  sealed trait Cases
-  case class CasesDeclared(name: String, matchType: FamType, t: FunType, marker: Marker, body: Lam) extends Cases
-  // TODO: cases inherited?
+  case class CasesDefn(name: String, matchType: FamType, t: FunType, marker: Marker, body: DefnBody)
 
   // Linkages
-  sealed trait Marker // either += or =
-  case object PlusEq extends Marker // type extension marker
-  case object Eq extends Marker // type definition marker
-
   case class Linkage(path: Path,
                      self: SelfPath, // self
                      sup: Option[Path], // super
                      types: Map[String, (Marker, RecType)],
                      defaults: Map[String, (Marker, Rec)],
                      adts: Map[String, ADT],
-                     funs: Map[String, Fun],
-                     depot: Map[String, Cases],
-                     nested: Map[Path, Linkage] = Map() // TODO: remove default and handle
+                     funs: Map[String, FunDefn],
+                     depot: Map[String, CasesDefn],
+                     nested: Map[Path, Linkage] // TODO: remove default and handle
                     )
 
 

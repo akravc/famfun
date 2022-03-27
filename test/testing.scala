@@ -126,7 +126,7 @@ class FamFunParserTesting extends AnyFunSuite {
         None,
         Map("T"->(Eq, RecType(Map("f"->B, "n"->N)))),
         Map("T"->(Eq, Rec(Map("f"->Bexp(true), "n"->Nexp(3))))),
-        Map(), Map(), Map())
+        Map(), Map(), Map(), Map())
     ){parseSuccess(pFamDef, "Family A { type T = {f: B = true, n: N = 3}}")}
   }
 
@@ -142,7 +142,7 @@ class FamFunParserTesting extends AnyFunSuite {
         Some(AbsoluteFamily(Sp(Prog), Family("C"))),
         Map("T"->(Eq, RecType(Map("f"->B, "n"->N)))),
         Map("T"->(Eq, Rec(Map("f"->Bexp(true), "n"->Nexp(3))))),
-        Map(), Map(), Map())
+        Map(), Map(), Map(), Map())
     ){parseSuccess(pFamDef, "Family A extends C { type T = {f: B = true, n: N = 3}}")}
   }
 
@@ -163,7 +163,7 @@ class FamFunParserTesting extends AnyFunSuite {
         Some(AbsoluteFamily(Sp(Prog), Family("C"))),
         Map("T"->(PlusEq, RecType(Map("f"->B, "n"->N)))),
         Map("T"->(PlusEq, Rec(Map("f"->Bexp(true), "n"->Nexp(3))))),
-        Map(), Map(), Map())
+        Map(), Map(), Map(), Map())
     ){parseSuccess(pFamDef, "Family A extends C { type T += {f: B = true, n: N = 3}}")}
   }
 
@@ -187,7 +187,7 @@ class FamFunParserTesting extends AnyFunSuite {
           "T"->(Eq, Rec(Map("f"->Bexp(true), "n"->Nexp(3)))),
           "R"-> (Eq, Rec(Map("s"->Rec(Map()))))
         ),
-        Map(), Map(), Map())
+        Map(), Map(), Map(), Map())
     ){parseSuccess(pFamDef,
       "Family A { " +
         "type T = {f: B = true, n: N = 3} " +
@@ -229,7 +229,7 @@ class FamFunParserTesting extends AnyFunSuite {
             )
           )
         ),
-        Map(), Map()
+        Map(), Map(), Map()
       )
     ){parseSuccess(pFamDef,
       "Family A { " +

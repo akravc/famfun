@@ -154,16 +154,16 @@ class FamParser extends RegexParsers with PackratParsers {
   lazy val pAdtDef: PackratParser[(String, ADT)] =
     pAdt ^^ { a => a.name -> a }
 
-  lazy val pFunDef: PackratParser[(String, Fun)] =
+  lazy val pFunDef: PackratParser[(String, FunDefn)] =
     kwVal ~> pFunctionName ~ (":" ~> optBetween("(", ")", pFunType)) ~ ("=" ~> pExpLam) ^^ {
-      case n~t~b => n -> FunDeclared(n, t, b)
+      case n~t~b => n -> FunDefn(n, t, BodyDeclared(b))
     }
 
   lazy val pMatchType: PackratParser[FamType] = between("<", ">", pFamType)
   // mt = match type, m = marker, ft = funtype, lam = body
-  lazy val pCasesDef: PackratParser[(String, Cases)] =
+  lazy val pCasesDef: PackratParser[(String, CasesDefn)] =
     kwCases ~> pFunctionName ~ pMatchType ~ (":" ~> optBetween("(", ")", pFunType)) ~ pMarker ~ pExpLam ^^ {
-      case n~mt~ft~m~b => n -> CasesDeclared(n, mt, ft, m, b)
+      case n~mt~ft~m~b => n -> CasesDefn(n, mt, ft, m, BodyDeclared(b))
     }
 
   // A family can extend another family. If it does not, the parent is None.

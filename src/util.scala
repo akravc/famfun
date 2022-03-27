@@ -65,6 +65,11 @@ object PrettyPrint {
       "type " + s + print_marker(m) + amap.mkString + "\n"
   }
 
+  def print_body(body: DefnBody): String = body match {
+    case BodyDeclared(lam) => print_exp(lam)
+    case BodyInherited(from) => s"inherited from $from"
+  }
+
   def print_lkg(lkg: Linkage) = {
     print("LINKAGE DEFINITION: \n\n")
 
@@ -97,17 +102,16 @@ object PrettyPrint {
 
     print("FUNS: ")
     val funmap = lkg.funs.map{
-      case (_, FunDeclared(s, ft, lam)) => "val " + s + ": " + print_type(ft) + " = " + print_exp(lam) + "\n"
-      case (_, FunInherited(_, _)) => "TODO?"
+      case (_, FunDefn(s, ft, body)) =>
+        "val " + s + ": " + print_type(ft) + " = " + print_body(body) + "\n"
     }
     print(funmap.mkString)
     print("\n\n")
 
     print("CASES: ")
     val casemap = lkg.depot.values.map {
-      case CasesDeclared(s, mt, ft, m, lam) =>
-        "cases " + s + "<" + print_type(mt) + ">" + ": " +
-        print_type(ft) + print_marker(m) + print_exp(lam) + "\n"
+      case CasesDefn(s, mt, ft, m, body) =>
+        "cases " + s + "<" + print_type(mt) + ">" + ": " + print_type(ft) + print_marker(m) + print_body(body) + "\n"
     }
     print(casemap.mkString)
     print("\n\n")
