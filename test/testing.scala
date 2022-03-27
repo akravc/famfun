@@ -111,71 +111,74 @@ class FamFunParserTesting extends AnyFunSuite {
       "cases tcase <.T> : {} -> {C1: {n: N} -> N, C2: {b: B} -> N, _: {} -> N} = " +
       "lam (x: {}). {C1 = lam (y: {n: N}). 1, C2 = lam (z: {b: B}). 1, _ = lam (w: {}). 0}" +
       "}"
-    assert(canParse(pFamDef, prog))
+    assert(canParse(pFamDef(Prog), prog))
   }
 
   // Parsing Families
   test("famdef one type") {
     assert(canParse(
-      pFamDef, "Family A { type T = {f: B = true, n: N = 3}}"
+      pFamDef(Prog), "Family A { type T = {f: B = true, n: N = 3}}"
     ))
     assertResult(
-      Linkage(
+      "A" -> Linkage(
         Sp(SelfFamily(Prog, "A")),
         SelfFamily(Prog, "A"),
         None,
         Map("T"->(Eq, RecType(Map("f"->B, "n"->N)))),
         Map("T"->(Eq, Rec(Map("f"->Bexp(true), "n"->Nexp(3))))),
-        Map(), Map(), Map(), Map())
-    ){parseSuccess(pFamDef, "Family A { type T = {f: B = true, n: N = 3}}")}
+        Map(), Map(), Map(), Map()
+      )
+    ){parseSuccess(pFamDef(Prog), "Family A { type T = {f: B = true, n: N = 3}}")}
   }
 
   test("famdef extends") {
     // TODO: should C be absolute or self family?
     assert(canParse(
-      pFamDef, "Family A extends C { type T = {f: B = true, n: N = 3}}"
+      pFamDef(Prog), "Family A extends C { type T = {f: B = true, n: N = 3}}"
     ))
     assertResult(
-      Linkage(
+      "A" -> Linkage(
         Sp(SelfFamily(Prog, "A")),
         SelfFamily(Prog, "A"),
         Some(AbsoluteFamily(Sp(Prog), "C")),
         Map("T"->(Eq, RecType(Map("f"->B, "n"->N)))),
         Map("T"->(Eq, Rec(Map("f"->Bexp(true), "n"->Nexp(3))))),
-        Map(), Map(), Map(), Map())
-    ){parseSuccess(pFamDef, "Family A extends C { type T = {f: B = true, n: N = 3}}")}
+        Map(), Map(), Map(), Map()
+      )
+    ){parseSuccess(pFamDef(Prog), "Family A extends C { type T = {f: B = true, n: N = 3}}")}
   }
 
   test("famdef extends and plusEquals, missing defaults") {
     assertThrows[Exception](canParse(
-      pFamDef, "Family A extends C { type T += {f: B, n: N = 3}}"
+      pFamDef(Prog), "Family A extends C { type T += {f: B, n: N = 3}}"
     ))
   }
 
   test("famdef extends and plusEquals") {
     assert(canParse(
-      pFamDef, "Family A extends C {type T += {f: B = true, n: N = 3}}"
+      pFamDef(Prog), "Family A extends C {type T += {f: B = true, n: N = 3}}"
     ))
     assertResult(
-      Linkage(
+      "A" -> Linkage(
         Sp(SelfFamily(Prog, "A")),
         SelfFamily(Prog, "A"),
         Some(AbsoluteFamily(Sp(Prog), "C")),
         Map("T"->(PlusEq, RecType(Map("f"->B, "n"->N)))),
         Map("T"->(PlusEq, Rec(Map("f"->Bexp(true), "n"->Nexp(3))))),
-        Map(), Map(), Map(), Map())
-    ){parseSuccess(pFamDef, "Family A extends C { type T += {f: B = true, n: N = 3}}")}
+        Map(), Map(), Map(), Map()
+      )
+    ){parseSuccess(pFamDef(Prog), "Family A extends C { type T += {f: B = true, n: N = 3}}")}
   }
 
   test("famdef multiple types") {
-    assert(canParse(pFamDef,
+    assert(canParse(pFamDef(Prog),
       "Family A { " +
         "type T = {f: B = true, n: N = 3} " +
         "type R = {s: self(A).T = {}}" +
         "}"
     ))
     assertResult(
-      Linkage(
+      "A" -> Linkage(
         Sp(SelfFamily(Prog, "A")),
         SelfFamily(Prog, "A"),
         None,
@@ -187,8 +190,9 @@ class FamFunParserTesting extends AnyFunSuite {
           "T"->(Eq, Rec(Map("f"->Bexp(true), "n"->Nexp(3)))),
           "R"-> (Eq, Rec(Map("s"->Rec(Map()))))
         ),
-        Map(), Map(), Map(), Map())
-    ){parseSuccess(pFamDef,
+        Map(), Map(), Map(), Map()
+      )
+    ){parseSuccess(pFamDef(Prog),
       "Family A { " +
         "type T = {f: B = true, n: N = 3} " +
         "type R = {s: self(A).T = {}}" +
@@ -196,7 +200,7 @@ class FamFunParserTesting extends AnyFunSuite {
   }
 
   test("famdef types + ADTs") {
-    assert(canParse(pFamDef,
+    assert(canParse(pFamDef(Prog),
       "Family A { " +
         "type T = {f: B = true, n: N = 3} " +
         "type R = {s: self(A).T = {}}" +
@@ -204,7 +208,7 @@ class FamFunParserTesting extends AnyFunSuite {
         "}"
     ))
     assertResult(
-      Linkage(
+      "A" -> Linkage(
         Sp(SelfFamily(Prog, "A")),
         SelfFamily(Prog, "A"),
         None,
@@ -231,7 +235,7 @@ class FamFunParserTesting extends AnyFunSuite {
         ),
         Map(), Map(), Map()
       )
-    ){parseSuccess(pFamDef,
+    ){parseSuccess(pFamDef(Prog),
       "Family A { " +
         "type T = {f: B = true, n: N = 3} " +
         "type R = {s: self(A).T = {}}" +
@@ -240,7 +244,7 @@ class FamFunParserTesting extends AnyFunSuite {
   }
 
   test("famdef can parse multiple types and ADTs") {
-    assert(canParse(pFamDef,
+    assert(canParse(pFamDef(Prog),
       "Family A { " +
         "type T = {f: B = true, n: N = 3} " +
         "type R = {s: self(A).T = {}}" +
@@ -251,7 +255,7 @@ class FamFunParserTesting extends AnyFunSuite {
   }
 
   test("famdef can parse types, adts, functions") {
-    assert(canParse(pFamDef,
+    assert(canParse(pFamDef(Prog),
       "Family A { " +
         "type T = {f: B = true, n: N = 3} " +
         "type R = {s: self(A).T = {}}" +
@@ -272,7 +276,39 @@ class FamFunParserTesting extends AnyFunSuite {
      |  Family E {}
      |}
      |""".stripMargin
-    assert(canParse(pFamDef, prog))
+
+    assert(canParse(pFamDef(Prog), prog))
+
+    assertResult(
+      "A" -> Linkage(
+        Sp(SelfFamily(Prog, "A")),
+        SelfFamily(Prog, "A"),
+        None,
+        Map(), Map(), Map(), Map(), Map(),
+        Map(
+          "C" -> Linkage(
+            Sp(SelfFamily(SelfFamily(Prog, "A"), "C")),
+            SelfFamily(SelfFamily(Prog, "A"), "C"),
+            None,
+            Map(), Map(), Map(), Map(), Map(),
+            Map(
+              "D" -> Linkage(
+                Sp(SelfFamily(SelfFamily(SelfFamily(Prog, "A"), "C"), "D")),
+                SelfFamily(SelfFamily(SelfFamily(Prog, "A"), "C"), "D"),
+                None,
+                Map(), Map(), Map(), Map(), Map(), Map()
+              )
+            )
+          ),
+          "E" -> Linkage(
+            Sp(SelfFamily(SelfFamily(Prog, "A"), "E")),
+            SelfFamily(SelfFamily(Prog, "A"), "E"),
+            None,
+            Map(), Map(), Map(), Map(), Map(), Map()
+          )
+        )
+      )
+    ){parseSuccess(pFamDef(Prog), prog)}
   }
 
   test("famdef can parse nested families with types, adts, functions") {
@@ -302,7 +338,7 @@ class FamFunParserTesting extends AnyFunSuite {
   }
 
   test("exception: duplicate family names") {
-    assertThrows[Exception](parse0(pFamDef, "Family A { Family C {} Family C {} }"))
+    assertThrows[Exception](parse0(pFamDef(Prog), "Family A { Family C {} Family C {} }"))
   }
 
   test("can parse record fields that are constructors") {

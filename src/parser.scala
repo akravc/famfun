@@ -167,55 +167,59 @@ class FamParser extends RegexParsers with PackratParsers {
     }
 
   // A family can extend another family. If it does not, the parent is None.
-  lazy val pFamDef: PackratParser[Linkage] =
-    (kwFamily ~> pFamilyName) ~ (kwExtends ~> pPath).? ~ between("{", "}",
-      rep(pTypeDef) ~ rep(pAdtDef) ~ rep(pFunDef) ~ rep(pCasesDef) ~ rep(pFamDef)
-    ) ^^ {
-      case a~supFam~(typs~adts~funs~cases~nestedLkgs) =>
-        val nestedList = nestedLkgs.map{lkg => (pathName(lkg.path), lkg)}
-        if hasDuplicateName(typs) then throw new Exception("Parsing duplicate type names.")
-        else if hasDuplicateName(adts) then throw new Exception("Parsing duplicate ADT names.")
-        else if hasDuplicateName(funs) then throw new Exception("Parsing duplicate function names.")
-        else if hasDuplicateName(cases) then throw new Exception("Parsing duplicate cases names.")
-        else if hasDuplicateName(nestedList) then throw new Exception("Parsing duplicate family names.")
-        else {
-          supFam match {
-            case Some(b) =>
-              /* TODO: Do this in the extend cycle check in later phase.
-              if (a == b) then
-                throw new Exception("Parsing a family that extends itself.")
-              else
-               */
-              // family extends another
-              if typs.exists{case (s, (m, (rt, r))) => (m == PlusEq) && (rt.fields.keySet != r.fields.keySet)} then
-                throw new Exception("In a type extension, not all fields have defaults.");
-              else ()
-            // family does not extend another
-            case None => ()
-          }
-          val selfPath = SelfFamily(Prog, a)
-          val typedefs = typs.collect{case (s, (m, (rt, r))) => (s, (m, rt))}.toMap
-          val defaults = typs.collect{case (s, (m, (rt, r))) => (s, (m, r))}.toMap
-          Linkage(
-            Sp(selfPath),
-            selfPath,
-            supFam,
-            typedefs,
-            defaults,
-            adts.toMap,
-            funs.toMap,
-            cases.toMap,
-            nestedList.toMap
-          )
+  def pFamDef(selfPrefix: SelfPath): PackratParser[(String, Linkage)] = {
+    for {
+      fam <- kwFamily ~> pFamilyName
+      curSelfPath = SelfFamily(selfPrefix, fam)
+      supFam <- (kwExtends ~> pPath).?
+      typs~adts~funs~cases~nested <- between("{", "}",
+        rep(pTypeDef) ~ rep(pAdtDef) ~ rep(pFunDef) ~ rep(pCasesDef) ~ rep(pFamDef(curSelfPath))
+      )
+    } yield {
+      if hasDuplicateName(typs) then throw new Exception("Parsing duplicate type names.")
+      else if hasDuplicateName(adts) then throw new Exception("Parsing duplicate ADT names.")
+      else if hasDuplicateName(funs) then throw new Exception("Parsing duplicate function names.")
+      else if hasDuplicateName(cases) then throw new Exception("Parsing duplicate cases names.")
+      else if hasDuplicateName(nested) then throw new Exception("Parsing duplicate family names.")
+      else {
+        supFam match {
+          case Some(b) =>
+            /* TODO: Do this in the extend cycle check in later phase.
+            if (a == b) then
+              throw new Exception("Parsing a family that extends itself.")
+            else
+             */
+            // family extends another
+            if typs.exists{case (s, (m, (rt, r))) => (m == PlusEq) && (rt.fields.keySet != r.fields.keySet)} then
+              throw new Exception("In a type extension, not all fields have defaults.");
+            else ()
+          // family does not extend another
+          case None => ()
         }
+        val typedefs = typs.collect{case (s, (m, (rt, r))) => (s, (m, rt))}.toMap
+        val defaults = typs.collect{case (s, (m, (rt, r))) => (s, (m, r))}.toMap
+
+        fam -> Linkage(
+          Sp(curSelfPath),
+          curSelfPath,
+          supFam,
+          typedefs,
+          defaults,
+          adts.toMap,
+          funs.toMap,
+          cases.toMap,
+          nested.toMap
+        )
       }
+    }
+  }
 
   lazy val pProgram: PackratParser[Map[Path, Linkage]] =
-    rep(pFamDef) ^^ {
-      lst => Map(
+    rep(pFamDef(Prog)) ^^ {
+      fams => Map(
         Sp(Prog) -> Linkage(
           Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
-          lst.map{lkg => (pathName(lkg.path), lkg)}.toMap
+          fams.toMap
         )
       )
     }
