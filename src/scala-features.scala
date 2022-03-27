@@ -56,7 +56,7 @@ Family A {
 }
 """
   import TestFamParser._
-  val sourceTree = parse0(famdef, source).get
+  val sourceTree = parse0(pFamDef, source).get
 }
 
 object translation_ex2 {

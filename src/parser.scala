@@ -13,174 +13,171 @@ Family A (extends B)? {
  */
 
 class FamParser extends RegexParsers with PackratParsers {
-  // KEYWORDS
-  val kwMatch = "match\\b".r
-  val kwWith = "with\\b".r
-  val kwTrue = "true\\b".r
-  val kwFalse = "false\\b".r
-  val kwLam = "lam\\b".r
-  val kwType = "type\\b".r
-  val kwVal = "val\\b".r
-  val kwFamily = "Family\\b".r
-  val kwExtends = "extends\\b".r
-  val kwN = "N\\b".r
-  val kwB = "B\\b".r
-  val kwSelf = "self\\b".r
-  val kwCases = "cases\\b".r
 
-  val reserved: Parser[String] = (kwMatch | kwWith | kwTrue | kwFalse | kwLam  | kwType | kwVal | kwFamily
-    | kwExtends | kwN | kwB | kwSelf | kwCases)
+  def hasDuplicateName[K, V](kvList: List[(K, V)]): Boolean = kvList.size != kvList.distinctBy(_._1).size
+
+  def between[T, A, B](l: Parser[A], r: Parser[B], mid: Parser[T]): Parser[T] = l ~> mid <~ r
+  def optBetween[T, A, B](l: Parser[A], r: Parser[B], mid: Parser[T]): Parser[T] = between(l, r, mid) | mid
+
+  // KEYWORDS
+  val kwMatch: Parser[String] = "match\\b".r
+  val kwWith: Parser[String] = "with\\b".r
+  val kwTrue: Parser[String] = "true\\b".r
+  val kwFalse: Parser[String] = "false\\b".r
+  val kwLam: Parser[String] = "lam\\b".r
+  val kwType: Parser[String] = "type\\b".r
+  val kwVal: Parser[String] = "val\\b".r
+  val kwFamily: Parser[String] = "Family\\b".r
+  val kwExtends: Parser[String] = "extends\\b".r
+  val kwN: Parser[String] = "N\\b".r
+  val kwB: Parser[String] = "B\\b".r
+  val kwSelf: Parser[String] = "self\\b".r
+  val kwCases: Parser[String] = "cases\\b".r
+
+  val reserved: Parser[String] = kwMatch | kwWith | kwTrue | kwFalse | kwLam  | kwType | kwVal | kwFamily
+    | kwExtends | kwN | kwB | kwSelf | kwCases
 
   // NAMES
-  def var_name: Parser[String] = not(reserved) ~> """[a-z_]+""".r ^^ { _.toString }
-  def family_name: Parser[String] = not(reserved) ~> """([A-Z][a-z]*)+""".r ^^ { _.toString }
-  def type_name: Parser[String] = not(reserved) ~> """([A-Z][a-z]*)+""".r ^^ { _.toString }
-  def function_name: Parser[String] = not(reserved) ~> """[a-zA-Z_0-9]+""".r ^^ { _.toString }
+  lazy val pVarName: Parser[String] = not(reserved) ~> """[a-z_]+""".r
+  lazy val pFamilyName: Parser[String] = not(reserved) ~> """([A-Z][a-z]*)+""".r
+  lazy val pTypeName: Parser[String] = not(reserved) ~> """([A-Z][a-z]*)+""".r
+  lazy val pFunctionName: Parser[String] = not(reserved) ~> """[a-zA-Z_0-9]+""".r
   // field names can also be constructor names or underscores because of cases
   // is this a problem to allow this for all records?
-  def field_name: Parser[String] = not(reserved) ~> """(([a-z0-9])+)|(([A-Z][a-z0-9]*)+)|_""".r ^^ { _.toString }
-  def constructor_name: Parser[String] = not(reserved) ~> """([A-Z][a-z0-9]*)+""".r ^^ { _.toString }
+  lazy val pFieldName: Parser[String] = not(reserved) ~> """(([a-z0-9])+)|(([A-Z][a-z0-9]*)+)|_""".r
+  lazy val pConstructorName: Parser[String] = not(reserved) ~> """([A-Z][a-z0-9]*)+""".r
 
   // FAMILY PATHS
-  lazy val fampath: PackratParser[Path] =
-    fampath ~ family_name ^^ { case p~f => AbsoluteFamily(p, Family(f)) }
-    | family_name ^^ { case f => AbsoluteFamily(Sp(Prog), Family(f)) }
-    | selfpath ^^ { Sp(_) }
+  lazy val pPath: PackratParser[Path] =
+    pPath ~ pFamilyName ^^ { case p~f => AbsoluteFamily(p, Family(f)) }
+    | pFamilyName ^^ { f => AbsoluteFamily(Sp(Prog), Family(f)) }
+    | pSelfPath ^^ { Sp.apply }
 
-  lazy val selfpath: PackratParser[SelfPath] =
-    kwSelf ~> "(" ~> (
-      selfpath ~ ("." ~> family_name) ^^ { case p~f => SelfFamily(p, Family(f)) }
-      | family_name ^^ { case f => SelfFamily(Prog, Family(f)) }
-    ) <~ ")"
+  lazy val pSelfPath: PackratParser[SelfPath] =
+    kwSelf ~> between("(", ")",
+      pSelfPath ~ ("." ~> pFamilyName) ^^ { case p~f => SelfFamily(p, Family(f)) }
+      | pFamilyName ^^ { f => SelfFamily(Prog, Family(f)) }
+    )
 
   // TYPES
-  lazy val funtype: PackratParser[FunType] = typ ~ "->" ~ typ ^^ { case inp~_~out => FunType(inp, out)}
-  lazy val recfield: PackratParser[(String, Type)] =
-    field_name ~ ":" ~ typ ^^ {case f~_~t => f->t}
-  lazy val rectype: PackratParser[RecType] = "{"~> repsep(recfield, ",") <~"}" ^^
-    {case lst =>
-      if (lst.size == lst.unzip._1.distinct.size) // disallow records with duplicate fields
-      then RecType(lst.toMap)
-      else throw new Exception("Parsing a record type with duplicate fields.")}
-  lazy val famtype: PackratParser[FamType] =
-    fampath ~ "." ~ type_name ^^ { case p~_~t => FamType(p, t)} |
-    "." ~> type_name ^^ { case t => FamType(null, t)} |
-    type_name ^^ { case t => FamType(null, t)}
+  lazy val pFunType: PackratParser[FunType] = pType ~ ("->" ~> pType) ^^ { case inp~out => FunType(inp, out) }
+  lazy val pRecField: PackratParser[(String, Type)] = pFieldName ~ (":" ~> pType) ^^ { case f~t => f->t }
+  lazy val pRecType: PackratParser[RecType] = between("{", "}", repsep(pRecField, ",") ^^ {
+    lst =>
+      if hasDuplicateName(lst) // disallow records with duplicate fields
+      then throw new Exception("Parsing a record type with duplicate fields.")
+      else RecType(lst.toMap)
+  })
+  lazy val pFamType: PackratParser[FamType] =
+    pPath ~ ("." ~> pTypeName) ^^ { case p~t => FamType(p, t)} |
+    "." ~> pTypeName ^^ { t => FamType(null, t)} | // TODO: do we still want this?
+    pTypeName ^^ { t => FamType(null, t)}
 
-  lazy val ntype: PackratParser[Type] = kwN ^^ (_ => N)
-  lazy val btype: PackratParser[Type] = kwB ^^ (_ => B)
+  lazy val pNType: PackratParser[Type] = kwN ^^^ N
+  lazy val pBType: PackratParser[Type] = kwB ^^^ B
 
   // separate parser for record field definition with defaults
-  lazy val default_recfield: PackratParser[(String, (Type, Option[Expression]))] =
-    field_name ~ ":" ~ typ ~ ("=".?) ~ (exp.?) ^^ {case f~_~t~_~oe => f->(t->oe)}
+  lazy val pDefaultRecField: PackratParser[(String, (Type, Option[Expression]))] =
+    pFieldName ~ (":" ~> pType) ~ ("=" ~> exp).? ^^ { case f~t~oe => f->(t->oe) }
   // separate parser for record type definition with defaults
-  lazy val default_rectype: PackratParser[(RecType, Rec)] = "{"~> repsep(default_recfield, ",") <~"}" ^^
-    {case lst =>
-      if (lst.size != lst.unzip._1.distinct.size) // disallow records with duplicate fields
+  lazy val pDefaultRecType: PackratParser[(RecType, Rec)] = "{"~> repsep(pDefaultRecField, ",") <~"}" ^^ {
+    lst =>
+      if hasDuplicateName(lst) // disallow records with duplicate fields
       then throw new Exception("Parsing a record type with duplicate fields.")
       else {
         val type_fields = lst.collect{case (s, (t, _)) => (s, t)}.toMap;
         val defaults = lst.collect{case (s, (t, Some(e))) => (s, e)}.toMap;
         RecType(type_fields) -> Rec(defaults)
-      }}
+      }
+  }
 
-  lazy val typ: PackratParser[Type] = funtype | rectype | famtype | ntype | btype | "(" ~> typ <~ ")"
+  lazy val pType: PackratParser[Type] = pFunType | pRecType | pFamType | pNType | pBType | between("(", ")", pType)
 
   // ADTS
-  lazy val adt_constructor: PackratParser[(String, RecType)] = constructor_name ~ rectype ^^ {case k ~ v => k -> v}
-  lazy val adt: PackratParser[ADT] =
-    (kwType ~> type_name) ~ marker ~ repsep(adt_constructor, "|") ^^ {
+  lazy val pAdtConstructor: PackratParser[(String, RecType)] = pConstructorName ~ pRecType ^^ { case k ~ v => k -> v }
+  lazy val pAdt: PackratParser[ADT] =
+    (kwType ~> pTypeName) ~ pMarker ~ repsep(pAdtConstructor, "|") ^^ {
       case n~m~cs =>
-        if (cs.size == cs.distinctBy(_._1).size) // disallow ADTs with duplicate constructors
-        then ADT(n, m, cs.toMap)
-        else throw new Exception("Parsing an ADT with duplicate constructors.")}
+        if hasDuplicateName(cs) // disallow ADTs with duplicate constructors
+        then throw new Exception("Parsing an ADT with duplicate constructors.")
+        else ADT(n, m, cs.toMap)
+    }
 
   // EXPRESSIONS
-  lazy val exp_bool_true: PackratParser[Bexp] = kwTrue ^^ {_ => Bexp(true)}
-  lazy val exp_bool_false: PackratParser[Bexp] = kwFalse ^^ {_ => Bexp(false)}
-  lazy val exp_nat: PackratParser[Nexp] = """(0|[1-9]\d*)""".r ^^ { n => Nexp(n.toInt) }
-  lazy val exp_var: PackratParser[Var] = var_name ^^ {id => Var(id)}
-  lazy val lam_input: PackratParser[(Var, Type)] = "(" ~> exp_var ~ ":" ~ typ <~ ")" ^^ {case v~_~t => v -> t}
-  lazy val exp_lam: PackratParser[Lam] =
-    kwLam ~> lam_input ~ "." ~ exp ^^ {case inp~_~body => Lam(inp._1, inp._2, body)}
+  lazy val pExpBool: PackratParser[Bexp] = kwTrue ^^^ Bexp(true) | kwFalse ^^^ Bexp(false)
+  lazy val pExpNat: PackratParser[Nexp] = """(0|[1-9]\d*)""".r ^^ { n => Nexp(n.toInt) }
+  lazy val pExpVar: PackratParser[Var] = pVarName ^^ { id => Var(id)}
+  lazy val pExpLam: PackratParser[Lam] =
+    kwLam ~> between("(", ")", pExpVar ~ (":" ~> pType)) ~ ("." ~> exp) ^^ { case v~t~body => Lam(v, t, body) }
 
-  lazy val exp_famfun: PackratParser[FamFun] =
-    fampath ~ "." ~ function_name ^^ {case p~_~n => FamFun(p, n)} |
-    "." ~> function_name ^^ {case n => FamFun(null, n)}
+  lazy val pExpFamFun: PackratParser[FamFun] =
+    pPath ~ ("." ~> pFunctionName) ^^ { case p~n => FamFun(p, n) }
+    | "." ~> pFunctionName ^^ { n => FamFun(null, n) }
 
-  lazy val exp_famcases: PackratParser[FamCases] =
-    "<" ~> fampath ~ "." ~ function_name <~ ">" ^^ {case p~_~n => FamCases(p, n)} |
-    "<" ~> "." ~ function_name <~ ">" ^^ {case _~n => FamCases(null, n)}
+  lazy val pExpFamCases: PackratParser[FamCases] =
+    between("<", ">", pPath ~ ("." ~> pFunctionName)) ^^ { case p~n => FamCases(p, n) }
+    | between("<", ">", "." ~> pFunctionName) ^^ { n => FamCases(null, n) } // TODO: do we still want this?
 
-  lazy val exp_app: PackratParser[App] = exp ~ exp ^^ {case e~g => App(e, g)}
-  lazy val exp_proj: PackratParser[Proj] = exp ~ "." ~ field_name ^^ {case e~_~n => Proj(e, n)}
-  lazy val field_val: PackratParser[(String, Expression)] = field_name ~ "=" ~ exp ^^ {case k~_~v => k -> v}
-  lazy val exp_rec: PackratParser[Rec] = "{"~> repsep(field_val, ",") <~"}" ^^
-    {case lst =>
-      if (lst.size == lst.unzip._1.distinct.size) // disallow records with duplicate fields
-      then Rec(lst.toMap)
-      else throw new Exception("Parsing a record with duplicate fields.")}
+  lazy val pExpApp: PackratParser[App] = exp ~ exp ^^ { case e~g => App(e, g) }
+  lazy val pExpProj: PackratParser[Proj] = exp ~ "." ~ pFieldName ^^ {case e~_~n => Proj(e, n)}
+  lazy val pFieldVal: PackratParser[(String, Expression)] = pFieldName ~ "=" ~ exp ^^ {case k~_~v => k -> v}
+  lazy val pExpRec: PackratParser[Rec] = "{"~> repsep(pFieldVal, ",") <~"}" ^^ {
+    lst =>
+      if hasDuplicateName(lst) // disallow records with duplicate fields
+      then throw new Exception("Parsing a record with duplicate fields.")
+      else Rec(lst.toMap)
+  }
 
-  lazy val exp_inst: PackratParser[Inst] =
-    famtype ~ "(" ~ exp_rec <~ ")" ^^ {case t~_~r => Inst(t, r)}
-  lazy val exp_inst_adt: PackratParser[InstADT] =
-    famtype ~ "(" ~ constructor_name ~ exp_rec <~ ")" ^^ {case t~_~c~r => InstADT(t, c, r)}
+  lazy val pExpInst: PackratParser[Inst] =
+    pFamType ~ between("(", ")", pExpRec) ^^ { case t~r => Inst(t, r) }
+  lazy val pExpInstAdt: PackratParser[InstADT] =
+    pFamType ~ between("(", ")", pConstructorName ~ pExpRec) ^^ { case t~(c~r) => InstADT(t, c, r) }
 
   // the second expression will be an application of exp_famcases to a record of arguments
-  lazy val exp_match: PackratParser[Match] =
-    kwMatch ~> exp ~ kwWith ~ exp_app ^^ {case e~_~g => Match(e, g)}
+  lazy val pExpMatch: PackratParser[Match] =
+    kwMatch ~> exp ~ (kwWith ~> pExpApp) ^^ { case e~g => Match(e, g) }
 
   lazy val exp: PackratParser[Expression] =
-    exp_match | exp_proj | exp_inst_adt | exp_inst | exp_app | exp_rec
-    | exp_famfun | exp_famcases
-    | exp_lam | exp_bool_true | exp_bool_false | exp_nat
-    | exp_var
-    | "(" ~> exp <~ ")"
+    pExpMatch | pExpProj | pExpInstAdt | pExpInst | pExpApp | pExpRec
+    | pExpFamFun | pExpFamCases
+    | pExpLam | pExpBool | pExpNat
+    | pExpVar
+    | between("(", ")", exp)
 
   // MARKERS
-  lazy val marker: PackratParser[Marker] =
+  lazy val pMarker: PackratParser[Marker] =
     "=" ^^ {_ => Eq} | "+=" ^^ {_ => PlusEq}
 
   // DEFINITIONS
-  lazy val typedef: PackratParser[(String, (Marker, (RecType, Rec)))] =
-    kwType ~> type_name ~ marker ~ default_rectype ^^ { case n~m~rt => (n -> (m -> rt)) }
-  lazy val adtdef: PackratParser[(String, ADT)] =
-    adt ^^ {case a => (a.name -> a)}
+  lazy val pTypeDef: PackratParser[(String, (Marker, (RecType, Rec)))] =
+    kwType ~> pTypeName ~ pMarker ~ pDefaultRecType ^^ { case n~m~rt => n -> (m -> rt) }
+  lazy val pAdtDef: PackratParser[(String, ADT)] =
+    pAdt ^^ { a => a.name -> a }
 
-  lazy val fundef: PackratParser[(String, Fun)] =
-    kwVal ~> function_name ~ (":" ~> "(" ~> funtype) ~ (")" ~> "=" ~> exp_lam) ^^ {
-      case n~t~b => n -> FunDeclared(n, t, b)
-    }
-    // TODO: why are these both needed?
-    | kwVal ~> function_name ~ (":" ~> funtype) ~ ("=" ~> exp_lam) ^^ {
+  lazy val pFunDef: PackratParser[(String, Fun)] =
+    kwVal ~> pFunctionName ~ (":" ~> optBetween("(", ")", pFunType)) ~ ("=" ~> pExpLam) ^^ {
       case n~t~b => n -> FunDeclared(n, t, b)
     }
 
-  lazy val match_type: PackratParser[FamType] = "<" ~> famtype <~ ">"
+  lazy val pMatchType: PackratParser[FamType] = between("<", ">", pFamType)
   // mt = match type, m = marker, ft = funtype, lam = body
-  lazy val cases_def: PackratParser[(String, Cases)] =
-    kwCases ~> function_name ~ match_type ~ (":" ~> funtype) ~ marker ~ exp_lam ^^ {
-      case n~mt~ft~m~b => (n -> CasesDeclared(n, mt, ft, m, b))
+  lazy val pCasesDef: PackratParser[(String, Cases)] =
+    kwCases ~> pFunctionName ~ pMatchType ~ (":" ~> optBetween("(", ")", pFunType)) ~ pMarker ~ pExpLam ^^ {
+      case n~mt~ft~m~b => n -> CasesDeclared(n, mt, ft, m, b)
     }
-    // TODO: why are these both needed?
-    | kwCases ~> function_name ~ match_type ~ (":" ~> "(" ~> funtype) ~ (")" ~> marker) ~ exp_lam ^^ {
-      case n~mt~ft~m~b => (n -> CasesDeclared(n, mt, ft, m, b))
-    }
-
-
-  def hasDuplicateName[K, V](kvList: List[(K, V)]): Boolean = kvList.size != kvList.distinctBy(_._1).size
 
   // A family can extend another family. If it does not, the parent is null.
-  lazy val famdef: PackratParser[Linkage] =
-    (kwFamily ~> family_name) ~ (kwExtends ~> family_name).? ~
-      ("{" ~> rep(typedef)) ~ rep(adtdef) ~ rep(fundef) ~ rep(cases_def) ~ rep(famdef) <~ "}" ^^ {
-      case a~optB~typs~adts~funs~cases~nestedLkgs =>
+  lazy val pFamDef: PackratParser[Linkage] =
+    (kwFamily ~> pFamilyName) ~ (kwExtends ~> pFamilyName).? ~ between("{", "}",
+      rep(pTypeDef) ~ rep(pAdtDef) ~ rep(pFunDef) ~ rep(pCasesDef) ~ rep(pFamDef)
+    ) ^^ {
+      case a~optB~(typs~adts~funs~cases~nestedLkgs) =>
         val nestedList = nestedLkgs.map{lkg => (lkg.path, lkg)}
-        if (hasDuplicateName(typs)) then throw new Exception("Parsing duplicate type names.")
-        else if (hasDuplicateName(adts)) then throw new Exception("Parsing duplicate ADT names.")
-        else if (hasDuplicateName(funs)) then throw new Exception("Parsing duplicate function names.")
-        else if (hasDuplicateName(cases)) then throw new Exception("Parsing duplicate cases names.")
-        else if (hasDuplicateName(nestedList)) then throw new Exception("Parsing duplicate family names.")
+        if hasDuplicateName(typs) then throw new Exception("Parsing duplicate type names.")
+        else if hasDuplicateName(adts) then throw new Exception("Parsing duplicate ADT names.")
+        else if hasDuplicateName(funs) then throw new Exception("Parsing duplicate function names.")
+        else if hasDuplicateName(cases) then throw new Exception("Parsing duplicate cases names.")
+        else if hasDuplicateName(nestedList) then throw new Exception("Parsing duplicate family names.")
         else {
           val supFam = optB match {
             case Some(b) =>
@@ -210,9 +207,9 @@ class FamParser extends RegexParsers with PackratParsers {
         }
       }
 
-  lazy val program: PackratParser[Map[Path, Linkage]] =
-    rep(famdef) ^^ {
-      case lst => Map(
+  lazy val pProgram: PackratParser[Map[Path, Linkage]] =
+    rep(pFamDef) ^^ {
+      lst => Map(
         Sp(Prog) -> Linkage(
           Sp(Prog), Prog, null, Map(), Map(), Map(), Map(), Map(),
           lst.map{lkg => (lkg.path, lkg)}.toMap
@@ -222,7 +219,7 @@ class FamParser extends RegexParsers with PackratParsers {
 }
 
 object TestFamParser extends FamParser {
-  def parse0[T](p: PackratParser[T], inp: String) = parseAll(phrase(p), inp)
-  def canParse[T](p: PackratParser[T], inp: String) = parse0(p, inp).successful
-  def parseSuccess[T](p: PackratParser[T], inp: String) = parse0(p, inp).get
+  def parse0[T](p: PackratParser[T], inp: String): ParseResult[T] = parseAll(phrase(p), inp)
+  def canParse[T](p: PackratParser[T], inp: String): Boolean = parse0(p, inp).successful
+  def parseSuccess[T](p: PackratParser[T], inp: String): T = parse0(p, inp).get
 }
