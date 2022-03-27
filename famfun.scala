@@ -3,27 +3,32 @@ import scala.util.Random
 object famfun {
   // Families & Paths
   case class Family(name: String)
-  sealed class FamilyPath // a
-  case class AbsoluteFamily(fam: Family) extends FamilyPath // A
-  case class SelfFamily(fam: Family) extends FamilyPath // self(A)
+
+  sealed trait Path
+  case class Sp(sp: SelfPath) extends Path
+  case class AbsoluteFamily(pref: Path, fam: Family) extends Path // a.A
+
+  sealed trait SelfPath
+  case object Prog extends SelfPath // <prog>
+  case class SelfFamily(pref: SelfPath, fam: Family) extends SelfPath // self(sp.A)
 
   // Types
-  sealed class Type
+  sealed trait Type
   case object N extends Type
   case object B extends Type
-  case class FamType(path: FamilyPath, name: String) extends Type // a.R
+  case class FamType(path: Path, name: String) extends Type // a.R
   case class FunType(input: Type, output: Type) extends Type // T -> T'
   case class RecType(fields: Map[String, Type]) extends Type // {(f: T)*}
 
   // ADTs
-  case class ADT(cs: Map[String, RecType])
+  case class ADT(name: String, marker: Marker, cs: Map[String, RecType])
 
   // Expressions
-  sealed class Expression
+  sealed trait Expression
   case class Var(id: String) extends Expression // x
   case class Lam(v: Var, t: Type, body: Expression) extends Expression // lam (x: T). body
-  case class FamFun(path: FamilyPath, name: String) extends Expression // a.m
-  case class FamCases(path: FamilyPath, name: String) extends Expression // a.r
+  case class FamFun(path: Path, name: String) extends Expression // a.m
+  case class FamCases(path: Path, name: String) extends Expression // a.r
   case class App(e1: Expression, e2: Expression) extends Expression // e g
   case class Rec(fields: Map[String, Expression]) extends Expression // {(f = e)*}
   case class Proj(e: Expression, name: String) extends Expression // e.f
@@ -33,19 +38,30 @@ object famfun {
   case class Nexp(n: Int) extends Expression
   case class Bexp(b: Boolean) extends Expression
 
+  // Functions
+  sealed trait Fun
+  case class FunDeclared(name: String, t: FunType, body: Lam) extends Fun
+  case class FunInherited(name: String, from: Path) extends Fun
+
+  // Cases
+  sealed trait Cases
+  case class CasesDeclared(name: String, matchType: FamType, t: FunType, marker: Marker, body: Lam) extends Cases
+  // TODO: cases inherited?
+
   // Linkages
-  sealed class Marker // either += or =
+  sealed trait Marker // either += or =
   case object PlusEq extends Marker // type extension marker
   case object Eq extends Marker // type definition marker
 
-  case class Linkage(self: FamilyPath, // self
-                     sup: FamilyPath,  // super
+  case class Linkage(path: Path,
+                     self: SelfPath, // self
+                     sup: Path, // super
                      types: Map[String, (Marker, RecType)],
                      defaults: Map[String, (Marker, Rec)],
-                     adts: Map[String, (Marker, ADT)],
-                     funs: Map[String, (FunType, Lam)],
-                     depot: Map[String, (FamType, Marker, FunType, Lam)],
-                     nested: Map[FamilyPath, Linkage] = Map() // TODO: remove default and handle
+                     adts: Map[String, ADT],
+                     funs: Map[String, Fun],
+                     depot: Map[String, Cases],
+                     nested: Map[Path, Linkage] = Map() // TODO: remove default and handle
                     )
 
 
@@ -62,10 +78,11 @@ object famfun {
     case _ => false
   }
 
+  /* TODO: uncomment
   /*====================================== TYPE WELL-FORMEDNESS ======================================*/
 
   // helper that returns the self version or the qualified version of the linkage
-  def get_lkg(p: FamilyPath, K: Map[FamilyPath, Linkage]): Option[Linkage] = {
+  def get_lkg(p: Path, K: Map[Path, Linkage]): Option[Linkage] = {
     p match {
       // if our path is a self path, just get the linkage
       case SelfFamily(Family(f)) => K.get(p)
@@ -82,7 +99,7 @@ object famfun {
   // Well-Formedness Rules
   // K is the linkage context
   // ASSUMPTION: Linkages in K are complete and well-formed
-  def wf(t: Type, K: Map[FamilyPath, Linkage]): Boolean = t match {
+  def wf(t: Type, K: Map[Path, Linkage]): Boolean = t match {
     case N => true
     case B => true
     case FamType(path, name) =>
@@ -101,7 +118,7 @@ object famfun {
   // G is the typing context, K is the linkage context
   // Infer the type of expression exp
   // ASSUMPTION: Linkages are complete and well-formed
-  def typInf(exp: Expression, G: Map[String, Type], K: Map[FamilyPath, Linkage]): Option[Type] = exp match {
+  def typInf(exp: Expression, G: Map[String, Type], K: Map[Path, Linkage]): Option[Type] = exp match {
 
     // _________________ T_Num
     //  G |- n : N
@@ -288,7 +305,7 @@ object famfun {
   // Type Checking
   // G is the typing context, K is the linkage context
   // does expression exp have the expected type t?
-  def typCheck(exp: Expression, t: Type, G: Map[String, Type], K: Map[FamilyPath, Linkage]): Boolean =
+  def typCheck(exp: Expression, t: Type, G: Map[String, Type], K: Map[Path, Linkage]): Boolean =
     typInf(exp, G, K) match {
       case Some(inft) => subtype(inft, t, K)
       case _ => false
@@ -299,7 +316,7 @@ object famfun {
   // Subtyping
   // K is the linkage context
   // is T1 a subtype of T2? (or equal to T2)
-  def subtype(t1: Type, t2: Type, K: Map[FamilyPath, Linkage]): Boolean =
+  def subtype(t1: Type, t2: Type, K: Map[Path, Linkage]): Boolean =
     if (t1 == t2) then true else
     (t1, t2) match {
       // a.R <: t2 means we pull out the definition of R from linkage
@@ -336,7 +353,7 @@ object famfun {
   // ASSUMPTION: linkages in K are incomplete
   // we return the updated map of complete linkages for memoization purposes
 
-  def complete_linkage(fpath: FamilyPath, K: Map[FamilyPath, Linkage], M: Map[FamilyPath, Linkage]): (Linkage, Map[FamilyPath, Linkage])  = {
+  def complete_linkage(fpath: Path, K: Map[Path, Linkage], M: Map[Path, Linkage]): (Linkage, Map[Path, Linkage])  = {
     fpath match {
       // K |- self(A) ~> {{self(A)}}
       // ____________________________ L-Qual
@@ -625,7 +642,7 @@ object famfun {
 
   // for each instance of a type, check that all type fields are instantiated
   // if not, supplement with fields & values from default.
-  def handle_defaults(exp: Expression, K: Map[FamilyPath, Linkage]) : Expression = {
+  def handle_defaults(exp: Expression, K: Map[Path, Linkage]) : Expression = {
     exp match {
       case Lam(v, t, body) => Lam(v, t, handle_defaults(body, K))
       case App(e1, e2) => App(handle_defaults(e1, K), handle_defaults(e2, K))
@@ -671,7 +688,7 @@ object famfun {
     }
   }
 
-  def fill_defaults_lkg (lkg: Linkage, K: Map[FamilyPath, Linkage]) : Linkage = {
+  def fill_defaults_lkg (lkg: Linkage, K: Map[Path, Linkage]) : Linkage = {
     // need to update instances in every expression: defaults, funs, & cases
     val newdefaults = lkg.defaults.map{ case (s, (m, r)) => (s, (m, handle_defaults(r, K).asInstanceOf[Rec]))}
     val newfuns = lkg.funs.map{ case (s, (ft, lam)) => (s, (ft, handle_defaults(lam, K).asInstanceOf[Lam]))}
@@ -686,7 +703,7 @@ object famfun {
 
   // G is the typing context
   // ASSUMPTION: all linkages are complete
-  def linkage_ok (lkg: Linkage, G: Map[String, Type], K: Map[FamilyPath, Linkage]): Boolean = {
+  def linkage_ok (lkg: Linkage, G: Map[String, Type], K: Map[Path, Linkage]): Boolean = {
     // forall (R = {(f: T)*}) in TYPES, WF({(f: T)*})
     val types_ok = lkg.types.filter{case (s, (m, rt)) => !wf(rt, K)}.isEmpty
     // check that for every default record there is a type corresponding to it and the defaults typecheck
@@ -730,7 +747,7 @@ object famfun {
   /*====================================== LINKAGE TRANSFORMATIONS  ======================================*/
 
   // replaces paths p1 in type t with paths p2
-  def update_type_paths (t: Type, p1: FamilyPath, p2: FamilyPath) : Type = {
+  def update_type_paths (t: Type, p1: Path, p2: Path) : Type = {
     if (p2 == null) then {
       throw new Exception("Attempting to update a type with a null path.")
     }
@@ -743,7 +760,7 @@ object famfun {
   }
 
   // replaces paths p1 in expression exp with paths p2
-  def update_exp_paths (exp: Expression, p1: FamilyPath, p2: FamilyPath) : Expression = {
+  def update_exp_paths (exp: Expression, p1: Path, p2: Path) : Expression = {
     if (p2 == null) then {
       throw new Exception("Attempting to update an expression with a null path.")
     }
@@ -765,7 +782,7 @@ object famfun {
   }
 
   // replace paths with other paths
-  def update_paths (lkg: Linkage, p1: FamilyPath, p2: FamilyPath) : Linkage = {
+  def update_paths (lkg: Linkage, p1: Path, p2: Path) : Linkage = {
     var newself = if (lkg.self == p1) then p2 else lkg.self
     // NOTE: currently, super serves only for concatenation purposes. it is always a self() path.
     // we do not need to replace super when updating paths.
@@ -789,7 +806,7 @@ object famfun {
 
   // unfold wildcards in cases
   // ASSUMPTION: incomplete linkages, K is the context of incomplete linkages
-  def unfold_wildcards (lkg: Linkage, K: Map[FamilyPath, Linkage]) : Linkage = {
+  def unfold_wildcards (lkg: Linkage, K: Map[Path, Linkage]) : Linkage = {
     val newdepot = lkg.depot.map{ case (k, (mt, m, ft, lam)) =>
       assert(lam.body.isInstanceOf[Rec]);
       assert(ft.output.isInstanceOf[RecType]);
@@ -850,4 +867,5 @@ object famfun {
     // return the updated incomplete linkage
     Linkage(lkg.self, lkg.sup, lkg.types, lkg.defaults, lkg.adts, lkg.funs, newdepot)
   }
+  */
 } // eof

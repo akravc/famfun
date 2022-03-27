@@ -2,11 +2,14 @@ import famfun._
 
 object PrettyPrint {
 
-  def print_path(p: FamilyPath) : String = {
+  def print_selfPath(sp: SelfPath): String = sp match {
+    case Prog => "<>"
+    case SelfFamily(p, Family(f)) => "self(" + print_selfPath(p) + "." + f + ")"
+  }
+  def print_path(p: Path) : String = {
     p match {
-      case SelfFamily(Family(f)) => "self(" + f + ")"
-      case AbsoluteFamily(Family(f)) => f
-      case _ => "None"
+      case Sp(sp) => print_selfPath(sp)
+      case AbsoluteFamily(p, Family(f)) => print_path(p) + "." + f
     }
   }
 
@@ -21,7 +24,6 @@ object PrettyPrint {
           if ((f, t) == fields.last) then f + ": " + print_type(t)
           else f + ": " + print_type(t) + ", "}
         "{" + printmap.mkString + "}"
-      case _ => "None"
     }
   }
 
@@ -29,7 +31,6 @@ object PrettyPrint {
     m match {
       case Eq => " = "
       case PlusEq => " += "
-      case _ => "None"
     }
   }
 
@@ -51,21 +52,25 @@ object PrettyPrint {
       case Match(e, g) => "match " + print_exp(e) + " with " + print_exp(g)
       case Nexp(n) => n.toString()
       case Bexp(b) => b.toString()
-      case _ => "None"
     }
   }
 
-  def print_adt(a: ADT) : String = {
-    val amap = a.cs.map{case (c, r) =>
-      if ((c, r) == a.cs.last) then c + " " + print_type(r)
-      else c + " " + print_type(r) + " | "}
-    amap.mkString
+  def print_adt(a: ADT) : String = a match {
+    case ADT(s, m, cs) =>
+      val amap = a.cs.map{
+        case (c, r) =>
+          if ((c, r) == a.cs.last) then c + " " + print_type(r)
+          else c + " " + print_type(r) + " | "
+      }
+      "type " + s + print_marker(m) + amap.mkString + "\n"
   }
 
   def print_lkg(lkg: Linkage) = {
     print("LINKAGE DEFINITION: \n\n")
 
-    print("SELF: " + print_path(lkg.self) + "\n\n")
+    print("PATH: " + print_path(lkg.path) + "\n\n")
+
+    print("SELF: " + print_selfPath(lkg.self) + "\n\n")
 
     print("SUPER: " + print_path(lkg.sup) + "\n\n")
 
@@ -85,21 +90,23 @@ object PrettyPrint {
 
     print("ADTs: ")
     val adtmap = lkg.adts.map{
-      case (s, (m, adt)) => "type " + s + print_marker(m) +  print_adt(adt) + "\n"
+      case (s, adt) => print_adt(adt) + "\n"
     }
     print(adtmap.mkString)
     print("\n\n")
 
     print("FUNS: ")
     val funmap = lkg.funs.map{
-      case (s, (ft, lam)) => "val " + s + ": " + print_type(ft) + " = " + print_exp(lam) + "\n"
+      case (_, FunDeclared(s, ft, lam)) => "val " + s + ": " + print_type(ft) + " = " + print_exp(lam) + "\n"
+      case (_, FunInherited(_, _)) => "TODO?"
     }
     print(funmap.mkString)
     print("\n\n")
 
     print("CASES: ")
-    val casemap = lkg.depot.map{
-      case (s, (mt, m, ft, lam)) => "cases " + s + "<" + print_type(mt) + ">" + ": " +
+    val casemap = lkg.depot.values.map {
+      case CasesDeclared(s, mt, ft, m, lam) =>
+        "cases " + s + "<" + print_type(mt) + ">" + ": " +
         print_type(ft) + print_marker(m) + print_exp(lam) + "\n"
     }
     print(casemap.mkString)

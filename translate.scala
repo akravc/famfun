@@ -1,9 +1,9 @@
-import TestFamParser._
-import famfun._
+//import TestFamParser._
+//import famfun._
 
 object famfun_translate {
 
-
+  /* TODO: uncomment
   /* ===================== PATHS ===================== */
   def trans_path(p: FamilyPath): String = {
     p match {
@@ -212,4 +212,5 @@ object famfun_translate {
       val printmap = M.map { case (p, lkg) => trans_fam(lkg, M)}
       printmap.mkString
     }
+  */
 }
