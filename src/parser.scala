@@ -49,14 +49,14 @@ class FamParser extends RegexParsers with PackratParsers {
 
   // FAMILY PATHS
   lazy val pPath: PackratParser[Path] =
-    pPath ~ pFamilyName ^^ { case p~f => AbsoluteFamily(p, Family(f)) }
-    | pFamilyName ^^ { f => AbsoluteFamily(Sp(Prog), Family(f)) }
+    pPath ~ pFamilyName ^^ { case p~f => AbsoluteFamily(p, f) }
+    | pFamilyName ^^ { f => AbsoluteFamily(Sp(Prog), f) }
     | pSelfPath ^^ { Sp.apply }
 
   lazy val pSelfPath: PackratParser[SelfPath] =
     kwSelf ~> between("(", ")",
-      pSelfPath ~ ("." ~> pFamilyName) ^^ { case p~f => SelfFamily(p, Family(f)) }
-      | pFamilyName ^^ { f => SelfFamily(Prog, Family(f)) }
+      pSelfPath ~ ("." ~> pFamilyName) ^^ { case p~f => SelfFamily(p, f) }
+      | pFamilyName ^^ { f => SelfFamily(Prog, f) }
     )
 
   // TYPES
@@ -172,7 +172,7 @@ class FamParser extends RegexParsers with PackratParsers {
       rep(pTypeDef) ~ rep(pAdtDef) ~ rep(pFunDef) ~ rep(pCasesDef) ~ rep(pFamDef)
     ) ^^ {
       case a~supFam~(typs~adts~funs~cases~nestedLkgs) =>
-        val nestedList = nestedLkgs.map{lkg => (lkg.path, lkg)}
+        val nestedList = nestedLkgs.map{lkg => (pathName(lkg.path), lkg)}
         if hasDuplicateName(typs) then throw new Exception("Parsing duplicate type names.")
         else if hasDuplicateName(adts) then throw new Exception("Parsing duplicate ADT names.")
         else if hasDuplicateName(funs) then throw new Exception("Parsing duplicate function names.")
@@ -193,7 +193,7 @@ class FamParser extends RegexParsers with PackratParsers {
             // family does not extend another
             case None => ()
           }
-          val selfPath = SelfFamily(Prog, Family(a))
+          val selfPath = SelfFamily(Prog, a)
           val typedefs = typs.collect{case (s, (m, (rt, r))) => (s, (m, rt))}.toMap
           val defaults = typs.collect{case (s, (m, (rt, r))) => (s, (m, r))}.toMap
           Linkage(
@@ -215,7 +215,7 @@ class FamParser extends RegexParsers with PackratParsers {
       lst => Map(
         Sp(Prog) -> Linkage(
           Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
-          lst.map{lkg => (lkg.path, lkg)}.toMap
+          lst.map{lkg => (pathName(lkg.path), lkg)}.toMap
         )
       )
     }

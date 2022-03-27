@@ -25,18 +25,18 @@ class FamFunParserTesting extends AnyFunSuite {
 
   test("types: absolute famtype") {
     assert(canParse(pType, "A.R"))
-    assertResult(FamType(Some(AbsoluteFamily(Sp(Prog), Family("A"))), "R")){parseSuccess(pType, "A.R")}
+    assertResult(FamType(Some(AbsoluteFamily(Sp(Prog), "A")), "R")){parseSuccess(pType, "A.R")}
   }
 
   test("types: self famtype") {
     assert(canParse(pType, "self(A).R"))
-    assertResult(FamType(Some(Sp(SelfFamily(Prog, Family("A")))), "R")){parseSuccess(pType, "self(A).R")}
+    assertResult(FamType(Some(Sp(SelfFamily(Prog, "A"))), "R")){parseSuccess(pType, "self(A).R")}
   }
 
   test("types: record type") {
     assert(canParse(pType, "{ a: N, b: B, c: A.R }"))
     assertResult(
-      RecType(Map("a"->N, "b"->B, "c"->FamType(Some(AbsoluteFamily(Sp(Prog), Family("A"))), "R")))
+      RecType(Map("a"->N, "b"->B, "c"->FamType(Some(AbsoluteFamily(Sp(Prog), "A")), "R")))
     ){parseSuccess(pType, "{ a: N, b: B, c: A.R }")}
   }
 
@@ -73,7 +73,7 @@ class FamFunParserTesting extends AnyFunSuite {
 
   test("exp: select function from family") {
     assert(canParse(exp, "self(A).calculate"))
-    assertResult(FamFun(Some(Sp(SelfFamily(Prog, Family("A")))), "calculate")){parseSuccess(exp, "self(A).calculate")}
+    assertResult(FamFun(Some(Sp(SelfFamily(Prog, "A"))), "calculate")){parseSuccess(exp, "self(A).calculate")}
   }
 
   test("exp: app") {
@@ -94,14 +94,14 @@ class FamFunParserTesting extends AnyFunSuite {
   test("exp: instance") {
     assert(canParse(exp, "A.R({a = 4})"))
     assertResult(
-      Inst(FamType(Some(AbsoluteFamily(Sp(Prog), Family("A"))), "R"), Rec(Map("a"->Nexp(4))))
+      Inst(FamType(Some(AbsoluteFamily(Sp(Prog), "A")), "R"), Rec(Map("a"->Nexp(4))))
     ){parseSuccess(exp, "A.R({a = 4})")}
   }
 
   test("exp: ADT instance") {
     assert(canParse(exp, "A.R(C {})"))
     assertResult(
-      InstADT(FamType(Some(AbsoluteFamily(Sp(Prog), Family("A"))), "R"), "C", Rec(Map()))
+      InstADT(FamType(Some(AbsoluteFamily(Sp(Prog), "A")), "R"), "C", Rec(Map()))
     ){parseSuccess(exp, "A.R(C {})")}
   }
 
@@ -121,8 +121,8 @@ class FamFunParserTesting extends AnyFunSuite {
     ))
     assertResult(
       Linkage(
-        Sp(SelfFamily(Prog, Family("A"))),
-        SelfFamily(Prog, Family("A")),
+        Sp(SelfFamily(Prog, "A")),
+        SelfFamily(Prog, "A"),
         None,
         Map("T"->(Eq, RecType(Map("f"->B, "n"->N)))),
         Map("T"->(Eq, Rec(Map("f"->Bexp(true), "n"->Nexp(3))))),
@@ -137,9 +137,9 @@ class FamFunParserTesting extends AnyFunSuite {
     ))
     assertResult(
       Linkage(
-        Sp(SelfFamily(Prog, Family("A"))),
-        SelfFamily(Prog, Family("A")),
-        Some(AbsoluteFamily(Sp(Prog), Family("C"))),
+        Sp(SelfFamily(Prog, "A")),
+        SelfFamily(Prog, "A"),
+        Some(AbsoluteFamily(Sp(Prog), "C")),
         Map("T"->(Eq, RecType(Map("f"->B, "n"->N)))),
         Map("T"->(Eq, Rec(Map("f"->Bexp(true), "n"->Nexp(3))))),
         Map(), Map(), Map(), Map())
@@ -158,9 +158,9 @@ class FamFunParserTesting extends AnyFunSuite {
     ))
     assertResult(
       Linkage(
-        Sp(SelfFamily(Prog, Family("A"))),
-        SelfFamily(Prog, Family("A")),
-        Some(AbsoluteFamily(Sp(Prog), Family("C"))),
+        Sp(SelfFamily(Prog, "A")),
+        SelfFamily(Prog, "A"),
+        Some(AbsoluteFamily(Sp(Prog), "C")),
         Map("T"->(PlusEq, RecType(Map("f"->B, "n"->N)))),
         Map("T"->(PlusEq, Rec(Map("f"->Bexp(true), "n"->Nexp(3))))),
         Map(), Map(), Map(), Map())
@@ -176,12 +176,12 @@ class FamFunParserTesting extends AnyFunSuite {
     ))
     assertResult(
       Linkage(
-        Sp(SelfFamily(Prog, Family("A"))),
-        SelfFamily(Prog, Family("A")),
+        Sp(SelfFamily(Prog, "A")),
+        SelfFamily(Prog, "A"),
         None,
         Map(
           "T"->(Eq, RecType(Map("f"->B, "n"->N))),
-          "R"->(Eq, RecType(Map("s"->FamType(Some(Sp(SelfFamily(Prog, Family("A")))), "T"))))
+          "R"->(Eq, RecType(Map("s"->FamType(Some(Sp(SelfFamily(Prog, "A"))), "T"))))
         ),
         Map(
           "T"->(Eq, Rec(Map("f"->Bexp(true), "n"->Nexp(3)))),
@@ -205,13 +205,13 @@ class FamFunParserTesting extends AnyFunSuite {
     ))
     assertResult(
       Linkage(
-        Sp(SelfFamily(Prog, Family("A"))),
-        SelfFamily(Prog, Family("A")),
+        Sp(SelfFamily(Prog, "A")),
+        SelfFamily(Prog, "A"),
         None,
         // types
         Map(
           "T" -> (Eq, RecType(Map("f"->B, "n"->N))),
-          "R" -> (Eq, RecType(Map("s"->FamType(Some(Sp(SelfFamily(Prog, Family("A")))), "T"))))
+          "R" -> (Eq, RecType(Map("s"->FamType(Some(Sp(SelfFamily(Prog, "A"))), "T"))))
         ),
         // defaults
         Map(
@@ -224,7 +224,7 @@ class FamFunParserTesting extends AnyFunSuite {
               "Nil" -> RecType(Map()),
               "Cons" -> RecType(Map(
                 "x" -> N,
-                "tail" -> FamType(Some(Sp(SelfFamily(Prog, Family("A")))), "List")
+                "tail" -> FamType(Some(Sp(SelfFamily(Prog, "A"))), "List")
               ))
             )
           )

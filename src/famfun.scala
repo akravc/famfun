@@ -1,18 +1,18 @@
 object famfun {
   // Families & Paths
-  case class Family(name: String)
-
   sealed trait Path
-
   case class Sp(sp: SelfPath) extends Path
-
-  case class AbsoluteFamily(pref: Path, fam: Family) extends Path // a.A
+  case class AbsoluteFamily(pref: Path, fam: String) extends Path // a.A
 
   sealed trait SelfPath
-
   case object Prog extends SelfPath // <prog>
-
-  case class SelfFamily(pref: SelfPath, fam: Family) extends SelfPath // self(sp.A)
+  case class SelfFamily(pref: SelfPath, fam: String) extends SelfPath // self(sp.A)
+  
+  def pathName(p: Path): String = p match {
+    case Sp(Prog) => throw new Exception("Should not try to get path name of <>")
+    case Sp(SelfFamily(_, f)) => f
+    case AbsoluteFamily(_, f) => f
+  }
 
   // Types
   sealed trait Type
@@ -59,11 +59,11 @@ object famfun {
                      self: SelfPath, // self
                      sup: Option[Path], // super
                      types: Map[String, (Marker, RecType)],
-                     defaults: Map[String, (Marker, Rec)],
+                     defaults: Map[String, (Marker, Rec)], // TODO: should this be combined with `types`?
                      adts: Map[String, ADT],
                      funs: Map[String, FunDefn],
                      depot: Map[String, CasesDefn],
-                     nested: Map[Path, Linkage] // TODO: remove default and handle
+                     nested: Map[String, Linkage]
                     )
 
 

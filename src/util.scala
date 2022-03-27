@@ -4,12 +4,12 @@ object PrettyPrint {
 
   def print_selfPath(sp: SelfPath): String = sp match {
     case Prog => "<>"
-    case SelfFamily(p, Family(f)) => "self(" + print_selfPath(p) + "." + f + ")"
+    case SelfFamily(p, f) => "self(" + print_selfPath(p) + "." + f + ")"
   }
   def print_path(p: Path) : String = {
     p match {
       case Sp(sp) => print_selfPath(sp)
-      case AbsoluteFamily(p, Family(f)) => print_path(p) + "." + f
+      case AbsoluteFamily(p, f) => print_path(p) + "." + f
     }
   }
 
