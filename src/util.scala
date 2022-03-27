@@ -18,7 +18,7 @@ object PrettyPrint {
       case N => "N"
       case B => "B"
       case FunType(a, b) => "(" + print_type(a) + " -> " + print_type(b) + ")"
-      case FamType(path, n) => print_path(path) + "." + n
+      case FamType(path, n) => path.map(print_path).getOrElse("None") + "." + n
       case RecType(fields) =>
         val printmap = fields.map{case (f, t) =>
           if ((f, t) == fields.last) then f + ": " + print_type(t)
@@ -38,8 +38,8 @@ object PrettyPrint {
     e match {
       case Var(id) => id
       case Lam(v, t, body) => "lam (" + print_exp(v) + ": " + print_type(t) + "). " + print_exp(body)
-      case FamFun(p, n) => print_path(p) + "." + n
-      case FamCases(p, n) => "<" + print_path(p) + "." + n + ">"
+      case FamFun(p, n) => p.map(print_path).getOrElse("None") + "." + n
+      case FamCases(p, n) => "<" + p.map(print_path).getOrElse("None") + "." + n + ">"
       case App(e, g) => "(" + print_exp(e) + " " + print_exp(g) + ")"
       case Rec(fields) =>
         val printmap = fields.map{case (f, e) =>
@@ -72,7 +72,7 @@ object PrettyPrint {
 
     print("SELF: " + print_selfPath(lkg.self) + "\n\n")
 
-    print("SUPER: " + print_path(lkg.sup) + "\n\n")
+    print("SUPER: " + lkg.sup.map(print_path).getOrElse("None") + "\n\n")
 
     print("TYPES: ")
     val typemap = lkg.types.map{

@@ -16,15 +16,10 @@ object famfun {
 
   // Types
   sealed trait Type
-
   case object N extends Type
-
   case object B extends Type
-
-  case class FamType(path: Path, name: String) extends Type // a.R
-
+  case class FamType(path: Option[Path], name: String) extends Type // a.R
   case class FunType(input: Type, output: Type) extends Type // T -> T'
-
   case class RecType(fields: Map[String, Type]) extends Type // {(f: T)*}
 
   // ADTs
@@ -32,54 +27,37 @@ object famfun {
 
   // Expressions
   sealed trait Expression
-
   case class Var(id: String) extends Expression // x
-
   case class Lam(v: Var, t: Type, body: Expression) extends Expression // lam (x: T). body
-
-  case class FamFun(path: Path, name: String) extends Expression // a.m
-
-  case class FamCases(path: Path, name: String) extends Expression // a.r
-
+  case class FamFun(path: Option[Path], name: String) extends Expression // a.m
+  case class FamCases(path: Option[Path], name: String) extends Expression // a.r
   case class App(e1: Expression, e2: Expression) extends Expression // e g
-
   case class Rec(fields: Map[String, Expression]) extends Expression // {(f = e)*}
-
   case class Proj(e: Expression, name: String) extends Expression // e.f
-
   case class Inst(t: FamType, rec: Rec) extends Expression // a.R({(f = e)*})
-
   case class InstADT(t: FamType, cname: String, rec: Rec) extends Expression // a.R(C {(f = e)*})
-
   case class Match(e: Expression, g: Expression) extends Expression // match e with g
-
   case class Nexp(n: Int) extends Expression
-
   case class Bexp(b: Boolean) extends Expression
 
   // Functions
   sealed trait Fun
-
   case class FunDeclared(name: String, t: FunType, body: Lam) extends Fun
-
-  case class FunInherited(name: String, from: Path) extends Fun
+  case class FunInherited(name: String, from: Path) extends Fun // TODO: should it know its type too?
 
   // Cases
   sealed trait Cases
-
   case class CasesDeclared(name: String, matchType: FamType, t: FunType, marker: Marker, body: Lam) extends Cases
   // TODO: cases inherited?
 
   // Linkages
   sealed trait Marker // either += or =
-
   case object PlusEq extends Marker // type extension marker
-
   case object Eq extends Marker // type definition marker
 
   case class Linkage(path: Path,
                      self: SelfPath, // self
-                     sup: Path, // super
+                     sup: Option[Path], // super
                      types: Map[String, (Marker, RecType)],
                      defaults: Map[String, (Marker, Rec)],
                      adts: Map[String, ADT],
@@ -94,9 +72,9 @@ object famfun {
   // Values
   def is_value(e: Expression): Boolean = e match {
     case Lam(v, t, body) => true
-    case Inst(t, rec) => rec.fields.filter { case (_, exp) => !is_value(exp) }.isEmpty
-    case InstADT(t, cname, rec) => rec.fields.filter { case (_, exp) => !is_value(exp) }.isEmpty
-    case Rec(fields) => fields.filter { case (_, exp) => !is_value(exp) }.isEmpty
+    case Inst(t, rec) => rec.fields.forall { case (_, exp) => is_value(exp) }
+    case InstADT(t, cname, rec) => rec.fields.forall { case (_, exp) => is_value(exp) }
+    case Rec(fields) => fields.forall { case (_, exp) => is_value(exp) }
     case Nexp(n) => true
     case Bexp(b) => true
     case _ => false

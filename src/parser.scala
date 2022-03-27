@@ -2,13 +2,13 @@ import scala.util.parsing.combinator.*
 import famfun._
 
 /*
-Family A (extends B)? {
+Family A (extends P)? {
     type R (+)?= {(f: T = e)*}                  % extensible records w/ defaults
     type R (+)?= \overline{C {(f: T)*}}         % extensible ADTs
     val m : (T -> T') = (lam (x : T). body)     % functions w/ inputs
     cases r <a.R> : {(f:T)*} -> {(C': T'->T'')*} =
         lam (x:{(f:T)*}). {(C' = lam (x: T'). body)*}
-    Family C (extends D)? { ... }               % nested families
+    Family C (extends P')? { ... }               % nested families
 }
  */
 
@@ -69,9 +69,9 @@ class FamParser extends RegexParsers with PackratParsers {
       else RecType(lst.toMap)
   })
   lazy val pFamType: PackratParser[FamType] =
-    pPath ~ ("." ~> pTypeName) ^^ { case p~t => FamType(p, t)} |
-    "." ~> pTypeName ^^ { t => FamType(null, t)} | // TODO: do we still want this?
-    pTypeName ^^ { t => FamType(null, t)}
+    pPath ~ ("." ~> pTypeName) ^^ { case p~t => FamType(Some(p), t)} |
+    "." ~> pTypeName ^^ { t => FamType(None, t)} | // TODO: do we still want this?
+    pTypeName ^^ { t => FamType(None, t)}
 
   lazy val pNType: PackratParser[Type] = kwN ^^^ N
   lazy val pBType: PackratParser[Type] = kwB ^^^ B
@@ -111,12 +111,12 @@ class FamParser extends RegexParsers with PackratParsers {
     kwLam ~> between("(", ")", pExpVar ~ (":" ~> pType)) ~ ("." ~> exp) ^^ { case v~t~body => Lam(v, t, body) }
 
   lazy val pExpFamFun: PackratParser[FamFun] =
-    pPath ~ ("." ~> pFunctionName) ^^ { case p~n => FamFun(p, n) }
-    | "." ~> pFunctionName ^^ { n => FamFun(null, n) }
+    pPath ~ ("." ~> pFunctionName) ^^ { case p~n => FamFun(Some(p), n) }
+    | "." ~> pFunctionName ^^ { n => FamFun(None, n) }
 
   lazy val pExpFamCases: PackratParser[FamCases] =
-    between("<", ">", pPath ~ ("." ~> pFunctionName)) ^^ { case p~n => FamCases(p, n) }
-    | between("<", ">", "." ~> pFunctionName) ^^ { n => FamCases(null, n) } // TODO: do we still want this?
+    between("<", ">", pPath ~ ("." ~> pFunctionName)) ^^ { case p~n => FamCases(Some(p), n) }
+    | between("<", ">", "." ~> pFunctionName) ^^ { n => FamCases(None, n) } // TODO: do we still want this?
 
   lazy val pExpApp: PackratParser[App] = exp ~ exp ^^ { case e~g => App(e, g) }
   lazy val pExpProj: PackratParser[Proj] = exp ~ "." ~ pFieldName ^^ {case e~_~n => Proj(e, n)}
@@ -166,12 +166,12 @@ class FamParser extends RegexParsers with PackratParsers {
       case n~mt~ft~m~b => n -> CasesDeclared(n, mt, ft, m, b)
     }
 
-  // A family can extend another family. If it does not, the parent is null.
+  // A family can extend another family. If it does not, the parent is None.
   lazy val pFamDef: PackratParser[Linkage] =
-    (kwFamily ~> pFamilyName) ~ (kwExtends ~> pFamilyName).? ~ between("{", "}",
+    (kwFamily ~> pFamilyName) ~ (kwExtends ~> pPath).? ~ between("{", "}",
       rep(pTypeDef) ~ rep(pAdtDef) ~ rep(pFunDef) ~ rep(pCasesDef) ~ rep(pFamDef)
     ) ^^ {
-      case a~optB~(typs~adts~funs~cases~nestedLkgs) =>
+      case a~supFam~(typs~adts~funs~cases~nestedLkgs) =>
         val nestedList = nestedLkgs.map{lkg => (lkg.path, lkg)}
         if hasDuplicateName(typs) then throw new Exception("Parsing duplicate type names.")
         else if hasDuplicateName(adts) then throw new Exception("Parsing duplicate ADT names.")
@@ -179,16 +179,19 @@ class FamParser extends RegexParsers with PackratParsers {
         else if hasDuplicateName(cases) then throw new Exception("Parsing duplicate cases names.")
         else if hasDuplicateName(nestedList) then throw new Exception("Parsing duplicate family names.")
         else {
-          val supFam = optB match {
+          supFam match {
             case Some(b) =>
-              // family extends another
+              /* TODO: Do this in the extend cycle check in later phase.
               if (a == b) then
                 throw new Exception("Parsing a family that extends itself.")
-              else if (typs.exists{case (s, (m, (rt, r))) => (m == PlusEq) && (rt.fields.keySet != r.fields.keySet)}) then
+              else
+               */
+              // family extends another
+              if typs.exists{case (s, (m, (rt, r))) => (m == PlusEq) && (rt.fields.keySet != r.fields.keySet)} then
                 throw new Exception("In a type extension, not all fields have defaults.");
-              else Sp(SelfFamily(Prog, Family(b)))
+              else ()
             // family does not extend another
-            case None => null
+            case None => ()
           }
           val selfPath = SelfFamily(Prog, Family(a))
           val typedefs = typs.collect{case (s, (m, (rt, r))) => (s, (m, rt))}.toMap
@@ -211,7 +214,7 @@ class FamParser extends RegexParsers with PackratParsers {
     rep(pFamDef) ^^ {
       lst => Map(
         Sp(Prog) -> Linkage(
-          Sp(Prog), Prog, null, Map(), Map(), Map(), Map(), Map(),
+          Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
           lst.map{lkg => (lkg.path, lkg)}.toMap
         )
       )
