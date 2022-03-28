@@ -16,6 +16,14 @@ class FamParser extends RegexParsers with PackratParsers {
 
   def hasDuplicateName[K, V](kvList: List[(K, V)]): Boolean = kvList.size != kvList.distinctBy(_._1).size
 
+  def unSnoc[T](list: List[T]): (List[T], T) = list match {
+    case Nil => throw new Exception("Cannot unSnoc an empty list")
+    case List(x) => (List(), x)
+    case x :: xs =>
+      val (us, u) = unSnoc(xs)
+      (x::us, u)
+  }
+
   def between[T, A, B](l: Parser[A], r: Parser[B], mid: Parser[T]): Parser[T] = l ~> mid <~ r
   def optBetween[T, A, B](l: Parser[A], r: Parser[B], mid: Parser[T]): Parser[T] = between(l, r, mid) | mid
 
@@ -41,7 +49,7 @@ class FamParser extends RegexParsers with PackratParsers {
   lazy val pVarName: Parser[String] = not(reserved) ~> """[a-z_]+""".r
   lazy val pFamilyName: Parser[String] = not(reserved) ~> """([A-Z][a-z]*)+""".r
   lazy val pTypeName: Parser[String] = not(reserved) ~> """([A-Z][a-z]*)+""".r
-  lazy val pFunctionName: Parser[String] = not(reserved) ~> """[a-zA-Z_0-9]+""".r
+  lazy val pFunctionName: Parser[String] = not(reserved) ~> """[a-z][a-zA-Z_0-9]+""".r
   // field names can also be constructor names or underscores because of cases
   // is this a problem to allow this for all records?
   lazy val pFieldName: Parser[String] = not(reserved) ~> """(([a-z0-9])+)|(([A-Z][a-z0-9]*)+)|_""".r
@@ -49,7 +57,7 @@ class FamParser extends RegexParsers with PackratParsers {
 
   // FAMILY PATHS
   lazy val pPath: PackratParser[Path] =
-    pPath ~ pFamilyName ^^ { case p~f => AbsoluteFamily(p, f) }
+    pPath ~ ("." ~> pFamilyName) ^^ { case p~f => AbsoluteFamily(p, f) }
     | pFamilyName ^^ { f => AbsoluteFamily(Sp(Prog), f) }
     | pSelfPath ^^ { Sp.apply }
 
@@ -58,6 +66,24 @@ class FamParser extends RegexParsers with PackratParsers {
       pSelfPath ~ ("." ~> pFamilyName) ^^ { case p~f => SelfFamily(p, f) }
       | pFamilyName ^^ { f => SelfFamily(Prog, f) }
     )
+
+  // This is needed for things of the form `path.(family/type)name`,
+  // since when `path` is absolute, we get something like `[self(A).]C.D.T`
+  // and `pPath` itself cannot tell when to stop (will consume `T`)
+  lazy val pPathExtra: PackratParser[(Path, String)] =
+    // Absolute path prefix (note that this can start with a single self(...))
+    (pSelfPath <~ ".").? ~ pFamilyName ~ ("." ~> rep1sep(pFamilyName, ".")) ^^ {
+      case _~_~Nil => throw new Exception("Should be impossible")
+      case optSelfHead~n~ns =>
+        // n :: ns has length at least 2
+        val (namesInit, namesLast) = unSnoc(n::ns)
+        val inner: Path = Sp(optSelfHead.getOrElse(Prog))
+        (namesInit.foldLeft(inner) { AbsoluteFamily.apply }, namesLast)
+    }
+    // Self path prefix
+    | pSelfPath ~ ("." ~> pFamilyName) ^^ {
+      case sp~n => (Sp(sp), n)
+    }
 
   // TYPES
   lazy val pFunType: PackratParser[FunType] = pType ~ ("->" ~> pType) ^^ { case inp~out => FunType(inp, out) }
@@ -69,9 +95,8 @@ class FamParser extends RegexParsers with PackratParsers {
       else RecType(lst.toMap)
   })
   lazy val pFamType: PackratParser[FamType] =
-    pPath ~ ("." ~> pTypeName) ^^ { case p~t => FamType(Some(p), t)} |
-    "." ~> pTypeName ^^ { t => FamType(None, t)} | // TODO: do we still want this?
-    pTypeName ^^ { t => FamType(None, t)}
+    pPathExtra ^^ { case (p,t) => FamType(Some(p), t) }
+    | "." ~> pTypeName ^^ { t => FamType(None, t) }
 
   lazy val pNType: PackratParser[Type] = kwN ^^^ N
   lazy val pBType: PackratParser[Type] = kwB ^^^ B
@@ -115,8 +140,7 @@ class FamParser extends RegexParsers with PackratParsers {
     | "." ~> pFunctionName ^^ { n => FamFun(None, n) }
 
   lazy val pExpFamCases: PackratParser[FamCases] =
-    between("<", ">", pPath ~ ("." ~> pFunctionName)) ^^ { case p~n => FamCases(Some(p), n) }
-    | between("<", ">", "." ~> pFunctionName) ^^ { n => FamCases(None, n) } // TODO: do we still want this?
+    between("<", ">", pPath.? ~ ("." ~> pFunctionName)) ^^ { case p~n => FamCases(p, n) }
 
   lazy val pExpApp: PackratParser[App] = exp ~ exp ^^ { case e~g => App(e, g) }
   lazy val pExpProj: PackratParser[Proj] = exp ~ "." ~ pFieldName ^^ {case e~_~n => Proj(e, n)}

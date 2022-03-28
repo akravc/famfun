@@ -7,6 +7,31 @@ import scala.language.postfixOps
 class FamFunParserTesting extends AnyFunSuite {
   /* ==================================== PARSER TESTING ==================================== */
 
+  // Parsing Paths
+  test("paths: absolute path") {
+    val inp = "A.C.D"
+    assert(canParse(pPath, inp))
+    assertResult(
+      AbsoluteFamily(AbsoluteFamily(AbsoluteFamily(Sp(Prog), "A"), "C"),"D")
+    ){parseSuccess(pPath, inp)}
+  }
+
+  test("paths: self head absolute path") {
+    val inp = "self(self(A).C).D"
+    assert(canParse(pPath, inp))
+    assertResult(
+      AbsoluteFamily(Sp(SelfFamily(SelfFamily(Prog, "A"), "C")), "D")
+    ){parseSuccess(pPath, inp)}
+  }
+
+  test("paths: self path") {
+    val inp = "self(self(self(A).C).D)"
+    assert(canParse(pPath, inp))
+    assertResult(
+      Sp(SelfFamily(SelfFamily(SelfFamily(Prog, "A"), "C"), "D"))
+    ){parseSuccess(pPath, inp)}
+  }
+
   // Parsing Types
   test("types: nat") {
     assert(canParse(pType, "N"))
@@ -28,9 +53,33 @@ class FamFunParserTesting extends AnyFunSuite {
     assertResult(FamType(Some(AbsoluteFamily(Sp(Prog), "A")), "R")){parseSuccess(pType, "A.R")}
   }
 
+  test("types: absolute path famtype") {
+    val inp = "A.C.D.R"
+    assert(canParse(pType, inp))
+    assertResult(
+      FamType(Some(AbsoluteFamily(AbsoluteFamily(AbsoluteFamily(Sp(Prog), "A"), "C"), "D")), "R")
+    ){parseSuccess(pType, inp)}
+  }
+
+  test("types: absolute path self head famtype") {
+    val inp = "self(self(A).C).D.R"
+    assert(canParse(pType, inp))
+    assertResult(
+      FamType(Some(AbsoluteFamily(Sp(SelfFamily(SelfFamily(Prog, "A"), "C")), "D")), "R")
+    ) {parseSuccess(pType, inp)}
+  }
+
   test("types: self famtype") {
     assert(canParse(pType, "self(A).R"))
     assertResult(FamType(Some(Sp(SelfFamily(Prog, "A"))), "R")){parseSuccess(pType, "self(A).R")}
+  }
+
+  test("types: self path famtype") {
+    val inp = "self(self(self(A).C).D).R"
+    assert(canParse(pType, inp))
+    assertResult(
+      FamType(Some(Sp(SelfFamily(SelfFamily(SelfFamily(Prog, "A"), "C"), "D"))), "R")
+    ){parseSuccess(pType, inp)}
   }
 
   test("types: record type") {
