@@ -1,5 +1,6 @@
 import org.scalatest.funsuite.AnyFunSuite
 import famfun._
+import name_resolution._
 import TestFamParser._
 import famfun_main._
 import scala.language.postfixOps
