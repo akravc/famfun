@@ -157,10 +157,8 @@ class FamParser extends RegexParsers with PackratParsers {
   lazy val pExpInstAdt: PackratParser[InstADT] =
     pFamType ~ between("(", ")", pConstructorName ~ pExpRec) ^^ { case t~(c~r) => InstADT(t, c, r) }
 
-  // the second expression will be an application of exp_famcases to a record of arguments
-  // TODO: refine Match to a more specific form? (Match(Expression, FamCases, Rec))
   lazy val pExpMatch: PackratParser[Match] =
-    kwMatch ~> pExp ~ (kwWith ~> pExpApp) ^^ { case e~g => Match(e, g) }
+    kwMatch ~> pExp ~ (kwWith ~> pExp) ^^ { case e~g => Match(e, g) }
 
   lazy val pExp: PackratParser[Expression] =
     pExpMatch | pExpProj | pExpInstAdt | pExpInst | pExpApp | pExpRec
