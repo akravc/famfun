@@ -96,68 +96,68 @@ class FamFunParserTesting extends AnyFunSuite {
 
   // Parsing Expressions
   test("exp: true") {
-    assert(canParse(exp, "true"))
-    assertResult(Bexp(true)){parseSuccess(exp, "true")}
+    assert(canParse(pExp, "true"))
+    assertResult(Bexp(true)){parseSuccess(pExp, "true")}
   }
 
   test("exp: false") {
-    assert(canParse(exp, "false"))
-    assertResult(Bexp(false)){parseSuccess(exp, "false")}
+    assert(canParse(pExp, "false"))
+    assertResult(Bexp(false)){parseSuccess(pExp, "false")}
   }
 
   test("exp: nat") {
-    assert(canParse(exp, "5"))
-    assertResult(Nexp(5)){parseSuccess(exp, "5")}
+    assert(canParse(pExp, "5"))
+    assertResult(Nexp(5)){parseSuccess(pExp, "5")}
   }
 
   test("exp: var") {
-    assert(canParse(exp, "x"))
-    assertResult(Var("x")){parseSuccess(exp, "x")}
+    assert(canParse(pExp, "x"))
+    assertResult(Var("x")){parseSuccess(pExp, "x")}
   }
 
   test("exp: lam") {
-    assert(canParse(exp, "lam (x: B). x"))
-    assertResult(Lam(Var("x"), B, Var("x"))){parseSuccess(exp, "lam (x: B). x")}
+    assert(canParse(pExp, "lam (x: B). x"))
+    assertResult(Lam(Var("x"), B, Var("x"))){parseSuccess(pExp, "lam (x: B). x")}
   }
 
   test("exp: select function from family") {
-    assert(canParse(exp, "self(A).calculate"))
-    assertResult(FamFun(Some(Sp(SelfFamily(Prog, "A"))), "calculate")){parseSuccess(exp, "self(A).calculate")}
+    assert(canParse(pExp, "self(A).calculate"))
+    assertResult(FamFun(Some(Sp(SelfFamily(Prog, "A"))), "calculate")){parseSuccess(pExp, "self(A).calculate")}
   }
 
   test("exp: app") {
-    assert(canParse(exp, "(lam (x: B). x) true"))
-    assertResult(App(Lam(Var("x"), B, Var("x")), Bexp(true))){parseSuccess(exp, "(lam (x: B). x) true")}
+    assert(canParse(pExp, "(lam (x: B). x) true"))
+    assertResult(App(Lam(Var("x"), B, Var("x")), Bexp(true))){parseSuccess(pExp, "(lam (x: B). x) true")}
   }
 
   test("exp: record") {
-    assert(canParse(exp, "{ a = 5 , b = true }"))
-    assertResult(Rec(Map("a"-> Nexp(5), "b" -> Bexp(true)))){parseSuccess(exp, "{ a = 5, b = true }")}
+    assert(canParse(pExp, "{ a = 5 , b = true }"))
+    assertResult(Rec(Map("a"-> Nexp(5), "b" -> Bexp(true)))){parseSuccess(pExp, "{ a = 5, b = true }")}
   }
 
   test("exp: projection") {
-    assert(canParse(exp, "{ a = 5 , b = true }.b"))
-    assertResult(Proj(Rec(Map("a"-> Nexp(5), "b" -> Bexp(true))), "b")){parseSuccess(exp, "{ a = 5 , b = true }.b")}
+    assert(canParse(pExp, "{ a = 5 , b = true }.b"))
+    assertResult(Proj(Rec(Map("a"-> Nexp(5), "b" -> Bexp(true))), "b")){parseSuccess(pExp, "{ a = 5 , b = true }.b")}
   }
 
   test("exp: instance") {
-    assert(canParse(exp, "A.R({a = 4})"))
+    assert(canParse(pExp, "A.R({a = 4})"))
     assertResult(
       Inst(FamType(Some(AbsoluteFamily(Sp(Prog), "A")), "R"), Rec(Map("a"->Nexp(4))))
-    ){parseSuccess(exp, "A.R({a = 4})")}
+    ){parseSuccess(pExp, "A.R({a = 4})")}
   }
 
   test("exp: ADT instance") {
-    assert(canParse(exp, "A.R(C {})"))
+    assert(canParse(pExp, "A.R(C {})"))
     assertResult(
       InstADT(FamType(Some(AbsoluteFamily(Sp(Prog), "A")), "R"), "C", Rec(Map()))
-    ){parseSuccess(exp, "A.R(C {})")}
+    ){parseSuccess(pExp, "A.R(C {})")}
   }
 
   test("parser: cases with underscores") {
     val prog = "Family A {" +
       "type T = C1 {n: N} | C2 {b: B}" +
-      "cases tcase <.T> : {} -> {C1: {n: N} -> N, C2: {b: B} -> N, _: {} -> N} = " +
+      "cases tcase <T> : {} -> {C1: {n: N} -> N, C2: {b: B} -> N, _: {} -> N} = " +
       "lam (x: {}). {C1 = lam (y: {n: N}). 1, C2 = lam (z: {b: B}). 1, _ = lam (w: {}). 0}" +
       "}"
     assert(canParse(pFamDef(Prog), prog))
@@ -395,8 +395,46 @@ class FamFunParserTesting extends AnyFunSuite {
   }
 
   test("can parse cases by themselves") {
-    assert(canParse(pCasesDef, "cases hello_world <.T> : {} -> {A: B -> N, C: B -> N} = " +
+    assert(canParse(pCasesDef, "cases hello_world <T> : {} -> {A: B -> N, C: B -> N} = " +
       "lam (_: {}). {A = lam (x: B). 3, C = lam (x: B). 4}"))
+  }
+
+  test("Var resolution: bound Var stays Var") {
+    val inp =
+      """
+        |Family A {
+        |  val f: B -> B = lam (x: B). x
+        |}
+        |""".stripMargin
+
+    assert(canParse(pFamDef(Prog), inp))
+
+    val resolvedLkg: Linkage = resolveParsedVars(parseSuccess(pFamDef(Prog), inp)._2)
+
+    assertResult(
+      BodyDeclared(
+        Lam(Var("x"), B, Var("x"))
+      )
+    ){resolvedLkg.funs("f").body}
+  }
+
+  test("Var resolution: free Var becomes FamFun") {
+    val inp =
+      """
+        |Family A {
+        |  val f: B -> B = y
+        |}
+        |""".stripMargin
+
+    assert(canParse(pFamDef(Prog), inp))
+
+    val resolvedLkg: Linkage = resolveParsedVars(parseSuccess(pFamDef(Prog), inp)._2)
+
+    assertResult(
+      BodyDeclared(
+        FamFun(Some(Sp(SelfFamily(Prog, "A"))), "y")
+      )
+    ){resolvedLkg.funs("f").body}
   }
 }
 

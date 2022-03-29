@@ -45,7 +45,7 @@ object famfun {
   case class Bexp(b: Boolean) extends Expression
 
   sealed trait DefnBody
-  case class BodyDeclared(lambda: Lam) extends DefnBody
+  case class BodyDeclared(defined: Expression) extends DefnBody
   case class BodyInherited(from: Path) extends DefnBody
 
   // Functions
