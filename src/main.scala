@@ -3,6 +3,7 @@ import TestFamParser._
 import PrettyPrint._
 
 object famfun_main {
+  /* TODO: uncomment
   /*====================================== PUTTING IT ALL TOGETHER  ======================================*/
 
   // function that takes a program, parses out the families and produces incomplete linkages, fixes null family paths
@@ -46,4 +47,5 @@ object famfun_main {
     // typecheck everything and return true if linkage typechecks
     return !M.exists{ case(p, lkg) => !linkage_ok(lkg, Map(), M)}
   }
+*/
 }

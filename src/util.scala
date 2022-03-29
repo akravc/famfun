@@ -2,11 +2,14 @@ import famfun._
 
 object PrettyPrint {
 
-  def print_path(p: FamilyPath) : String = {
+  def print_selfPath(sp: SelfPath): String = sp match {
+    case Prog => "<>"
+    case SelfFamily(p, f) => "self(" + print_selfPath(p) + "." + f + ")"
+  }
+  def print_path(p: Path) : String = {
     p match {
-      case SelfFamily(Family(f)) => "self(" + f + ")"
-      case AbsoluteFamily(Family(f)) => f
-      case _ => "None"
+      case Sp(sp) => print_selfPath(sp)
+      case AbsoluteFamily(p, f) => print_path(p) + "." + f
     }
   }
 
@@ -15,13 +18,12 @@ object PrettyPrint {
       case N => "N"
       case B => "B"
       case FunType(a, b) => "(" + print_type(a) + " -> " + print_type(b) + ")"
-      case FamType(path, n) => print_path(path) + "." + n
+      case FamType(path, n) => path.map(print_path).getOrElse("None") + "." + n
       case RecType(fields) =>
         val printmap = fields.map{case (f, t) =>
           if ((f, t) == fields.last) then f + ": " + print_type(t)
           else f + ": " + print_type(t) + ", "}
         "{" + printmap.mkString + "}"
-      case _ => "None"
     }
   }
 
@@ -29,7 +31,6 @@ object PrettyPrint {
     m match {
       case Eq => " = "
       case PlusEq => " += "
-      case _ => "None"
     }
   }
 
@@ -37,8 +38,8 @@ object PrettyPrint {
     e match {
       case Var(id) => id
       case Lam(v, t, body) => "lam (" + print_exp(v) + ": " + print_type(t) + "). " + print_exp(body)
-      case FamFun(p, n) => print_path(p) + "." + n
-      case FamCases(p, n) => "<" + print_path(p) + "." + n + ">"
+      case FamFun(p, n) => p.map(print_path).getOrElse("None") + "." + n
+      case FamCases(p, n) => "<" + p.map(print_path).getOrElse("None") + "." + n + ">"
       case App(e, g) => "(" + print_exp(e) + " " + print_exp(g) + ")"
       case Rec(fields) =>
         val printmap = fields.map{case (f, e) =>
@@ -51,23 +52,32 @@ object PrettyPrint {
       case Match(e, g) => "match " + print_exp(e) + " with " + print_exp(g)
       case Nexp(n) => n.toString()
       case Bexp(b) => b.toString()
-      case _ => "None"
     }
   }
 
-  def print_adt(a: ADT) : String = {
-    val amap = a.cs.map{case (c, r) =>
-      if ((c, r) == a.cs.last) then c + " " + print_type(r)
-      else c + " " + print_type(r) + " | "}
-    amap.mkString
+  def print_adt(a: ADT) : String = a match {
+    case ADT(s, m, cs) =>
+      val amap = a.cs.map{
+        case (c, r) =>
+          if ((c, r) == a.cs.last) then c + " " + print_type(r)
+          else c + " " + print_type(r) + " | "
+      }
+      "type " + s + print_marker(m) + amap.mkString + "\n"
+  }
+
+  def print_body(body: DefnBody): String = body match {
+    case BodyDeclared(lam) => print_exp(lam)
+    case BodyInherited(from) => s"inherited from $from"
   }
 
   def print_lkg(lkg: Linkage) = {
     print("LINKAGE DEFINITION: \n\n")
 
-    print("SELF: " + print_path(lkg.self) + "\n\n")
+    print("PATH: " + print_path(lkg.path) + "\n\n")
 
-    print("SUPER: " + print_path(lkg.sup) + "\n\n")
+    print("SELF: " + print_selfPath(lkg.self) + "\n\n")
+
+    print("SUPER: " + lkg.sup.map(print_path).getOrElse("None") + "\n\n")
 
     print("TYPES: ")
     val typemap = lkg.types.map{
@@ -85,22 +95,23 @@ object PrettyPrint {
 
     print("ADTs: ")
     val adtmap = lkg.adts.map{
-      case (s, (m, adt)) => "type " + s + print_marker(m) +  print_adt(adt) + "\n"
+      case (s, adt) => print_adt(adt) + "\n"
     }
     print(adtmap.mkString)
     print("\n\n")
 
     print("FUNS: ")
     val funmap = lkg.funs.map{
-      case (s, (ft, lam)) => "val " + s + ": " + print_type(ft) + " = " + print_exp(lam) + "\n"
+      case (_, FunDefn(s, ft, body)) =>
+        "val " + s + ": " + print_type(ft) + " = " + print_body(body) + "\n"
     }
     print(funmap.mkString)
     print("\n\n")
 
     print("CASES: ")
-    val casemap = lkg.depot.map{
-      case (s, (mt, m, ft, lam)) => "cases " + s + "<" + print_type(mt) + ">" + ": " +
-        print_type(ft) + print_marker(m) + print_exp(lam) + "\n"
+    val casemap = lkg.depot.values.map {
+      case CasesDefn(s, mt, ft, m, body) =>
+        "cases " + s + "<" + print_type(mt) + ">" + ": " + print_type(ft) + print_marker(m) + print_body(body) + "\n"
     }
     print(casemap.mkString)
     print("\n\n")

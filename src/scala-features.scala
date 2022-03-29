@@ -1,3 +1,5 @@
+import famfun._
+
 object trait_linearization {
 trait A { abstract class X
   case class Leaf(n: Int) extends X
@@ -56,7 +58,7 @@ Family A {
 }
 """
   import TestFamParser._
-  val sourceTree = parse0(famdef, source).get
+  val sourceTree = parse0(pFamDef(Prog), source).get
 }
 
 object translation_ex2 {

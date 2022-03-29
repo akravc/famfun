@@ -1,7 +1,8 @@
-import TestFamParser._
+//import TestFamParser._
 import famfun._
 import java.io._
 
+/* TODO: uncomment
 object famfun_translate_to_scala {
 
   /* ===================== PATHS ===================== */
@@ -249,3 +250,4 @@ object famfun_translate_to_scala {
     pw.close
   }
 }
+*/
