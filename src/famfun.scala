@@ -52,8 +52,11 @@ object famfun {
   case class FunDefn(name: String, t: FunType, body: DefnBody)
 
   // Cases
-  case class CasesDefn(name: String, matchType: FamType, t: FunType, marker: Marker, body: DefnBody)
+  case class CasesDefn(name: String, matchType: FamType, t: Type, marker: Marker, body: DefnBody)
 
+  // TODO: should we add a `furtherBinds: Option[Path]` field,
+  //       or should things that can be extended (Marker = PlusEq)
+  //       have field for what definitions they extend?
   // Linkages
   case class Linkage(path: Path,
                      self: SelfPath, // self
