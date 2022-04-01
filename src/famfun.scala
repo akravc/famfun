@@ -26,8 +26,10 @@ object famfun {
   case object PlusEq extends Marker // type extension marker
   case object Eq extends Marker // type definition marker
 
+  case class TypeDefn(name: String, marker: Marker, typeBody: DefnBody[RecType])
+
   // ADTs
-  case class ADT(name: String, marker: Marker, cs: Map[String, RecType])
+  case class AdtDefn(name: String, marker: Marker, adtBody: DefnBody[Map[String, RecType]])
 
   // Expressions
   sealed trait Expression
@@ -44,15 +46,14 @@ object famfun {
   case class Nexp(n: Int) extends Expression
   case class Bexp(b: Boolean) extends Expression
 
-  sealed trait DefnBody
-  case class BodyDeclared(defined: Expression) extends DefnBody
-  case class BodyInherited(from: Path) extends DefnBody
+  // Things that could be defined or extended / further bound
+  case class DefnBody[B](defn: Option[B], extendsFrom: Option[Path], furtherBindsFrom: Option[Path])
 
   // Functions
-  case class FunDefn(name: String, t: FunType, body: DefnBody)
+  case class FunDefn(name: String, t: FunType, funBody: DefnBody[Expression])
 
   // Cases
-  case class CasesDefn(name: String, matchType: FamType, t: Type, marker: Marker, body: DefnBody)
+  case class CasesDefn(name: String, matchType: FamType, t: Type, marker: Marker, casesBody: DefnBody[Expression])
 
   // TODO: should we add a `furtherBinds: Option[Path]` field,
   //       or should things that can be extended (Marker = PlusEq)
@@ -61,9 +62,9 @@ object famfun {
   case class Linkage(path: Path,
                      self: SelfPath, // self
                      sup: Option[Path], // super
-                     types: Map[String, (Marker, RecType)],
+                     types: Map[String, TypeDefn],
                      defaults: Map[String, (Marker, Rec)], // TODO: should this be combined with `types`?
-                     adts: Map[String, ADT],
+                     adts: Map[String, AdtDefn],
                      funs: Map[String, FunDefn],
                      depot: Map[String, CasesDefn],
                      nested: Map[String, Linkage]

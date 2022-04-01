@@ -90,8 +90,11 @@ object type_checking {
         // if we have an instance of a type, the inferred type will be a famtype
         case FamType(Some(p), typeName) =>
           val lkg = getCompleteLinkage(p)
-          val (marker, RecType(fields)) = lkg.types.getOrElse(typeName, throw new Exception("TODO no such named type"))
-          fields.getOrElse(f, throw new Exception("TODO no such field"))
+          val typeDefn = lkg.types.getOrElse(typeName, throw new Exception("TODO no such named type"))
+
+          // TODO: get all fields if extended / further bound (typeDefn.marker == PlusEq)
+          val allTypeFields: Map[String, Type] = ???
+          allTypeFields.getOrElse(f, throw new Exception("TODO no such field"))
         case _ => throw new Exception("TODO invalid projection")
       }
 
@@ -123,10 +126,12 @@ object type_checking {
     // K, G |- a.R({(f_i = e_i)*}) : a.R
     case Inst(famType@FamType(Some(path), typeName), rec) =>
       val lkg = getCompleteLinkage(path)
-      val (marker, recType) = lkg.types.getOrElse(typeName, throw new Exception("TODO no such type"))
-      // TODO: get all fields if extended (marker == PlusEq)
+      val typeDefn = lkg.types.getOrElse(typeName, throw new Exception("TODO no such type"))
+
+      // TODO: get all fields if extended / further bound (typeDefn.marker == PlusEq)
+      val allTypeFields: Map[String, Type] = ???
       if rec.fields.forall { (f, e) => // typeCheck all fields wrt linkage definition
-        val fieldType = recType.fields.getOrElse(f, throw new Exception("TODO no such field"))
+        val fieldType = allTypeFields.getOrElse(f, throw new Exception("TODO no such field"))
         val eType = typeOfExpression(G)(e)
         isSubtype(eType, fieldType)
       } then famType else throw new Exception("TODO field types in instance don't match")
@@ -139,9 +144,11 @@ object type_checking {
     case InstADT(famType@FamType(Some(path), tName), cname, rec) =>
       val ctorFields = rec.fields.view.mapValues(typeOfExpression(G)).toMap
       val lkg = getCompleteLinkage(path)
-      val ADT(name, marker, cs) = lkg.adts.getOrElse(tName, throw new Exception("TODO no such ADT"))
-      // TODO: get all ctors if extended (marker == PlusEq)
-      cs.getOrElse(cname, throw new Exception("No such constructor")) match {
+      val adtDefn = lkg.adts.getOrElse(tName, throw new Exception("TODO no such ADT"))
+
+      // TODO: get all ctors if extended / further bound (adtDefn.marker == PlusEq)
+      val allCtors: Map[String, RecType] = ???
+      allCtors.getOrElse(cname, throw new Exception("No such constructor")) match {
         case RecType(instFields) =>
           // we do not allow subtyping within ADT records right now
           if instFields == ctorFields then famType
@@ -160,34 +167,38 @@ object type_checking {
         case FamType(Some(path), tName) =>
           val lkg = getCompleteLinkage(path)
           // look up the name of the ADT type in the linkage
-          val ADT(name, marker, ctors) = lkg.adts.getOrElse(tName, throw new Exception("TODO no such ADT"))
-          // TODO: handle when marker == PlusEq... lookup?
+          lkg.adts.getOrElse(tName, throw new Exception("TODO no such ADT")) match {
+            case AdtDefn(name, marker, DefnBody(Some(ctors), _, _)) =>
+              // TODO: handle when marker == PlusEq... lookup?
 
-          // Checking shape of g
-          g match {
-            case FamCases(_, _) => ()
-            case App(FamCases(_, _), Rec(_)) => ()
-            case _ => throw new Exception("TODO invalid match handler")
-          }
-
-          typeOfExpression(G)(g) match {
-            case RecType(caseFns) if caseFns.size == ctors.size =>
-              // Check that constructor names and fields match,
-              // and that the output types for each handler in the record is consistent
-              // TODO: should this be done at the top-level? cases definition might an extension of the one
-              //       in the family that `e` was defined in
-              caseFns.zip(ctors).toList.foldLeft(Option.empty[Type]) {
-                case (resultType, ((caseCtorName, FunType(inType, outType)), (ctorName, ctorRec)))
-                  if caseCtorName == ctorName &&
-                     inType == ctorRec &&
-                     (resultType.isEmpty || resultType.contains(outType)) =>
-                  Some(outType)
+              // Checking shape of g
+              g match {
+                case FamCases(_, _) => ()
+                case App(FamCases(_, _), Rec(_)) => ()
                 case _ => throw new Exception("TODO invalid match handler")
-              } match {
-                case None => throw new Exception("Should not be possible for an ADT to have no constructors")
-                case Some(resultType) => resultType
               }
-            case _ => throw new Exception("TODO invalid match handler")
+
+              typeOfExpression(G)(g) match {
+                case RecType(caseFns) if caseFns.size == ctors.size =>
+                  // Check that constructor names and fields match,
+                  // and that the output types for each handler in the record is consistent
+                  // TODO: should this be done at the top-level? cases definition might an extension of the one
+                  //       in the family that `e` was defined in
+                  caseFns.zip(ctors).toList.foldLeft(Option.empty[Type]) {
+                    case (resultType, ((caseCtorName, FunType(inType, outType)), (ctorName, ctorRec)))
+                      if caseCtorName == ctorName &&
+                        inType == ctorRec &&
+                        (resultType.isEmpty || resultType.contains(outType)) =>
+                      Some(outType)
+                    case _ => throw new Exception("TODO invalid match handler")
+                  } match {
+                    case None => throw new Exception("Should not be possible for an ADT to have no constructors")
+                    case Some(resultType) => resultType
+                  }
+
+                case _ => throw new Exception("TODO invalid match handler")
+              }
+            case _ => throw new Exception("TODO cannot have cases in family that does not extend adt")
           }
         case _ => throw new Exception("TODO invalid expression matched on")
       }
@@ -255,7 +266,11 @@ object type_checking {
     lkg.sup,
     lkg.types.view
       .mapValues {
-        case (marker, recType) => marker -> subSelfInType(newSelf, oldSelf, recType).asInstanceOf[RecType]
+        case TypeDefn(name, marker, typeBody) => TypeDefn(
+          name,
+          marker,
+          subSelfInDefnBody(newSelf, oldSelf, typeBody)(subSelfInType(_, _, _).asInstanceOf[RecType])
+        )
       }
       .toMap,
     lkg.defaults.view
@@ -265,10 +280,12 @@ object type_checking {
       .toMap,
     lkg.adts.view
       .mapValues {
-        case ADT(name, marker, cs) => ADT(
+        case AdtDefn(name, marker, adtBody) => AdtDefn(
           name,
           marker,
-          cs.view.mapValues(subSelfInType(newSelf, oldSelf, _).asInstanceOf[RecType]).toMap
+          subSelfInDefnBody(newSelf, oldSelf, adtBody) { (ns, os, body) =>
+            body.view.mapValues(subSelfInType(ns, os, _).asInstanceOf[RecType]).toMap
+          }
         )
       }
       .toMap,
@@ -277,7 +294,7 @@ object type_checking {
         case FunDefn(name, t, body) => FunDefn(
           name,
           subSelfInType(newSelf, oldSelf, t).asInstanceOf[FunType],
-          subSelfInDefnBody(newSelf, oldSelf, body)
+          subSelfInDefnBody(newSelf, oldSelf, body)(subSelfInExpression)
         )
       }
       .toMap,
@@ -288,7 +305,7 @@ object type_checking {
           subSelfInType(newSelf, oldSelf, matchType).asInstanceOf[FamType],
           subSelfInType(newSelf, oldSelf, t).asInstanceOf[FunType],
           marker,
-          subSelfInDefnBody(newSelf, oldSelf, body)
+          subSelfInDefnBody(newSelf, oldSelf, body)(subSelfInExpression)
         )
       }
       .toMap,
@@ -319,11 +336,12 @@ object type_checking {
     case Match(e, g) => Match(subSelfInExpression(newSelf, oldSelf, e), subSelfInExpression(newSelf, oldSelf, g))
     case _ => e
   }
-  def subSelfInDefnBody(newSelf: SelfPath, oldSelf: SelfPath, body: DefnBody): DefnBody = body match {
-    case BodyDeclared(defined) => BodyDeclared(subSelfInExpression(newSelf, oldSelf, defined))
-    // TODO: is this needed/right?
-    case BodyInherited(from) => BodyInherited(subSelfInPath(newSelf, oldSelf, from))
-  }
+  def subSelfInDefnBody[B](newSelf: SelfPath, oldSelf: SelfPath, body: DefnBody[B])(subB: (SelfPath, SelfPath, B) => B): DefnBody[B] =
+    DefnBody(
+      body.defn.map(subB(newSelf, oldSelf, _)),
+      body.extendsFrom.map(subSelfInPath(newSelf, oldSelf, _)),
+      body.furtherBindsFrom.map(subSelfInPath(newSelf, oldSelf, _))
+    )
   def subSelfInPath(newSelf: SelfPath, oldSelf: SelfPath, p: Path): Path = p match {
     case Sp(sp) if sp == oldSelf => Sp(newSelf)
     case _ => p
@@ -357,11 +375,11 @@ object type_checking {
       )
   }
 
-  def concatTypes(types1: Map[String, (Marker, RecType)], types2: Map[String, (Marker, RecType)]): Map[String, (Marker, RecType)] = ???
+  def concatTypes(types1: Map[String, TypeDefn], types2: Map[String, TypeDefn]): Map[String, TypeDefn] = ???
 
   def concatDefaults(defaults1: Map[String, (Marker, Rec)], defaults2: Map[String, (Marker, Rec)]): Map[String, (Marker, Rec)] = ???
 
-  def concatAdts(adts1: Map[String, ADT], adts2: Map[String, ADT]): Map[String, ADT] = ???
+  def concatAdts(adts1: Map[String, AdtDefn], adts2: Map[String, AdtDefn]): Map[String, AdtDefn] = ???
 
   def concatFuns(funs1: Map[String, FunDefn], funs2: Map[String, FunDefn]): Map[String, FunDefn] = ???
 

@@ -174,7 +174,7 @@ class FamFunParserTesting extends AnyFunSuite {
         Sp(SelfFamily(Prog, "A")),
         SelfFamily(Prog, "A"),
         None,
-        Map("T"->(Eq, RecType(Map("f"->B, "n"->N)))),
+        Map("T" -> TypeDefn("T", Eq, DefnBody(Some(RecType(Map("f"->B, "n"->N))), None, None))),
         Map("T"->(Eq, Rec(Map("f"->Bexp(true), "n"->Nexp(3))))),
         Map(), Map(), Map(), Map()
       )
@@ -182,7 +182,6 @@ class FamFunParserTesting extends AnyFunSuite {
   }
 
   test("famdef extends") {
-    // TODO: should C be absolute or self family?
     assert(canParse(
       pFamDef(Prog), "Family A extends C { type T = {f: B = true, n: N = 3}}"
     ))
@@ -191,7 +190,7 @@ class FamFunParserTesting extends AnyFunSuite {
         Sp(SelfFamily(Prog, "A")),
         SelfFamily(Prog, "A"),
         Some(AbsoluteFamily(Sp(Prog), "C")),
-        Map("T"->(Eq, RecType(Map("f"->B, "n"->N)))),
+        Map("T" -> TypeDefn("T", Eq, DefnBody(Some(RecType(Map("f"->B, "n"->N))), None, None))),
         Map("T"->(Eq, Rec(Map("f"->Bexp(true), "n"->Nexp(3))))),
         Map(), Map(), Map(), Map()
       )
@@ -213,7 +212,7 @@ class FamFunParserTesting extends AnyFunSuite {
         Sp(SelfFamily(Prog, "A")),
         SelfFamily(Prog, "A"),
         Some(AbsoluteFamily(Sp(Prog), "C")),
-        Map("T"->(PlusEq, RecType(Map("f"->B, "n"->N)))),
+        Map("T" -> TypeDefn("T", PlusEq, DefnBody(Some(RecType(Map("f"->B, "n"->N))), None, None))),
         Map("T"->(PlusEq, Rec(Map("f"->Bexp(true), "n"->Nexp(3))))),
         Map(), Map(), Map(), Map()
       )
@@ -233,8 +232,8 @@ class FamFunParserTesting extends AnyFunSuite {
         SelfFamily(Prog, "A"),
         None,
         Map(
-          "T"->(Eq, RecType(Map("f"->B, "n"->N))),
-          "R"->(Eq, RecType(Map("s"->FamType(Some(Sp(SelfFamily(Prog, "A"))), "T"))))
+          "T" -> TypeDefn("T", Eq, DefnBody(Some(RecType(Map("f"->B, "n"->N))), None, None)),
+          "R" -> TypeDefn("R", Eq, DefnBody(Some(RecType(Map("s"->FamType(Some(Sp(SelfFamily(Prog, "A"))), "T")))), None, None))
         ),
         Map(
           "T"->(Eq, Rec(Map("f"->Bexp(true), "n"->Nexp(3)))),
@@ -264,8 +263,8 @@ class FamFunParserTesting extends AnyFunSuite {
         None,
         // types
         Map(
-          "T" -> (Eq, RecType(Map("f"->B, "n"->N))),
-          "R" -> (Eq, RecType(Map("s"->FamType(Some(Sp(SelfFamily(Prog, "A"))), "T"))))
+          "T" -> TypeDefn("T", Eq, DefnBody(Some(RecType(Map("f"->B, "n"->N))), None, None)),
+          "R" -> TypeDefn("R", Eq, DefnBody(Some(RecType(Map("s"->FamType(Some(Sp(SelfFamily(Prog, "A"))), "T")))), None, None))
         ),
         // defaults
         Map(
@@ -273,13 +272,16 @@ class FamFunParserTesting extends AnyFunSuite {
           "R" -> (Eq, Rec(Map("s"->Rec(Map()))))),
         // adts
         Map(
-          "List"-> ADT(
-            "List", Eq, Map(
-              "Nil" -> RecType(Map()),
-              "Cons" -> RecType(Map(
-                "x" -> N,
-                "tail" -> FamType(Some(Sp(SelfFamily(Prog, "A"))), "List")
-              ))
+          "List"-> AdtDefn(
+            "List", Eq, DefnBody(
+              Some(Map(
+                "Nil" -> RecType(Map()),
+                "Cons" -> RecType(Map(
+                  "x" -> N,
+                  "tail" -> FamType(Some(Sp(SelfFamily(Prog, "A"))), "List")
+                ))
+              )),
+              None, None
             )
           )
         ),
@@ -413,10 +415,12 @@ class FamFunParserTesting extends AnyFunSuite {
     val resolvedLkg: Linkage = resolveParsedVars(parseSuccess(pFamDef(Prog), inp)._2)
 
     assertResult(
-      BodyDeclared(
-        Lam(Var("x"), B, Var("x"))
+      DefnBody(
+        Some(Lam(Var("x"), B, Var("x"))),
+        None,
+        None
       )
-    ){resolvedLkg.funs("f").body}
+    ){resolvedLkg.funs("f").funBody}
   }
 
   test("Var resolution: free Var becomes FamFun") {
@@ -432,10 +436,12 @@ class FamFunParserTesting extends AnyFunSuite {
     val resolvedLkg: Linkage = resolveParsedVars(parseSuccess(pFamDef(Prog), inp)._2)
 
     assertResult(
-      BodyDeclared(
-        FamFun(Some(Sp(SelfFamily(Prog, "A"))), "y")
+      DefnBody(
+        Some(FamFun(Some(Sp(SelfFamily(Prog, "A"))), "y")),
+        None,
+        None
       )
-    ){resolvedLkg.funs("f").body}
+    ){resolvedLkg.funs("f").funBody}
   }
 }
 

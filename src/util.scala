@@ -55,19 +55,19 @@ object PrettyPrint {
     }
   }
 
-  def print_adt(a: ADT) : String = a match {
-    case ADT(s, m, cs) =>
-      val amap = a.cs.map{
-        case (c, r) =>
-          if ((c, r) == a.cs.last) then c + " " + print_type(r)
-          else c + " " + print_type(r) + " | "
-      }
-      "type " + s + print_marker(m) + amap.mkString + "\n"
+  def print_adt(a: AdtDefn) : String = a match {
+    case AdtDefn(name, marker, adtBody) =>
+      "type " + name + print_marker(marker) +
+        print_body(adtBody)(_.map {
+          (c, r) => c + " " + print_type(r)
+        }.mkString(" | "))
+        "\n"
   }
 
-  def print_body(body: DefnBody): String = body match {
-    case BodyDeclared(lam) => print_exp(lam)
-    case BodyInherited(from) => s"inherited from $from"
+  def print_body[B](body: DefnBody[B])(printB: B => String): String = {
+    val DefnBody(defn, extendsFrom, furtherBindsFrom) = body
+    val bPretty = defn.map(printB)
+    s"($bPretty, extends from: $extendsFrom, further binds from: $furtherBindsFrom)"
   }
 
   def print_lkg(lkg: Linkage) = {
@@ -80,8 +80,8 @@ object PrettyPrint {
     print("SUPER: " + lkg.sup.map(print_path).getOrElse("None") + "\n\n")
 
     print("TYPES: ")
-    val typemap = lkg.types.map{
-      case (s, (m, t)) => "type " + s + print_marker(m) +  print_type(t) + "\n"
+    val typemap = lkg.types.view.mapValues{
+      case TypeDefn(name, marker, typeBody) => "type " + name + print_marker(marker) +  print_body(typeBody)(print_type) + "\n"
     }
     print(typemap.mkString)
     print("\n\n")
@@ -103,7 +103,7 @@ object PrettyPrint {
     print("FUNS: ")
     val funmap = lkg.funs.map{
       case (_, FunDefn(s, ft, body)) =>
-        "val " + s + ": " + print_type(ft) + " = " + print_body(body) + "\n"
+        "val " + s + ": " + print_type(ft) + " = " + print_body(body)(print_exp) + "\n"
     }
     print(funmap.mkString)
     print("\n\n")
@@ -111,7 +111,7 @@ object PrettyPrint {
     print("CASES: ")
     val casemap = lkg.depot.values.map {
       case CasesDefn(s, mt, ft, m, body) =>
-        "cases " + s + "<" + print_type(mt) + ">" + ": " + print_type(ft) + print_marker(m) + print_body(body) + "\n"
+        "cases " + s + "<" + print_type(mt) + ">" + ": " + print_type(ft) + print_marker(m) + print_body(body)(print_exp) + "\n"
     }
     print(casemap.mkString)
     print("\n\n")

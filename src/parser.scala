@@ -120,12 +120,12 @@ class FamParser extends RegexParsers with PackratParsers {
 
   // ADTS
   lazy val pAdtConstructor: PackratParser[(String, RecType)] = pConstructorName ~ pRecType ^^ { case k ~ v => k -> v }
-  lazy val pAdt: PackratParser[ADT] =
+  lazy val pAdt: PackratParser[AdtDefn] =
     (kwType ~> pTypeName) ~ pMarker ~ repsep(pAdtConstructor, "|") ^^ {
       case n~m~cs =>
         if hasDuplicateName(cs) // disallow ADTs with duplicate constructors
         then throw new Exception("Parsing an ADT with duplicate constructors.")
-        else ADT(n, m, cs.toMap)
+        else AdtDefn(n, m, DefnBody(Some(cs.toMap), None, None))
     }
 
   // EXPRESSIONS
@@ -174,19 +174,19 @@ class FamParser extends RegexParsers with PackratParsers {
   // DEFINITIONS
   lazy val pTypeDef: PackratParser[(String, (Marker, (RecType, Rec)))] =
     kwType ~> pTypeName ~ pMarker ~ pDefaultRecType ^^ { case n~m~rt => n -> (m -> rt) }
-  lazy val pAdtDef: PackratParser[(String, ADT)] =
+  lazy val pAdtDef: PackratParser[(String, AdtDefn)] =
     pAdt ^^ { a => a.name -> a }
 
   lazy val pFunDef: PackratParser[(String, FunDefn)] =
     kwVal ~> pFunctionName ~ (":" ~> optBetween("(", ")", pFunType)) ~ ("=" ~> pExp) ^^ {
-      case n~t~b => n -> FunDefn(n, t, BodyDeclared(b))
+      case n~t~b => n -> FunDefn(n, t, DefnBody(Some(b), None, None))
     }
 
   lazy val pMatchType: PackratParser[FamType] = between("<", ">", pFamType)
   // mt = match type, m = marker, ft = funtype, lam = body
   lazy val pCasesDef: PackratParser[(String, CasesDefn)] =
     kwCases ~> pFunctionName ~ pMatchType ~ (":" ~> optBetween("(", ")", pFunType)) ~ pMarker ~ pExp ^^ {
-      case n~mt~ft~m~b => n -> CasesDefn(n, mt, ft, m, BodyDeclared(b))
+      case n~mt~ft~m~b => n -> CasesDefn(n, mt, ft, m, DefnBody(Some(b), None, None))
     }
 
   // A family can extend another family. If it does not, the parent is None.
@@ -219,7 +219,7 @@ class FamParser extends RegexParsers with PackratParsers {
           // family does not extend another
           case None => ()
         }
-        val typedefs = typs.collect{case (s, (m, (rt, r))) => (s, (m, rt))}.toMap
+        val typedefs = typs.map { case (s, (m, (rt, r))) => s -> TypeDefn(s, m, DefnBody(Some(rt), None, None)) }.toMap
         val defaults = typs.collect{case (s, (m, (rt, r))) => (s, (m, r))}.toMap
 
         fam -> Linkage(
