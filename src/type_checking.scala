@@ -3,6 +3,101 @@ import famfun._
 object type_checking {
   val K: scala.collection.mutable.Map[Path, Linkage] = scala.collection.mutable.Map.empty
 
+  def unionWith[K, V](m1: Map[K, V], m2: Map[K, V])(f: (V, V) => V)(implicit ordK: Ordering[K]): Map[K, V] = {
+    // l1 and l2 are sorted
+    def merge(l1: List[(K, V)], l2: List[(K, V)]): List[(K, V)] = (l1, l2) match {
+      case (Nil, ys) => ys
+      case (xs, Nil) => xs
+      case ((x@(xKey, xVal)) :: xs, (y@(yKey, yVal)) :: ys) =>
+        if ordK.lt(xKey, yKey) then
+          x :: merge(xs, l2)
+        else if ordK.gt(xKey, yKey) then
+          y :: merge(l1, ys)
+        else
+          (xKey, f(xVal, yVal)) :: merge(xs, ys)
+    }
+    merge(m1.toList.sortBy(_._1), m2.toList.sortBy(_._1)).toMap
+  }
+
+  sealed trait InheritForm
+  case object Extends extends InheritForm
+  case object FurtherBinds extends InheritForm
+  // Marks definitions in the top-level of l as extended or further bound
+  // TODO possible optimization: don't change if body.defn is None
+  def markInheritForm(form: InheritForm, l: Linkage): Linkage = {
+    // Sets `extendsFrom` or `furtherBindsFrom` to the self(?) path of `l` based on `form` (sets the other to None),
+    // and makes `defn` `None` as either:
+    //   1. a new definition will extend it
+    //   2. it will be inherited only.
+    // This, along with when things are extended and further bound, are handled by the concatenation functions.
+    def markBody[B](body: DefnBody[B]): DefnBody[B] = form match {
+      case Extends => DefnBody(None, Some(Sp(l.self)), None) // TODO: or l.path?
+      case FurtherBinds => DefnBody(None, None, Some(Sp(l.self)))
+    }
+
+    l.copy(
+      types = l.types.view.mapValues { typeDefn =>
+        typeDefn.copy(typeBody = markBody(typeDefn.typeBody))
+      }.toMap,
+      adts = l.adts.view.mapValues { adtDefn =>
+        adtDefn.copy(adtBody = markBody(adtDefn.adtBody))
+      }.toMap,
+      funs = l.funs.view.mapValues { funDefn =>
+        funDefn.copy(funBody = markBody(funDefn.funBody))
+      }.toMap,
+      depot = l.depot.view.mapValues { casesDefn =>
+        casesDefn.copy(casesBody = markBody(casesDefn.casesBody))
+      }.toMap
+    )
+  }
+
+  def collectAllDefns[B, R](defnBody: DefnBody[B])
+                           (fromLinkage: Linkage => DefnBody[B])
+                           (toResult: B => R)
+                           (emptyResult: R)
+                           (concatResults: (R, R) => R): R = {
+    val visitedPaths: scala.collection.mutable.Set[Path] = scala.collection.mutable.Set.empty
+
+    def collectAllDefnsHelp(defnBody: DefnBody[B]): R = {
+      val extendsDefns: R = defnBody.extendsFrom match {
+        case Some(p) if !visitedPaths.contains(p) =>
+          visitedPaths += p
+          val extendsDefnBody = fromLinkage(getCompleteLinkage(p))
+          collectAllDefnsHelp(extendsDefnBody)
+        case _ => emptyResult
+      }
+      val furtherBindsDefns: R = defnBody.furtherBindsFrom match {
+        case Some(p) if !visitedPaths.contains(p) =>
+          visitedPaths += p
+          val furtherBindsDefnBody = fromLinkage(getCompleteLinkage(p))
+          collectAllDefnsHelp(furtherBindsDefnBody)
+        case _ => emptyResult
+      }
+      val curDefns: R = defnBody.defn.map(toResult)getOrElse(emptyResult)
+
+      concatResults(concatResults(extendsDefns, furtherBindsDefns), curDefns)
+    }
+    collectAllDefnsHelp(defnBody)
+  }
+
+  def collectAllConstructors(adtDefn: AdtDefn): Map[String, RecType] = {
+    val AdtDefn(name, _, adtBody) = adtDefn
+    collectAllDefns(adtBody) { lkg =>
+      lkg.adts
+        .getOrElse(name, throw new Exception(s"${lkg.self} should contain an ADT definition for $name by construction"))
+        .adtBody
+    } { m => m } (Map.empty) { _ ++ _ }
+  }
+
+  def collectAllNamedTypeFields(typeDefn: TypeDefn): Map[String, Type] = {
+    val TypeDefn(name, _, typeBody) = typeDefn
+    collectAllDefns(typeBody) { lkg =>
+      lkg.types
+        .getOrElse(name, throw new Exception(s"${lkg.self} should contain an type definition for $name by construction"))
+        .typeBody
+    } { r => r.fields } (Map.empty) { _ ++ _ }
+  }
+
   def wf(t: Type): Boolean = t match {
     case N => true
     case B => true
@@ -14,7 +109,8 @@ object type_checking {
     case _ => false
   }
 
-  def isSubtype(t1: Type, t2: Type): Boolean = ???
+  // TODO: proper subtype check
+  def isSubtype(t1: Type, t2: Type): Boolean = t1 == t2
 
   // TODO: where do we check whether a self path is valid / has meaning?
   //   ie: reject Family X { Family Y { val f: self(Z) -> B = ... } } even if Family Z exists
@@ -91,9 +187,7 @@ object type_checking {
         case FamType(Some(p), typeName) =>
           val lkg = getCompleteLinkage(p)
           val typeDefn = lkg.types.getOrElse(typeName, throw new Exception("TODO no such named type"))
-
-          // TODO: get all fields if extended / further bound (typeDefn.marker == PlusEq)
-          val allTypeFields: Map[String, Type] = ???
+          val allTypeFields: Map[String, Type] = collectAllNamedTypeFields(typeDefn)
           allTypeFields.getOrElse(f, throw new Exception("TODO no such field"))
         case _ => throw new Exception("TODO invalid projection")
       }
@@ -115,8 +209,7 @@ object type_checking {
     case FamCases(Some(path), name) =>
       val lkg = getCompleteLinkage(path)
       // Validity of type for the defined `cases` will be checked at the top level (ie, match type works with defnType)
-      val CasesDefn(_, _, defnType, _, _) = lkg.depot.getOrElse(name, throw new Exception("TODO no such cases"))
-      defnType
+      lkg.depot.getOrElse(name, throw new Exception("TODO no such cases")).t
 
     // K |- a ~> L
     // R = {(f_i: T_i)*} in L.TYPES
@@ -126,10 +219,9 @@ object type_checking {
     // K, G |- a.R({(f_i = e_i)*}) : a.R
     case Inst(famType@FamType(Some(path), typeName), rec) =>
       val lkg = getCompleteLinkage(path)
-      val typeDefn = lkg.types.getOrElse(typeName, throw new Exception("TODO no such type"))
+      val typeDefn = lkg.types.getOrElse(typeName, throw new Exception(s"No type $typeName in $path"))
+      val allTypeFields: Map[String, Type] = collectAllNamedTypeFields(typeDefn)
 
-      // TODO: get all fields if extended / further bound (typeDefn.marker == PlusEq)
-      val allTypeFields: Map[String, Type] = ???
       if rec.fields.forall { (f, e) => // typeCheck all fields wrt linkage definition
         val fieldType = allTypeFields.getOrElse(f, throw new Exception("TODO no such field"))
         val eType = typeOfExpression(G)(e)
@@ -142,17 +234,16 @@ object type_checking {
     //_________________________________________________ T_ADT
     //  G |- a.R(C {(f_i = e_i)*}) : a.R
     case InstADT(famType@FamType(Some(path), tName), cname, rec) =>
-      val ctorFields = rec.fields.view.mapValues(typeOfExpression(G)).toMap
+      val instFields = rec.fields.view.mapValues(typeOfExpression(G)).toMap
       val lkg = getCompleteLinkage(path)
-      val adtDefn = lkg.adts.getOrElse(tName, throw new Exception("TODO no such ADT"))
+      val adtDefn = lkg.adts.getOrElse(tName, throw new Exception(s"No ADT $tName in $path"))
+      val allCtors: Map[String, RecType] = collectAllConstructors(adtDefn)
 
-      // TODO: get all ctors if extended / further bound (adtDefn.marker == PlusEq)
-      val allCtors: Map[String, RecType] = ???
-      allCtors.getOrElse(cname, throw new Exception("No such constructor")) match {
-        case RecType(instFields) =>
+      allCtors.getOrElse(cname, throw new Exception(s"No constructor $cname for $tName in $path")) match {
+        case RecType(ctorFields) =>
           // we do not allow subtyping within ADT records right now
           if instFields == ctorFields then famType
-          else throw new Exception("TODO field types in ADT instance don't match")
+          else throw new Exception(s"Mismatching field types in ADT instance $cname for $tName in $path")
       }
 
     // K |- a ~> L
@@ -254,7 +345,7 @@ object type_checking {
       // L'
       val optSupLkg = incompleteCurLkg.sup.map(getCompleteLinkage)
 
-      concatLinkages(optSupLkg, incompleteCurLkg)
+      concatLinkages(Extends)(optSupLkg, incompleteCurLkg)
   }
 
 
@@ -358,10 +449,11 @@ object type_checking {
   // L.CASES + I.CASES = L".CASES
   // ______________________________________________________ CAT_TOP
   // L' + I = L"
-  def concatLinkages(optL1: Option[Linkage], l2: Linkage): Linkage = optL1 match {
+  // `l1InheritForm` is how things in `l1` are inherited in the resulting linkage
+  def concatLinkages(l1InheritForm: InheritForm)(optL1: Option[Linkage], l2: Linkage): Linkage = optL1 match {
     case None => l2
     case Some(l1) =>
-      val l1SelfSubbed = subSelf(l2.self, l1.self, l1)
+      val l1SelfSubbed = markInheritForm(l1InheritForm, subSelf(l2.self, l1.self, l1))
       Linkage(
         l2.path,
         l2.self,
@@ -385,5 +477,28 @@ object type_checking {
 
   def concatCases(depot1: Map[String, CasesDefn], depot2: Map[String, CasesDefn]): Map[String, CasesDefn] = ???
 
-  def concatNested(nested1: Map[String, Linkage], nested2: Map[String, Linkage]): Map[String, Linkage] = ???
+  // forall A,
+  //     L'.A in L'.NESTED -->
+  //     I.A notin I.NESTED -->
+  //     L'.A in L".NESTED
+  //
+  // forall A,
+  //     I.A in I.NESTED -->
+  //     L'.A notin L'.NESTED -->
+  //     I.A in L".NESTED
+  //
+  // forall A,
+  //     I.A in I.NESTED -->
+  //     L'.A in L'.NESTED -->
+  //     K |- L'.A.self ~> L -->
+  //     L + I.A = L".A -->
+  //     L".A in L".NESTED
+  // ______________________________________________ CAT_LINKS
+  // L'.NESTED + I.NESTED = L".NESTED
+  def concatNested(nested1: Map[String, Linkage], nested2: Map[String, Linkage]): Map[String, Linkage] = {
+    unionWith(nested1, nested2) { (lkgLPrime_A, lkgI_A) =>
+      val lkgL: Linkage = getCompleteLinkage(Sp(lkgLPrime_A.self))
+      concatLinkages(FurtherBinds)(Some(lkgL), lkgI_A)
+    }
+  }
 }

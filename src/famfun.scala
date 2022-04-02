@@ -59,7 +59,7 @@ object famfun {
   //       or should things that can be extended (Marker = PlusEq)
   //       have field for what definitions they extend?
   // Linkages
-  case class Linkage(path: Path,
+  case class Linkage(path: Path, // TODO: should this hold an absolute path?
                      self: SelfPath, // self
                      sup: Option[Path], // super
                      types: Map[String, TypeDefn],
