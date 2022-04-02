@@ -237,13 +237,11 @@ class FamParser extends RegexParsers with PackratParsers {
     }
   }
 
-  lazy val pProgram: PackratParser[Map[Path, Linkage]] =
+  lazy val pProgram: PackratParser[Linkage] =
     rep(pFamDef(Prog)) ^^ {
-      fams => Map(
-        Sp(Prog) -> Linkage(
-          Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
-          fams.toMap
-        )
+      fams => Linkage(
+        Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
+        fams.toMap
       )
     }
 }

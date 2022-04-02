@@ -3,6 +3,11 @@ import famfun._
 object type_checking {
   val K: scala.collection.mutable.Map[Path, Linkage] = scala.collection.mutable.Map.empty
 
+  def initK(progLkg: Linkage) = {
+    K.clear()
+    K += Sp(Prog) -> progLkg
+  }
+
   def unionWith[K, V](m1: Map[K, V], m2: Map[K, V])(f: (V, V) => V)(implicit ordK: Ordering[K]): Map[K, V] = {
     // l1 and l2 are sorted
     def merge(l1: List[(K, V)], l2: List[(K, V)]): List[(K, V)] = (l1, l2) match {
@@ -31,8 +36,8 @@ object type_checking {
     //   2. it will be inherited only.
     // This, along with when things are extended and further bound, are handled by the concatenation functions.
     def markBody[B](body: DefnBody[B]): DefnBody[B] = form match {
-      case Extends => DefnBody(None, Some(Sp(l.self)), None) // TODO: or l.path?
-      case FurtherBinds => DefnBody(None, None, Some(Sp(l.self)))
+      case Extends => DefnBody(None, Some(resolvePath(Sp(l.self))), None) // TODO: or l.path?
+      case FurtherBinds => DefnBody(None, None, Some(resolvePath(Sp(l.self))))
     }
 
     l.copy(
@@ -341,7 +346,7 @@ object type_checking {
       // L
       val enclosingLkg = getCompleteLinkage(pref)
       // I
-      val incompleteCurLkg = enclosingLkg.nested.getOrElse(fam, throw new Exception("TODO no such path"))
+      val incompleteCurLkg = enclosingLkg.nested.getOrElse(fam, throw new Exception(s"TODO no such path $path"))
       // L'
       val optSupLkg = incompleteCurLkg.sup.map(getCompleteLinkage)
 
@@ -438,6 +443,21 @@ object type_checking {
     case _ => p
   }
 
+  // Replaces `extendsFrom` and `furtherBindsFrom` in `curDefnBody` with those of `inheritedDefnBody`
+  // if they are not already defined (Some(_))
+  def mergeDefnBody[B](inheritedDefnBody: DefnBody[B], curDefnBody: DefnBody[B]): DefnBody[B] = {
+    def lastSome[T](opt1: Option[T], opt2: Option[T]): Option[T] = opt2 match {
+      case None => opt1
+      case Some(_) => opt2
+    }
+
+    DefnBody(
+      curDefnBody.defn,
+      lastSome(inheritedDefnBody.extendsFrom, curDefnBody.extendsFrom),
+      lastSome(inheritedDefnBody.furtherBindsFrom, curDefnBody.furtherBindsFrom)
+    )
+  }
+
   // I.self = L".self
   // I.super = L".super
   // L = L' [I.self / L'.self]
@@ -453,13 +473,13 @@ object type_checking {
   def concatLinkages(l1InheritForm: InheritForm)(optL1: Option[Linkage], l2: Linkage): Linkage = optL1 match {
     case None => l2
     case Some(l1) =>
-      val l1SelfSubbed = markInheritForm(l1InheritForm, subSelf(l2.self, l1.self, l1))
+      val l1SelfSubbed = subSelf(l2.self, l1.self, markInheritForm(l1InheritForm, l1))
       Linkage(
         l2.path,
         l2.self,
         l2.sup,
         concatTypes(l1SelfSubbed.types, l2.types),
-        concatDefaults(l1SelfSubbed.defaults, l2.defaults),
+        l2.defaults, // TODO: bring this back; concatDefaults(l1SelfSubbed.defaults, l2.defaults),
         concatAdts(l1SelfSubbed.adts, l2.adts),
         concatFuns(l1SelfSubbed.funs, l2.funs),
         concatCases(l1SelfSubbed.depot, l2.depot),
@@ -467,15 +487,114 @@ object type_checking {
       )
   }
 
-  def concatTypes(types1: Map[String, TypeDefn], types2: Map[String, TypeDefn]): Map[String, TypeDefn] = ???
+  // forall R, rdef, rdef',
+  //     R = rdef in L'.TYPES -->
+  //     R (+?)= rdef' notin I.TYPES -->
+  //     R = rdef in L".TYPES
+  //
+  // forall R, rdef, rdef',
+  //     R = rdef in I.TYPES -->
+  //     R = rdef' notin L'.TYPES -->
+  //     R = rdef in L".TYPES
+  //
+  // forall R, ext, rdef,
+  //     R += ext in I.TYPES -->
+  //     R = rdef in L'.TYPES -->
+  //     rdef' = rdef + ext -->
+  //     R = rdef' in L".TYPES
+  // ____________________________________ CAT_TYPES
+  // L'.TYPES + I.TYPES = L".TYPES
+  def concatTypes(types1: Map[String, TypeDefn], types2: Map[String, TypeDefn]): Map[String, TypeDefn] = unionWith(types1, types2) {
+    // typeR should always equal _typeR since they are names of types indexed by the same type name key
+    case (TypeDefn(typeR, _, rDefLPrime), TypeDefn(_typeR, PlusEq, rDefI)) =>
+      TypeDefn(typeR, PlusEq, mergeDefnBody(rDefLPrime, rDefI))
+    case _ => throw new Exception("TODO invalid type definition")
+  }
 
   def concatDefaults(defaults1: Map[String, (Marker, Rec)], defaults2: Map[String, (Marker, Rec)]): Map[String, (Marker, Rec)] = ???
 
-  def concatAdts(adts1: Map[String, AdtDefn], adts2: Map[String, AdtDefn]): Map[String, AdtDefn] = ???
+  // forall R, adtdef, adtdef',
+  //     R = adtdef in L'.ADTS -->
+  //     R (+?)= adtdef' notin I.ADTS -->
+  //     R = adtdef in L".ADTS
+  //
+  // forall R, adtdef, adtdef',
+  //     R = adtdef in I.ADTS -->
+  //     R = adtdef' notin L'.ADTS -->
+  //     R = adtdef in L".ADTS
+  //
+  // forall R, adtext, adtdef,
+  //     R += adtext in I.ADTS -->
+  //     R = adtdef in L'.ADTS -->
+  //     adtdef' = adtdef + adtext -->
+  //     R = adtdef' in L".ADTS
+  // ____________________________________ CAT_ADTS
+  // L'.ADTS + I.ADTS = L".ADTS
+  def concatAdts(adts1: Map[String, AdtDefn], adts2: Map[String, AdtDefn]): Map[String, AdtDefn] = unionWith(adts1, adts2) {
+    case (AdtDefn(adtR, _, adtDef), AdtDefn(_adtR, PlusEq, adtExt)) =>
+      AdtDefn(adtR, PlusEq, mergeDefnBody(adtDef, adtExt))
+    case (adtDefn1, adtDefn2) => throw new Exception(s"Invalid ADT definition ${adtDefn1}, $adtDefn2")
+  }
 
-  def concatFuns(funs1: Map[String, FunDefn], funs2: Map[String, FunDefn]): Map[String, FunDefn] = ???
+  // forall f, T, fdef, fdef',
+  //     f : T = fdef in L'.FUNS -->
+  //     f : T = fdef' notin I.FUNS -->
+  //     f : T = fdef in L".FUNS
+  //
+  // forall f, T, fdef, fdef',
+  //     f : T = fdef in I.FUNS -->
+  //     f : T = fdef' notin L'.FUNS -->
+  //     f : T = fdef in L".FUNS
+  //
+  // forall f, T, T', fdef, fdef',
+  //     f : T = fdef in L'.FUNS -->
+  //     f : T = fdef' in I.FUNS -->
+  //     f : T = fdef' in L".FUNS
+  // ____________________________________ CAT_FUNS
+  // L'.FUNS + I.FUNS = L".FUNS
+  def concatFuns(funs1: Map[String, FunDefn], funs2: Map[String, FunDefn]): Map[String, FunDefn] = unionWith(funs1, funs2) {
+    case (FunDefn(funF, fType, _), overridingFunDefn@FunDefn(_funF, fTypePrime, _))
+      if fType == fTypePrime => overridingFunDefn
+    case _ => throw new Exception("TODO invalid function definition")
+  }
 
-  def concatCases(depot1: Map[String, CasesDefn], depot2: Map[String, CasesDefn]): Map[String, CasesDefn] = ???
+  // forall r, Tm, Tc, Tc', cdef, cdef',
+  //     r <Tm>: Tc = cdef in L'.CASES -->
+  //     r <Tm>: Tc' = cdef' notin I.CASES -->
+  //     r <Tm>: Tc = cdef in L".CASES
+  //
+  // forall r, Tm, Tc, Tc', cdef, cdef',
+  //     r <Tm>: Tc = cdef in I.CASES -->
+  //     r <Tm>: Tc' = cdef' notin L'.CASES -->
+  //     r <Tm>: Tc = cdef in L".CASES
+  //
+  // forall r, Tm, Tc_in, Tc_out, Tc'_in, Tc'_out, cdef, cdef',
+  //     r <Tm>: Tc_in -> Tc_out = cdef in L'.CASES -->
+  //     r <Tm>: Tc'_in -> Tc'_out = cdef' in I.CASES -->
+  //     Tc"_in = Tc_in + Tc'_in -->
+  //     Tc"_out = Tc'_out + Tc'_out -->
+  //     cdef" = cdef + cdef' -->
+  //     r <Tm>: Tc"_in -> Tc"_out  = cdef" in L".CASES
+  // ____________________________________ CAT_CASES
+  // L'.CASES + I.CASES = L".CASES
+  def concatCases(depot1: Map[String, CasesDefn], depot2: Map[String, CasesDefn]): Map[String, CasesDefn] = unionWith(depot1, depot2) {
+    // TODO: check type names of prevMatchType and curMatchType are the same? (without paths)
+    case ( CasesDefn(casesName, prevMatchType, prevT, _, prevCasesDefn)
+         , CasesDefn(_casesName, curMatchType, curT, PlusEq, curCasesDefn)
+         ) =>
+      val resultT: Type = (prevT, curT) match {
+        case (RecType(_), RecType(_)) => curT
+        case (FunType(RecType(prevFields), RecType(_)), FunType(RecType(curFields), curOutT@RecType(_))) =>
+          // TODO: or should we check curInT is subtype of prevInT?
+          FunType(RecType(prevFields ++ curFields), curOutT)
+        case _ => throw new Exception("TODO invalid cases definition")
+      }
+      // For implementation purposes, we do not absorb inherited cases directly.
+      // The result `DefnBody` is instead marked with information about where it inherits from,
+      // which is used to look up those other cases recursively
+      CasesDefn(casesName, curMatchType, resultT, PlusEq, curCasesDefn)
+    case _ => throw new Exception("TODO invalid cases definition")
+  }
 
   // forall A,
   //     L'.A in L'.NESTED -->
