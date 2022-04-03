@@ -14,6 +14,14 @@ object famfun {
     case AbsoluteFamily(_, f) => f
   }
 
+  // Transforms all self paths into absolute paths (except Prog)
+  // TODO: is this what we want?
+  def resolvePath(p: Path): Path = p match {
+    case Sp(Prog) => p
+    case Sp(SelfFamily(pref, fam)) => AbsoluteFamily(resolvePath(Sp(pref)), fam)
+    case AbsoluteFamily(pref, fam) => AbsoluteFamily(resolvePath(pref), fam)
+  }
+
   // Types
   sealed trait Type
   case object N extends Type

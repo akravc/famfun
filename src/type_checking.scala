@@ -3,7 +3,7 @@ import famfun._
 object type_checking {
   val K: scala.collection.mutable.Map[Path, Linkage] = scala.collection.mutable.Map.empty
 
-  def initK(progLkg: Linkage) = {
+  def initK(progLkg: Linkage): Unit = {
     K.clear()
     K += Sp(Prog) -> progLkg
   }
@@ -30,14 +30,14 @@ object type_checking {
   // Marks definitions in the top-level of l as extended or further bound
   // TODO possible optimization: don't change if body.defn is None
   def markInheritForm(form: InheritForm, l: Linkage): Linkage = {
-    // Sets `extendsFrom` or `furtherBindsFrom` to the self(?) path of `l` based on `form` (sets the other to None),
+    // Sets `extendsFrom` or `furtherBindsFrom` to the self(?) path of `l` based on `form`
     // and makes `defn` `None` as either:
     //   1. a new definition will extend it
     //   2. it will be inherited only.
     // This, along with when things are extended and further bound, are handled by the concatenation functions.
     def markBody[B](body: DefnBody[B]): DefnBody[B] = form match {
-      case Extends => DefnBody(None, Some(resolvePath(Sp(l.self))), None) // TODO: or l.path?
-      case FurtherBinds => DefnBody(None, None, Some(resolvePath(Sp(l.self))))
+      case Extends => body.copy(defn = None, extendsFrom = Some(l.path))
+      case FurtherBinds => body.copy(defn = None, furtherBindsFrom = Some(l.path))
     }
 
     l.copy(
@@ -303,14 +303,6 @@ object type_checking {
     case _ => throw new Exception("TODO bad expression")
   }
 
-  // Transforms all self paths into absolute paths (except Prog)
-  // TODO: is this what we want?
-  def resolvePath(p: Path): Path = p match {
-    case Sp(Prog) => p
-    case Sp(SelfFamily(pref, fam)) => AbsoluteFamily(resolvePath(Sp(pref)), fam)
-    case AbsoluteFamily(pref, fam) => AbsoluteFamily(resolvePath(pref), fam)
-  }
-
   def getCompleteLinkage(p: Path): Linkage = {
     // Handles
     //
@@ -356,22 +348,24 @@ object type_checking {
 
   // Recursively substitutes instances of `newSelf` for `oldSelf` in lkg
   // lkg [newSelf / oldSelf]
-  def subSelf(newSelf: SelfPath, oldSelf: SelfPath, lkg: Linkage): Linkage = Linkage(
+  def subSelf(newSelf: SelfPath, oldSelf: SelfPath)(lkg: Linkage): Linkage = Linkage(
     lkg.path,
-    if lkg.self == oldSelf then newSelf else lkg.self,
+    subSelfInSelfPath(newSelf, oldSelf)(lkg.self),
     lkg.sup,
     lkg.types.view
       .mapValues {
         case TypeDefn(name, marker, typeBody) => TypeDefn(
           name,
           marker,
-          subSelfInDefnBody(newSelf, oldSelf, typeBody)(subSelfInType(_, _, _).asInstanceOf[RecType])
+          subSelfInDefnBody(newSelf, oldSelf)(typeBody){ (ns, os) => t =>
+            subSelfInType(ns, os)(t).asInstanceOf[RecType]
+          }
         )
       }
       .toMap,
     lkg.defaults.view
       .mapValues {
-        case (marker, rec) => marker -> subSelfInExpression(newSelf, oldSelf, rec).asInstanceOf[Rec]
+        case (marker, rec) => marker -> subSelfInExpression(newSelf, oldSelf)(rec).asInstanceOf[Rec]
       }
       .toMap,
     lkg.adts.view
@@ -379,8 +373,8 @@ object type_checking {
         case AdtDefn(name, marker, adtBody) => AdtDefn(
           name,
           marker,
-          subSelfInDefnBody(newSelf, oldSelf, adtBody) { (ns, os, body) =>
-            body.view.mapValues(subSelfInType(ns, os, _).asInstanceOf[RecType]).toMap
+          subSelfInDefnBody(newSelf, oldSelf)(adtBody) { (ns, os) => body =>
+            body.view.mapValues(subSelfInType(ns, os)(_).asInstanceOf[RecType]).toMap
           }
         )
       }
@@ -389,8 +383,8 @@ object type_checking {
       .mapValues {
         case FunDefn(name, t, body) => FunDefn(
           name,
-          subSelfInType(newSelf, oldSelf, t).asInstanceOf[FunType],
-          subSelfInDefnBody(newSelf, oldSelf, body)(subSelfInExpression)
+          subSelfInType(newSelf, oldSelf)(t).asInstanceOf[FunType],
+          subSelfInDefnBody(newSelf, oldSelf)(body)(subSelfInExpression)
         )
       }
       .toMap,
@@ -398,50 +392,53 @@ object type_checking {
       .mapValues {
         case CasesDefn(name, matchType, t, marker, body) => CasesDefn(
           name,
-          subSelfInType(newSelf, oldSelf, matchType).asInstanceOf[FamType],
-          subSelfInType(newSelf, oldSelf, t).asInstanceOf[FunType],
+          subSelfInType(newSelf, oldSelf)(matchType).asInstanceOf[FamType],
+          subSelfInType(newSelf, oldSelf)(t).asInstanceOf[FunType],
           marker,
-          subSelfInDefnBody(newSelf, oldSelf, body)(subSelfInExpression)
+          subSelfInDefnBody(newSelf, oldSelf)(body)(subSelfInExpression)
         )
       }
       .toMap,
-    lkg.nested.view.mapValues(subSelf(newSelf, oldSelf, _)).toMap
+    lkg.nested.view.mapValues(subSelf(newSelf, oldSelf)).toMap
   )
-  def subSelfInType(newSelf: SelfPath, oldSelf: SelfPath, t: Type): Type = t match {
-    case FamType(path, name) => FamType(path.map(subSelfInPath(newSelf, oldSelf, _)), name)
-    case FunType(inType, outType) => FunType(subSelfInType(newSelf, oldSelf, inType), subSelfInType(newSelf, oldSelf, outType))
-    case RecType(fields) => RecType(fields.view.mapValues(subSelfInType(newSelf, oldSelf, _)).toMap)
+  def subSelfInType(newSelf: SelfPath, oldSelf: SelfPath)(t: Type): Type = t match {
+    case FamType(path, name) => FamType(path.map(subSelfInPath(newSelf, oldSelf)), name)
+    case FunType(inType, outType) => FunType(subSelfInType(newSelf, oldSelf)(inType), subSelfInType(newSelf, oldSelf)(outType))
+    case RecType(fields) => RecType(fields.view.mapValues(subSelfInType(newSelf, oldSelf)).toMap)
     case _ => t
   }
-  def subSelfInExpression(newSelf: SelfPath, oldSelf: SelfPath, e: Expression): Expression = e match {
-    case Lam(v, t, body) => Lam(v, subSelfInType(newSelf, oldSelf, t), subSelfInExpression(newSelf, oldSelf, body))
-    case FamFun(path, name) => FamFun(path.map(subSelfInPath(newSelf, oldSelf, _)), name)
-    case FamCases(path, name) => FamCases(path.map(subSelfInPath(newSelf, oldSelf, _)), name)
-    case App(e1, e2) => App(subSelfInExpression(newSelf, oldSelf, e1), subSelfInExpression(newSelf, oldSelf, e2))
-    case Rec(fields) => Rec(fields.view.mapValues(subSelfInExpression(newSelf, oldSelf, _)).toMap)
-    case Proj(e, name) => Proj(subSelfInExpression(newSelf, oldSelf, e), name)
+  def subSelfInExpression(newSelf: SelfPath, oldSelf: SelfPath)(e: Expression): Expression = e match {
+    case Lam(v, t, body) => Lam(v, subSelfInType(newSelf, oldSelf)(t), subSelfInExpression(newSelf, oldSelf)(body))
+    case FamFun(path, name) => FamFun(path.map(subSelfInPath(newSelf, oldSelf)), name)
+    case FamCases(path, name) => FamCases(path.map(subSelfInPath(newSelf, oldSelf)), name)
+    case App(e1, e2) => App(subSelfInExpression(newSelf, oldSelf)(e1), subSelfInExpression(newSelf, oldSelf)(e2))
+    case Rec(fields) => Rec(fields.view.mapValues(subSelfInExpression(newSelf, oldSelf)).toMap)
+    case Proj(e, name) => Proj(subSelfInExpression(newSelf, oldSelf)(e), name)
     case Inst(t, rec) => Inst(
-      subSelfInType(newSelf, oldSelf, t).asInstanceOf[FamType],
-      subSelfInExpression(newSelf, oldSelf, rec).asInstanceOf[Rec]
+      subSelfInType(newSelf, oldSelf)(t).asInstanceOf[FamType],
+      subSelfInExpression(newSelf, oldSelf)(rec).asInstanceOf[Rec]
     )
     case InstADT(t, cname, rec) => InstADT(
-      subSelfInType(newSelf, oldSelf, t).asInstanceOf[FamType],
+      subSelfInType(newSelf, oldSelf)(t).asInstanceOf[FamType],
       cname,
-      subSelfInExpression(newSelf, oldSelf, rec).asInstanceOf[Rec]
+      subSelfInExpression(newSelf, oldSelf)(rec).asInstanceOf[Rec]
     )
-    case Match(e, g) => Match(subSelfInExpression(newSelf, oldSelf, e), subSelfInExpression(newSelf, oldSelf, g))
+    case Match(e, g) => Match(subSelfInExpression(newSelf, oldSelf)(e), subSelfInExpression(newSelf, oldSelf)(g))
     case _ => e
   }
-  def subSelfInDefnBody[B](newSelf: SelfPath, oldSelf: SelfPath, body: DefnBody[B])(subB: (SelfPath, SelfPath, B) => B): DefnBody[B] =
-    DefnBody(
-      body.defn.map(subB(newSelf, oldSelf, _)),
-      body.extendsFrom.map(subSelfInPath(newSelf, oldSelf, _)),
-      body.furtherBindsFrom.map(subSelfInPath(newSelf, oldSelf, _))
-    )
-  def subSelfInPath(newSelf: SelfPath, oldSelf: SelfPath, p: Path): Path = p match {
-    case Sp(sp) if sp == oldSelf => Sp(newSelf)
-    case _ => p
+  def subSelfInDefnBody[B](newSelf: SelfPath, oldSelf: SelfPath)(body: DefnBody[B])
+                          (subB: (SelfPath, SelfPath) => B => B): DefnBody[B] =
+    body.copy(defn = body.defn.map(subB(newSelf, oldSelf)))
+  def subSelfInPath(newSelf: SelfPath, oldSelf: SelfPath)(p: Path): Path = p match {
+    case Sp(sp) => Sp(subSelfInSelfPath(newSelf, oldSelf)(sp))
+    case AbsoluteFamily(pref, fam) => AbsoluteFamily(subSelfInPath(newSelf, oldSelf)(pref), fam)
   }
+  def subSelfInSelfPath(newSelf: SelfPath, oldSelf: SelfPath)(sp: SelfPath): SelfPath =
+    if sp == oldSelf then newSelf
+    else sp match {
+      case Prog => Prog
+      case SelfFamily(pref, fam) => SelfFamily(subSelfInSelfPath(newSelf, oldSelf)(pref), fam)
+    }
 
   // Replaces `extendsFrom` and `furtherBindsFrom` in `curDefnBody` with those of `inheritedDefnBody`
   // if they are not already defined (Some(_))
@@ -450,7 +447,6 @@ object type_checking {
       case None => opt1
       case Some(_) => opt2
     }
-
     DefnBody(
       curDefnBody.defn,
       lastSome(inheritedDefnBody.extendsFrom, curDefnBody.extendsFrom),
@@ -473,7 +469,7 @@ object type_checking {
   def concatLinkages(l1InheritForm: InheritForm)(optL1: Option[Linkage], l2: Linkage): Linkage = optL1 match {
     case None => l2
     case Some(l1) =>
-      val l1SelfSubbed = subSelf(l2.self, l1.self, markInheritForm(l1InheritForm, l1))
+      val l1SelfSubbed = subSelf(l2.self, l1.self)(markInheritForm(l1InheritForm, l1))
       Linkage(
         l2.path,
         l2.self,
@@ -553,8 +549,9 @@ object type_checking {
   // ____________________________________ CAT_FUNS
   // L'.FUNS + I.FUNS = L".FUNS
   def concatFuns(funs1: Map[String, FunDefn], funs2: Map[String, FunDefn]): Map[String, FunDefn] = unionWith(funs1, funs2) {
-    case (FunDefn(funF, fType, _), overridingFunDefn@FunDefn(_funF, fTypePrime, _))
-      if fType == fTypePrime => overridingFunDefn
+                      // TODO: subtype check? (self(X).R -> N can be compatible with self(Y).R -> N when inherited)
+    case (FunDefn(funF, fType, fDefBody), FunDefn(_funF, fTypePrime, fDefPrimeBody)) /*if fType == fTypePrime*/ =>
+      FunDefn(funF, fTypePrime, mergeDefnBody(fDefBody, fDefPrimeBody))
     case _ => throw new Exception("TODO invalid function definition")
   }
 
@@ -578,7 +575,7 @@ object type_checking {
   // ____________________________________ CAT_CASES
   // L'.CASES + I.CASES = L".CASES
   def concatCases(depot1: Map[String, CasesDefn], depot2: Map[String, CasesDefn]): Map[String, CasesDefn] = unionWith(depot1, depot2) {
-    // TODO: check type names of prevMatchType and curMatchType are the same? (without paths)
+    // TODO: check `curMatchType` is subtype of `prevMatchType`?
     case ( CasesDefn(casesName, prevMatchType, prevT, _, prevCasesDefn)
          , CasesDefn(_casesName, curMatchType, curT, PlusEq, curCasesDefn)
          ) =>
@@ -616,8 +613,8 @@ object type_checking {
   // L'.NESTED + I.NESTED = L".NESTED
   def concatNested(nested1: Map[String, Linkage], nested2: Map[String, Linkage]): Map[String, Linkage] = {
     unionWith(nested1, nested2) { (lkgLPrime_A, lkgI_A) =>
-      val lkgL: Linkage = getCompleteLinkage(Sp(lkgLPrime_A.self))
-      concatLinkages(FurtherBinds)(Some(lkgL), lkgI_A)
+      val lkgL: Linkage = getCompleteLinkage(lkgLPrime_A.path) // TODO: needed?
+      concatLinkages(FurtherBinds)(Some(lkgLPrime_A), lkgI_A)
     }
   }
 }

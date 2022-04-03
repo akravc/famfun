@@ -223,7 +223,7 @@ class FamParser extends RegexParsers with PackratParsers {
         val defaults = typs.collect{case (s, (m, (rt, r))) => (s, (m, r))}.toMap
 
         fam -> Linkage(
-          Sp(curSelfPath),
+          resolvePath(Sp(curSelfPath)),
           curSelfPath,
           supFam,
           typedefs,

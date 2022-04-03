@@ -171,7 +171,7 @@ class FamFunParserTesting extends AnyFunSuite {
     ))
     assertResult(
       "A" -> Linkage(
-        Sp(SelfFamily(Prog, "A")),
+        AbsoluteFamily(Sp(Prog), "A"),
         SelfFamily(Prog, "A"),
         None,
         Map("T" -> TypeDefn("T", Eq, DefnBody(Some(RecType(Map("f"->B, "n"->N))), None, None))),
@@ -187,7 +187,7 @@ class FamFunParserTesting extends AnyFunSuite {
     ))
     assertResult(
       "A" -> Linkage(
-        Sp(SelfFamily(Prog, "A")),
+        AbsoluteFamily(Sp(Prog), "A"),
         SelfFamily(Prog, "A"),
         Some(AbsoluteFamily(Sp(Prog), "C")),
         Map("T" -> TypeDefn("T", Eq, DefnBody(Some(RecType(Map("f"->B, "n"->N))), None, None))),
@@ -209,7 +209,7 @@ class FamFunParserTesting extends AnyFunSuite {
     ))
     assertResult(
       "A" -> Linkage(
-        Sp(SelfFamily(Prog, "A")),
+        AbsoluteFamily(Sp(Prog), "A"),
         SelfFamily(Prog, "A"),
         Some(AbsoluteFamily(Sp(Prog), "C")),
         Map("T" -> TypeDefn("T", PlusEq, DefnBody(Some(RecType(Map("f"->B, "n"->N))), None, None))),
@@ -228,7 +228,7 @@ class FamFunParserTesting extends AnyFunSuite {
     ))
     assertResult(
       "A" -> Linkage(
-        Sp(SelfFamily(Prog, "A")),
+        AbsoluteFamily(Sp(Prog), "A"),
         SelfFamily(Prog, "A"),
         None,
         Map(
@@ -258,7 +258,7 @@ class FamFunParserTesting extends AnyFunSuite {
     ))
     assertResult(
       "A" -> Linkage(
-        Sp(SelfFamily(Prog, "A")),
+        AbsoluteFamily(Sp(Prog), "A"),
         SelfFamily(Prog, "A"),
         None,
         // types
@@ -333,19 +333,19 @@ class FamFunParserTesting extends AnyFunSuite {
 
     assertResult(
       "A" -> Linkage(
-        Sp(SelfFamily(Prog, "A")),
+        AbsoluteFamily(Sp(Prog), "A"),
         SelfFamily(Prog, "A"),
         None,
         Map(), Map(), Map(), Map(), Map(),
         Map(
           "C" -> Linkage(
-            Sp(SelfFamily(SelfFamily(Prog, "A"), "C")),
+            AbsoluteFamily(AbsoluteFamily(Sp(Prog), "A"), "C"),
             SelfFamily(SelfFamily(Prog, "A"), "C"),
             None,
             Map(), Map(), Map(), Map(), Map(),
             Map(
               "D" -> Linkage(
-                Sp(SelfFamily(SelfFamily(SelfFamily(Prog, "A"), "C"), "D")),
+                AbsoluteFamily(AbsoluteFamily(AbsoluteFamily(Sp(Prog), "A"), "C"), "D"),
                 SelfFamily(SelfFamily(SelfFamily(Prog, "A"), "C"), "D"),
                 None,
                 Map(), Map(), Map(), Map(), Map(), Map()
@@ -353,7 +353,7 @@ class FamFunParserTesting extends AnyFunSuite {
             )
           ),
           "E" -> Linkage(
-            Sp(SelfFamily(SelfFamily(Prog, "A"), "E")),
+            AbsoluteFamily(AbsoluteFamily(Sp(Prog), "A"), "E"),
             SelfFamily(SelfFamily(Prog, "A"), "E"),
             None,
             Map(), Map(), Map(), Map(), Map(), Map()

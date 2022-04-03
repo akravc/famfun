@@ -1,8 +1,20 @@
 import famfun._
 import TestFamParser._
 import PrettyPrint._
+import type_checking._
+
+import scala.io.Source
 
 object famfun_main {
+  def main(args: Array[String]): Unit = {
+    // Testing code for now
+    val buf = Source.fromFile("res/example")
+    val inp = buf.getLines.mkString("\n")
+    val progLkg = parse0(pProgram, inp).get
+
+    initK(progLkg)
+    print(getCompleteLinkage(Sp(SelfFamily(SelfFamily(Prog, "Y"), "D"))))
+  }
   /* TODO: uncomment
   /*====================================== PUTTING IT ALL TOGETHER  ======================================*/
 
