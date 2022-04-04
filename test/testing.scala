@@ -412,7 +412,7 @@ class FamFunParserTesting extends AnyFunSuite {
 
     assert(canParse(pFamDef(Prog), inp))
 
-    val resolvedLkg: Linkage = resolveParsedVars(parseSuccess(pFamDef(Prog), inp)._2)
+    val resolvedLkg: Linkage = resolveImplicitSelfPaths(parseSuccess(pFamDef(Prog), inp)._2)
 
     assertResult(
       DefnBody(
@@ -433,7 +433,7 @@ class FamFunParserTesting extends AnyFunSuite {
 
     assert(canParse(pFamDef(Prog), inp))
 
-    val resolvedLkg: Linkage = resolveParsedVars(parseSuccess(pFamDef(Prog), inp)._2)
+    val resolvedLkg: Linkage = resolveImplicitSelfPaths(parseSuccess(pFamDef(Prog), inp)._2)
 
     assertResult(
       DefnBody(

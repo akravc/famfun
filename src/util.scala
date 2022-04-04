@@ -21,7 +21,7 @@ object PrettyPrint {
       case FamType(path, n) => path.map(print_path).getOrElse("None") + "." + n
       case RecType(fields) =>
         val printmap = fields.map{case (f, t) =>
-          if ((f, t) == fields.last) then f + ": " + print_type(t)
+          if fields.last == (f, t) then f + ": " + print_type(t)
           else f + ": " + print_type(t) + ", "}
         "{" + printmap.mkString + "}"
     }
@@ -60,14 +60,14 @@ object PrettyPrint {
       "type " + name + print_marker(marker) +
         print_body(adtBody)(_.map {
           (c, r) => c + " " + print_type(r)
-        }.mkString(" | "))
+        }.mkString(" | ")) +
         "\n"
   }
 
   def print_body[B](body: DefnBody[B])(printB: B => String): String = {
     val DefnBody(defn, extendsFrom, furtherBindsFrom) = body
     val bPretty = defn.map(printB)
-    s"($bPretty, extends from: $extendsFrom, further binds from: $furtherBindsFrom)"
+    s"[$bPretty, extends from: $extendsFrom, further binds from: $furtherBindsFrom]"
   }
 
   def print_lkg(lkg: Linkage) = {
@@ -79,28 +79,28 @@ object PrettyPrint {
 
     print("SUPER: " + lkg.sup.map(print_path).getOrElse("None") + "\n\n")
 
-    print("TYPES: ")
+    print("TYPES:\n")
     val typemap = lkg.types.view.mapValues{
       case TypeDefn(name, marker, typeBody) => "type " + name + print_marker(marker) +  print_body(typeBody)(print_type) + "\n"
     }
     print(typemap.mkString)
     print("\n\n")
 
-    print("DEFAULTS: ")
+    print("DEFAULTS:\n")
     val defmap = lkg.defaults.map{
       case (s, (m, r)) => "type " + s + print_marker(m) +  print_exp(r) + "\n"
     }
     print(defmap.mkString)
     print("\n\n")
 
-    print("ADTs: ")
+    print("ADTs:\n")
     val adtmap = lkg.adts.map{
       case (s, adt) => print_adt(adt) + "\n"
     }
     print(adtmap.mkString)
     print("\n\n")
 
-    print("FUNS: ")
+    print("FUNS:\n")
     val funmap = lkg.funs.map{
       case (_, FunDefn(s, ft, body)) =>
         "val " + s + ": " + print_type(ft) + " = " + print_body(body)(print_exp) + "\n"
@@ -108,7 +108,7 @@ object PrettyPrint {
     print(funmap.mkString)
     print("\n\n")
 
-    print("CASES: ")
+    print("CASES:\n")
     val casemap = lkg.depot.values.map {
       case CasesDefn(s, mt, ft, m, body) =>
         "cases " + s + "<" + print_type(mt) + ">" + ": " + print_type(ft) + print_marker(m) + print_body(body)(print_exp) + "\n"

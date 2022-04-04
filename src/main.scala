@@ -1,7 +1,8 @@
-import famfun._
-import TestFamParser._
-import PrettyPrint._
-import type_checking._
+import famfun.*
+import TestFamParser.*
+import PrettyPrint.*
+import name_resolution.*
+import type_checking.*
 
 import scala.io.Source
 
@@ -10,10 +11,11 @@ object famfun_main {
     // Testing code for now
     val buf = Source.fromFile("res/example")
     val inp = buf.getLines.mkString("\n")
-    val progLkg = parse0(pProgram, inp).get
+    val progLkg = resolveImplicitSelfPaths(parse0(pProgram, inp).get)
+    buf.close()
 
     initK(progLkg)
-    print(getCompleteLinkage(Sp(SelfFamily(SelfFamily(Prog, "Y"), "D"))))
+    print_lkg(getCompleteLinkage(Sp(SelfFamily(SelfFamily(Prog, "Y"), "C"))))
   }
   /* TODO: uncomment
   /*====================================== PUTTING IT ALL TOGETHER  ======================================*/

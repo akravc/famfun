@@ -27,17 +27,18 @@ object type_checking {
   sealed trait InheritForm
   case object Extends extends InheritForm
   case object FurtherBinds extends InheritForm
-  // Marks definitions in the top-level of l as extended or further bound
+  // Marks definitions in the top-level of l as extended or further bound.
+  // Recursively marks nested definitions as further bound(???)
   // TODO possible optimization: don't change if body.defn is None
-  def markInheritForm(form: InheritForm, l: Linkage): Linkage = {
+  def markInheritForm(form: InheritForm, inheritsFrom: Path)(l: Linkage): Linkage = {
     // Sets `extendsFrom` or `furtherBindsFrom` to the self(?) path of `l` based on `form`
     // and makes `defn` `None` as either:
     //   1. a new definition will extend it
     //   2. it will be inherited only.
     // This, along with when things are extended and further bound, are handled by the concatenation functions.
     def markBody[B](body: DefnBody[B]): DefnBody[B] = form match {
-      case Extends => body.copy(defn = None, extendsFrom = Some(l.path))
-      case FurtherBinds => body.copy(defn = None, furtherBindsFrom = Some(l.path))
+      case Extends => body.copy(defn = None, extendsFrom = Some(inheritsFrom))
+      case FurtherBinds => body.copy(defn = None, furtherBindsFrom = Some(inheritsFrom))
     }
 
     l.copy(
@@ -52,6 +53,9 @@ object type_checking {
       }.toMap,
       depot = l.depot.view.mapValues { casesDefn =>
         casesDefn.copy(casesBody = markBody(casesDefn.casesBody))
+      }.toMap,
+      nested = l.nested.view.mapValues { nestedLkg =>
+        markInheritForm(FurtherBinds, AbsoluteFamily(inheritsFrom, pathName(Sp(nestedLkg.self))))(nestedLkg)
       }.toMap
     )
   }
@@ -351,7 +355,7 @@ object type_checking {
   def subSelf(newSelf: SelfPath, oldSelf: SelfPath)(lkg: Linkage): Linkage = Linkage(
     lkg.path,
     subSelfInSelfPath(newSelf, oldSelf)(lkg.self),
-    lkg.sup,
+    lkg.sup.map(subSelfInPath(newSelf, oldSelf)),
     lkg.types.view
       .mapValues {
         case TypeDefn(name, marker, typeBody) => TypeDefn(
@@ -469,7 +473,10 @@ object type_checking {
   def concatLinkages(l1InheritForm: InheritForm)(optL1: Option[Linkage], l2: Linkage): Linkage = optL1 match {
     case None => l2
     case Some(l1) =>
-      val l1SelfSubbed = subSelf(l2.self, l1.self)(markInheritForm(l1InheritForm, l1))
+      val l1SelfSubbed =
+        subSelf(l2.self, l1.self)(
+          markInheritForm(l1InheritForm, resolvePath(Sp(l1.self)))(l1)
+        )
       Linkage(
         l2.path,
         l2.self,
@@ -614,7 +621,7 @@ object type_checking {
   def concatNested(nested1: Map[String, Linkage], nested2: Map[String, Linkage]): Map[String, Linkage] = {
     unionWith(nested1, nested2) { (lkgLPrime_A, lkgI_A) =>
       val lkgL: Linkage = getCompleteLinkage(lkgLPrime_A.path) // TODO: needed?
-      concatLinkages(FurtherBinds)(Some(lkgLPrime_A), lkgI_A)
+      concatLinkages(FurtherBinds)(Some(lkgL), lkgI_A)
     }
   }
 }

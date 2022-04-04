@@ -3,12 +3,12 @@ Family X {
   Family C {
     type T = T1 {n: N}
 
-    val f: self(X).R -> N = lam (x: X). 10
+    val f: R -> N = lam (x: X). 10
   }
   Family D extends self(X).C {
     type T += T2 {b: B}
 
-    val f: self(X).R -> N = lam (x: X). 42
+    val f: R -> N = lam (x: X). 42
   }
 }
 
