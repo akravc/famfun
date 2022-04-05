@@ -11,11 +11,19 @@ object famfun_main {
     // Testing code for now
     val buf = Source.fromFile("res/example")
     val inp = buf.getLines.mkString("\n")
-    val progLkg = resolveImplicitSelfPaths(parse0(pProgram, inp).get)
     buf.close()
-
-    initK(progLkg)
-    print_lkg(getCompleteLinkage(Sp(SelfFamily(SelfFamily(Prog, "Y"), "C"))))
+    val parsed = parse0(pProgram, inp)
+    parsed match {
+      case Success(result, _) =>
+        val progLkg = resolveImplicitSelfPaths(parse0(pProgram, inp).get)
+        initK(progLkg)
+        // print_lkg(getCompleteLinkage(Sp(SelfFamily(SelfFamily(Prog, "Y"), "C"))))
+        typeCheckLinkage(progLkg) match {
+          case Left(msg) => println(msg)
+          case Right(_) => ()
+        }
+      case _ => println(parsed)
+    }
   }
   /* TODO: uncomment
   /*====================================== PUTTING IT ALL TOGETHER  ======================================*/

@@ -67,6 +67,8 @@ object name_resolution {
       v,
       resolveImplicitSelfPathsType(curSelf)(t),
       resolveImplicitSelfPathsExpression(curSelf, boundVars + v.id)(body))
+    case FamFun(None, name) => FamFun(Some(Sp(curSelf)), name)
+    case FamCases(None, name) => FamCases(Some(Sp(curSelf)), name)
     case App(e1, e2) => App(
       resolveImplicitSelfPathsExpression(curSelf, boundVars)(e1),
       resolveImplicitSelfPathsExpression(curSelf, boundVars)(e2)

@@ -67,7 +67,7 @@ object PrettyPrint {
   def print_body[B](body: DefnBody[B])(printB: B => String): String = {
     val DefnBody(defn, extendsFrom, furtherBindsFrom) = body
     val bPretty = defn.map(printB)
-    s"[$bPretty, extends from: $extendsFrom, further binds from: $furtherBindsFrom]"
+    s"[$bPretty, extends from: ${extendsFrom.map(print_path)}, further binds from: ${furtherBindsFrom.map(print_path)}]"
   }
 
   def print_lkg(lkg: Linkage) = {
