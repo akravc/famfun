@@ -30,7 +30,7 @@ object type_checking {
   case object FurtherBinds extends InheritForm
   // Marks definitions in the top-level of l as extended or further bound.
   // Recursively marks nested definitions as further bound(???)
-  def markInheritForm(form: InheritForm, inheritsFrom: Path)(l: Linkage): Linkage = {
+  def markInheritForm(form: InheritForm)(l: Linkage): Linkage = {
     // Sets `extendsFrom` or `furtherBindsFrom` to the self(?) path of `l` based on `form`
     // and makes `defn` `None` as either:
     //   1. a new definition will extend it
@@ -54,7 +54,7 @@ object type_checking {
         casesDefn.copy(casesBody = markBody(casesDefn.casesBody))
       }.toMap,
       nested = l.nested.view.mapValues { nestedLkg =>
-        markInheritForm(FurtherBinds, AbsoluteFamily(inheritsFrom, pathName(Sp(nestedLkg.self))))(nestedLkg)
+        markInheritForm(FurtherBinds)(nestedLkg)
       }.toMap
     )
   }
@@ -654,7 +654,7 @@ object type_checking {
     case Some(l1) =>
       val l1SelfSubbed =
         subSelf(l2.self, l1.self)(
-          markInheritForm(l1InheritForm, resolvePath(Sp(l1.self)))(l1)
+          markInheritForm(l1InheritForm)(l1)
         )
       Linkage(
         resolvePath(Sp(l2.self)),
