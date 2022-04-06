@@ -4,7 +4,7 @@ Family X {
   Family C {
     type T = T1 {n: N}
 
-    val f: B -> N = lam (x: B). match X.T(T1 {n = 10}) with <someCases> {}
+    val f: B -> N = lam (x: B). match T(T1 {n = 10}) with <someCases> {}
 
     cases someCases <T>: {} -> { T1: {n: N} -> N } = lam (_: {}).
       { T1 = lam (x: {n: N}). x.n }
@@ -13,9 +13,11 @@ Family X {
     type T += T2 {b: B}
 
     val f: B -> N = lam (x: B). 42
+    val g: T -> N = lam (t: T). 10
 
     cases someCases <T>: {} -> { T2: {b: B} -> N } += lam (_: {}).
       { T2 = lam (y: {b: B}). 10 }
+
   }
 }
 
@@ -26,6 +28,8 @@ Family Y extends X {
     type T += T3 {t: T} | T4 {t1: T, t2: T}
 
     val f: B -> N = lam (n: B). 1
+
+    val h: X.D.T -> N = X.D.g    // "Specialization" should typecheck
 
     cases someCases <T>: {} -> { T3: {t: T} -> N, T4: {t1: T, t2: T} -> N } += lam (_: {}).
       { T4 = lam (x: {t1: T, t2: T}). 1

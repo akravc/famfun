@@ -139,42 +139,54 @@ object type_checking {
     case _ => false
   }
 
-  def isSubtype(t1: Type, t2: Type): Boolean =
-    // _____________ Sub-Refl
-    // K |- T <: T
-    t1 == t2 || ((t1, t2) match {
-      // K |- a ~> L
-      // R = T in L.TYPES
-      // K |- T <: T'
-      // __________________ Sub-Fam
-      // K |- a.R <: T'
-      case (FamType(Some(a), r), tPrime) =>
-        val aLkg = getCompleteLinkage(a)
-        val tTypeDefn = aLkg.types.getOrElse(r, throw new Exception(s"No such type ${print_type(t1)}"))
-        val t = RecType(collectAllNamedTypeFields(tTypeDefn))
-        isSubtype(t, tPrime)
+  def isSubtype(t1: Type, t2: Type): Boolean = {
+    def isSubtypeResolved(t1: Type, t2: Type): Boolean = {
+      // _____________ Sub-Refl
+      // K |- T <: T
+      t1 == t2 || ((t1, t2) match {
+        // K |- a ~> L
+        // R = T in L.TYPES
+        // K |- T <: T'
+        // __________________ Sub-Fam
+        // K |- a.R <: T'
+        case (FamType(Some(a), r), tPrime) =>
+          val aLkg = getCompleteLinkage(a)
+          aLkg.types.get(r) match {
+            case None =>
+              aLkg.adts.get(r) match {
+                case None => throw new Exception(s"No such type ${print_type(t1)}")
+                case Some(_) => false
+              }
+            case Some(tTypeDefn) =>
+              val t = RecType(collectAllNamedTypeFields(tTypeDefn))
+              isSubtype(t, tPrime)
+          }
 
-      // K |- T1 <: S1
-      // K |- S2 <: T2
-      // _________________________ Sub-Fun
-      // K |- S1 -> S2 <: T1 -> T2
-      case (FunType(s1, s2), FunType(t1, t2)) =>
-        isSubtype(t1, s1) && isSubtype(s2, t2)
+        // K |- T1 <: S1
+        // K |- S2 <: T2
+        // _________________________ Sub-Fun
+        // K |- S1 -> S2 <: T1 -> T2
+        case (FunType(s1, s2), FunType(t1, t2)) =>
+          isSubtype(t1, s1) && isSubtype(s2, t2)
 
-      // forall j,
-      //     (exists T',
-      //         K |- T' <: T_j /\ (f_j: T') in {(f_i: T_i)*})
-      // _______________________________________________________ Sub-Rec
-      // K |- {(f_i: T_i)*} <: {(f_j: T_j)*}
-      case (RecType(fis), RecType(fjs)) => fjs.forall { (fj, tj) =>
-        fis.get(fj) match {
-          case None => false
-          case Some(ti) => isSubtype(ti, tj)
+        // forall j,
+        //     (exists T',
+        //         K |- T' <: T_j /\ (f_j: T') in {(f_i: T_i)*})
+        // _______________________________________________________ Sub-Rec
+        // K |- {(f_i: T_i)*} <: {(f_j: T_j)*}
+        case (RecType(fis), RecType(fjs)) => fjs.forall { (fj, tj) =>
+          fis.get(fj) match {
+            case None => false
+            case Some(ti) => isSubtype(ti, tj)
+          }
         }
-      }
 
-      case _ => false
-    })
+        case _ => false
+      })
+    }
+
+    isSubtypeResolved(resolveType(t1), resolveType(t2))
+  }
 
   def traverseWithKeyMap[K, V, E, W](m: Map[K, V])(f: (K, V) => Either[E, W]): Either[E, Map[K, W]] = {
     val kvpList: List[(K, V)] = m.toList
@@ -189,7 +201,7 @@ object type_checking {
     traverseWithKeyMap(m)((_: K, v: V) => f(v))
   }
 
-  // TODO: where do we check whether a self path is valid / has meaning?
+  // TODO: check whether a self path is valid
   //   ie: reject Family X { Family Y { val f: self(Z).R -> B = ... } } even if Family Z exists
   def typeCheckLinkage(l: Linkage): Either[String, Unit] = {
     val curPath = resolvePath(Sp(l.self))
@@ -249,7 +261,7 @@ object type_checking {
             case Nil => throw new Exception("Should not be empty here")
             // TODO: should check instead that they are subtypes of some type...
             case ot :: ots if ots.forall(_ == ot) => Right(())
-            case _ => Left(s"Inconsistent output types for case handlers for cases ${c.name}")
+            case _ => Left(s"Inconsistent output types for case handlers for cases ${c.name} in ${print_path(curPath)}")
           }
           // Check body
           defnType <- typeOfExpression(Map.empty)(defn)
@@ -297,7 +309,6 @@ object type_checking {
       typeOfExpression(G)(e1).flatMap { // type e1
         case FunType(iType, oType) =>
           typeOfExpression(G)(e2).flatMap { e2Type =>
-            // TODO: same type or subtype?
             if isSubtype(e2Type, iType) then Right(oType)
             else {
               val e1Pretty = print_exp(e1)
@@ -395,15 +406,21 @@ object type_checking {
     case InstADT(famType@FamType(Some(path), tName), cname, rec) =>
       for {
         instFields <- traverseMap(rec.fields)(typeOfExpression(G))
+        instFieldsResolved = instFields.view.mapValues(resolveType).toMap
         lkg = getCompleteLinkage(path)
         adtDefn <- lkg.adts.get(tName).fold(Left(s"No ADT $tName in ${print_path(path)}")) (Right.apply)
         allCtors = collectAllConstructors(adtDefn)
         ctorRecType <- allCtors.get(cname).fold(Left(s"No constructor $cname for $tName in ${print_path(path)}"))(Right.apply)
-        ctorFields = ctorRecType.fields
+        ctorFieldsResolved = ctorRecType.fields.view.mapValues(resolveType).toMap
         // we do not allow subtyping within ADT records right now
         result <-
-          if instFields == ctorFields then Right(famType)
-          else Left(s"Mismatching field types in ADT instance $cname for $tName in ${print_path(path)}")
+          if instFieldsResolved == ctorFieldsResolved then Right(famType)
+          else Left(
+            s"""Mismatching field types in ADT instance for $tName with constructor $cname in ${print_path(path)}:"
+               |Instance field types:    ${print_type(RecType(instFieldsResolved))}
+               |Constructor field types: ${print_type(RecType(ctorFieldsResolved))}
+               |""".stripMargin
+          )
       } yield result
 
     // K |- a ~> L
@@ -721,14 +738,14 @@ object type_checking {
   // ____________________________________ CAT_CASES
   // L'.CASES + I.CASES = L".CASES
   def concatCases(depot1: Map[String, CasesDefn], depot2: Map[String, CasesDefn]): Map[String, CasesDefn] = unionWith(depot1, depot2) {
-    // TODO: check `curMatchType` can find `prevMatchType` from the inheritance path?
+    // TODO: check match types are consistent somehow?
     case ( CasesDefn(casesName, prevMatchType, prevT, _, prevCasesDefn)
          , CasesDefn(_casesName, curMatchType, curT, PlusEq, curCasesDefn)
          ) =>
       val resultT: Type = (prevT, curT) match {
         case (RecType(_), RecType(_)) => curT
         case (FunType(RecType(prevFields), RecType(_)), FunType(RecType(curFields), curOutT@RecType(_))) =>
-          // TODO: ensure handler output type matches between both cases defns
+          // TODO: curFields cannot have a field overwriting one in prevFields with different type?
           FunType(RecType(prevFields ++ curFields), curOutT)
         case _ => throw new Exception("TODO invalid cases definition")
       }
@@ -757,10 +774,7 @@ object type_checking {
   //     L".A in L".NESTED
   // ______________________________________________ CAT_LINKS
   // L'.NESTED + I.NESTED = L".NESTED
-  def concatNested(nested1: Map[String, Linkage], nested2: Map[String, Linkage]): Map[String, Linkage] = {
-    unionWith(nested1, nested2) { (lkgLPrime_A, lkgI_A) =>
-      val lkgL: Linkage = getCompleteLinkage(lkgLPrime_A.path) // TODO: needed?
-      concatLinkages(FurtherBinds)(Some(lkgL), lkgI_A)
-    }
+  def concatNested(nested1: Map[String, Linkage], nested2: Map[String, Linkage]): Map[String, Linkage] = unionWith(nested1, nested2) {
+    (lkgLPrime_A, lkgI_A) => concatLinkages(FurtherBinds)(Some(lkgLPrime_A), lkgI_A)
   }
 }

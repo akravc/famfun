@@ -30,6 +30,14 @@ object famfun {
   case class FunType(input: Type, output: Type) extends Type // T -> T'
   case class RecType(fields: Map[String, Type]) extends Type // {(f: T)*}
 
+  // Transforms self paths in types into absolute paths (except Prog)
+  def resolveType(t: Type): Type = t match {
+    case FamType(path, name) => FamType(path.map(resolvePath), name)
+    case FunType(input, output) => FunType(resolveType(input), resolveType(output))
+    case RecType(fields) => RecType(fields.view.mapValues(resolveType).toMap)
+    case _ => t
+  }
+
   sealed trait Marker // either += or =
   case object PlusEq extends Marker // type extension marker
   case object Eq extends Marker // type definition marker

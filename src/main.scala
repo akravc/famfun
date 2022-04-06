@@ -17,7 +17,7 @@ object famfun_main {
       case Success(result, _) =>
         val progLkg = resolveImplicitSelfPaths(parse0(pProgram, inp).get)
         initK(progLkg)
-        // print_lkg(getCompleteLinkage(Sp(SelfFamily(SelfFamily(Prog, "Y"), "C"))))
+        //print_lkg(getCompleteLinkage(Sp(SelfFamily(SelfFamily(Prog, "Y"), "D"))))
         typeCheckLinkage(progLkg) match {
           case Left(msg) => println(msg)
           case Right(_) => ()

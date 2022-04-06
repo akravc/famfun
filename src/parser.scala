@@ -244,10 +244,21 @@ class FamParser extends RegexParsers with PackratParsers {
         fams.toMap
       )
     }
+
+  // Simple preprocessing to remove eol comments
+  def removeComments(s: String): String = {
+    def removeCommentsList(inp: List[Char]): List[Char] = inp match {
+      case Nil => Nil
+      case '/' :: '/' :: restInp => removeCommentsList(restInp.dropWhile(_ != '\n'))
+      case i :: is => i :: removeCommentsList(is)
+    }
+
+    removeCommentsList(s.toList).mkString
+  }
 }
 
 object TestFamParser extends FamParser {
-  def parse0[T](p: PackratParser[T], inp: String): ParseResult[T] = parseAll(phrase(p), inp)
+  def parse0[T](p: PackratParser[T], inp: String): ParseResult[T] = parseAll(phrase(p), removeComments(inp))
   def canParse[T](p: PackratParser[T], inp: String): Boolean = parse0(p, inp).successful
   def parseSuccess[T](p: PackratParser[T], inp: String): T = parse0(p, inp).get
 }
