@@ -37,10 +37,9 @@ object type_checking {
     //   2. it will be inherited only.
     // This, along with when things are extended and further bound, are handled by the concatenation functions.
     def markBody[B](body: DefnBody[B]): DefnBody[B] = form match {
-      case Extends => body.copy(defn = None, extendsFrom = Some(inheritsFrom))
-      case FurtherBinds => body.copy(defn = None, furtherBindsFrom = Some(inheritsFrom))
+      case Extends => body.copy(defn = None, extendsFrom = Some(l.path))
+      case FurtherBinds => body.copy(defn = None, furtherBindsFrom = Some(l.path))
     }
-
     l.copy(
       types = l.types.view.mapValues { typeDefn =>
         typeDefn.copy(typeBody = markBody(typeDefn.typeBody))
@@ -102,9 +101,40 @@ object type_checking {
     val TypeDefn(name, _, typeBody) = typeDefn
     collectAllDefns(typeBody) { lkg =>
       lkg.types
-        .getOrElse(name, throw new Exception(s"${lkg.self} should contain an type definition for $name by construction"))
+        .getOrElse(name, throw new Exception(s"${lkg.self} should contain a type definition for $name by construction"))
         .typeBody
     } { r => r.fields } (Map.empty) { _ ++ _ }
+  }
+
+  def collectAllCaseHandlerTypes(casesDefn: CasesDefn): Either[String, Map[String, Type]] = {
+    val CasesDefn(name, _, t, _, casesBody) = casesDefn
+    def collectRec(p: Path): Either[String, Map[String, Type]] = {
+      val pLkg = getCompleteLinkage(p)
+      collectAllCaseHandlerTypes(pLkg.depot.getOrElse(name, throw new Exception("cases should exist by construction")))
+    }
+
+    for {
+      curCaseFnTypes <- t match {
+        case RecType (cfTypes) => Right (cfTypes)
+        case FunType (RecType (_), RecType (cfTypes)) => Right (cfTypes)
+        case _ => Left (s"Invalid shape for cases type: ${print_type (t)}")
+      }
+      extendsCaseFnTypes <- casesBody.extendsFrom.map(collectRec).getOrElse(Right(Map.empty))
+      furtherBindsCaseFnTypes <- casesBody.furtherBindsFrom.map(collectRec).getOrElse(Right(Map.empty))
+    } yield extendsCaseFnTypes ++ furtherBindsCaseFnTypes ++ curCaseFnTypes
+  }
+
+  def unifyTypes(types: List[Type]): Either[String, Type] = types match {
+    case Nil => Left("No types given to unify")
+    case t :: ts => ts.foldLeft(Right(resolveType(t)).withLeft[String]) { (eAccType, curType) =>
+      eAccType.flatMap { accType =>
+        val resolvedAccType = resolveType(accType)
+        val resolvedCurType = resolveType(curType)
+        if isSubtype(resolvedAccType, resolvedCurType) then Right(resolvedCurType)
+        else if isSubtype(resolvedCurType, resolvedAccType) then Right(resolvedAccType)
+        else Left(s"Failed to unify types: ${types.map(print_type).mkString(", ")}")
+      }
+    }
   }
 
   def wf(t: Type): Boolean = t match {
@@ -190,7 +220,7 @@ object type_checking {
 
   def traverseWithKeyMap[K, V, E, W](m: Map[K, V])(f: (K, V) => Either[E, W]): Either[E, Map[K, W]] = {
     val kvpList: List[(K, V)] = m.toList
-    kvpList.foldLeft[Either[E, List[(K,W)]]](Right(List.empty)) {
+    kvpList.foldLeft(Right(List.empty[(K, W)]).withLeft[E]) {
       case (a, (curKey, curVal)) => for {
         accList <- a
         curValApplied <- f(curKey, curVal)
@@ -204,12 +234,13 @@ object type_checking {
   // TODO: check whether a self path is valid
   //   ie: reject Family X { Family Y { val f: self(Z).R -> B = ... } } even if Family Z exists
   def typeCheckLinkage(l: Linkage): Either[String, Unit] = {
-    val curPath = resolvePath(Sp(l.self))
+    val completeL = getCompleteLinkage(l.path)
+    val curPath = resolvePath(completeL.path)
     for {
-      //l.defaults.values.forall(typeCheckDefaults(l))
-      _ <- traverseMap(l.funs)(typeCheckFunDefns(curPath))
-      _ <- traverseMap(l.depot)(typeCheckCasesDefns(curPath))
-      _ <- traverseMap(l.nested)(typeCheckLinkage)
+      //completeL.defaults.values.forall(typeCheckDefaults)
+      _ <- traverseMap(completeL.funs)(typeCheckFunDefns(curPath))
+      _ <- traverseMap(completeL.depot)(typeCheckCasesDefns(curPath))
+      _ <- traverseMap(completeL.nested)(typeCheckLinkage)
     } yield ()
   }
 
@@ -222,60 +253,54 @@ object type_checking {
             s"""Type mismatch error for function `${f.name}` in ${print_path(curPath)}:
                |Found:    ${print_type(defnType)}
                |Required: ${print_type(f.t)}
-               |""".
-              stripMargin
+               |""".stripMargin
           )
         else Right(())
       }
   }
 
-  // TODO: error when current family extends ADT but cases has no body
-  def typeCheckCasesDefns(curPath: Path)(c: CasesDefn): Either[String, Unit] = c.casesBody match {
-    case DefnBody(None, _, _) => Right(())
-    case DefnBody(Some(defn), _, _) =>
-      // Map from constructor names handled to their handler types
-      val caseFnTypes = c.t match {
-        case RecType(cfTypes) => cfTypes
-        case FunType(RecType(_), RecType(cfTypes)) => cfTypes
-        case _ => throw new Exception("Invalid shape for cases type")
+  def typeCheckCasesDefns(curPath: Path)(c: CasesDefn): Either[String, Unit] = {
+    for {
+      allCaseHandlerTypes <- collectAllCaseHandlerTypes(c)
+      caseHandlerTypesAsCtors <- traverseMap(allCaseHandlerTypes) {
+        case FunType(RecType(fields), _) => Right(RecType(fields))
+        case t => Left(s"Invalid case handler type: ${print_type(t)}")
+      }
+      matchAdtDefn <-
+        c.matchType.path
+          .flatMap(getCompleteLinkage(_).adts.get(c.matchType.name))
+          .fold(Left(s"No ADT ${c.matchType.name} in ${print_path(c.matchType.path.get)}"))(Right.apply)
+      allCtors = collectAllConstructors(matchAdtDefn)
+
+      // Exhaustive check
+      _ <-
+        if caseHandlerTypesAsCtors == allCtors then Right(())
+        else Left(s"Cases ${c.name} in ${print_path(curPath)} is non-exhaustive:\n$allCaseHandlerTypes\n$allCtors")
+      caseHandlerOutTypes <- traverseMap(allCaseHandlerTypes) {
+        case FunType(_, outType) => Right(outType)
+        case t => Left(s"Invalid type ${print_type(t)} for case handler for cases ${c.name}")
+      }.map(_.values.toList)
+      // Consistent result type check
+      _ <- unifyTypes(caseHandlerOutTypes).left.map { unifyErrMsg =>
+      s"""Inconsistent output types for case handlers for cases ${c.name} in ${print_path(curPath)}:
+         |$unifyErrMsg
+         |""".stripMargin
       }
 
-      // look up the name of the ADT type in the linkage
-      val getAdt = c.matchType.path.flatMap(getCompleteLinkage(_).adts.get(c.matchType.name))
-      getAdt.fold(Left(s"No ADT ${c.matchType.name} in ${print_path(c.matchType.path.get)}"))(Right.apply).flatMap {
-        case AdtDefn(name, marker, DefnBody(Some(ctors), _, _)) => for {
-          caseFnTypesAsCtors <- traverseMap(caseFnTypes) {
-            case FunType(fs@RecType(_), _) => Right(fs)
-            case t => Left(s"Invalid type ${print_type(t)} for case handler for cases ${c.name}")
-          }
-          // Exhaustive check
-          _ <-
-            if caseFnTypesAsCtors == ctors then Right(())
-            else Left(s"Cases ${c.name} is non-exhaustive")
-          caseFnOutTypes <- traverseMap(caseFnTypes) {
-            case FunType(_, outType) => Right(outType)
-            case t => Left(s"Invalid type ${print_type(t)} for case handler for cases ${c.name}")
-          }.map(_.values.toList)
-          // Consistent result type check
-          _ <- caseFnOutTypes match {
-            case Nil => throw new Exception("Should not be empty here")
-            // TODO: should check instead that they are subtypes of some type...
-            case ot :: ots if ots.forall(_ == ot) => Right(())
-            case _ => Left(s"Inconsistent output types for case handlers for cases ${c.name} in ${print_path(curPath)}")
-          }
-          // Check body
-          defnType <- typeOfExpression(Map.empty)(defn)
-          _ <-
-            if isSubtype(defnType, c.t) then Right(())
-            else Left(
-              s"""Type mismatch error for cases `${c.name}` in ${print_path(curPath)}:
-                 |Found:    ${print_type(defnType)}
-                 |Required: ${print_type(c.t)}
-                 |""".stripMargin
-            )
-        } yield ()
-        case _ => Left("TODO cannot have cases for an ADT with no definition")
+      // Check body
+      _ <- c.casesBody.defn match {
+        case None => Right(())
+        case Some(defn) => typeOfExpression(Map.empty)(defn).flatMap { defnType =>
+          if isSubtype(defnType, c.t) then Right(())
+          else Left(
+            s"""Type mismatch error for cases `${c.name}` in ${print_path(curPath)}:
+               |Found:    ${print_type(defnType)}
+               |Required: ${print_type(c.t)}
+               |""".stripMargin
+          )
+        }
       }
+    } yield ()
   }
 
   // Exceptions or Option?
@@ -438,21 +463,18 @@ object type_checking {
           lkg.adts.get(tName).fold(Left(s"No ADT $tName in ${print_path(path)}"))(Right.apply).flatMap {
             case AdtDefn(name, marker, DefnBody(Some(ctors), _, _)) => for {
               // Checking shape of g
-              _ <- g match {
-                case App (FamCases (_, _), Rec (_)) => Right(())
+              casesDefn <- g match {
+                case App(FamCases(Some(casesPath), casesName), Rec(_)) =>
+                  val lkg = getCompleteLinkage(casesPath)
+                  lkg.depot.get(casesName).fold(Left(s"No cases $casesName in ${print_path(path)}"))(Right.apply)
                 case _ => Left(s"${print_exp(g)} is not a valid match argument.")
               }
-              gType <- typeOfExpression(G)(g)
-              outType <- gType match {
-                case RecType (caseFns) =>
-                  // Just get the output type from a single case... TODO: not enough for all cases
-                  caseFns.toList match {
-                    case Nil => throw new Exception ("Should not be possible for an ADT to have no constructors")
-                    case (_, FunType (_, outType)) :: _ => Right (outType)
-                    case _ => throw new Exception ("Malformed cases type should be checked at the top-level")
-                  }
-                case _ => Left ("TODO invalid match handler")
-              }
+              allCaseHandlerTypes <- collectAllCaseHandlerTypes(casesDefn)
+              caseHandlerOutTypes <- traverseMap(allCaseHandlerTypes) {
+                case FunType(_, outType) => Right(outType)
+                case t => Left(s"Invalid type ${print_type(t)} for case handler for cases ${casesDefn.name}")
+              }.map(_.values.toList)
+              outType <- unifyTypes(caseHandlerOutTypes)
             } yield outType
             case _ => Left("TODO cannot have cases in family that does not extend adt")
           }
@@ -635,7 +657,7 @@ object type_checking {
           markInheritForm(l1InheritForm, resolvePath(Sp(l1.self)))(l1)
         )
       Linkage(
-        l2.path,
+        resolvePath(Sp(l2.self)),
         l2.self,
         l2.sup,
         concatTypes(l1SelfSubbed.types, l2.types),
@@ -752,7 +774,7 @@ object type_checking {
       // For implementation purposes, we do not absorb inherited cases directly.
       // The result `DefnBody` is instead marked with information about where it inherits from,
       // which is used to look up those other cases recursively
-      CasesDefn(casesName, curMatchType, resultT, PlusEq, curCasesDefn)
+      CasesDefn(casesName, curMatchType, resultT, PlusEq, mergeDefnBody(prevCasesDefn, curCasesDefn))
     case _ => throw new Exception("TODO invalid cases definition")
   }
 
@@ -775,6 +797,7 @@ object type_checking {
   // ______________________________________________ CAT_LINKS
   // L'.NESTED + I.NESTED = L".NESTED
   def concatNested(nested1: Map[String, Linkage], nested2: Map[String, Linkage]): Map[String, Linkage] = unionWith(nested1, nested2) {
-    (lkgLPrime_A, lkgI_A) => concatLinkages(FurtherBinds)(Some(lkgLPrime_A), lkgI_A)
+    (lkgLPrime_A, lkgI_A) =>
+      concatLinkages(FurtherBinds)(Some(lkgLPrime_A), lkgI_A)
   }
 }
