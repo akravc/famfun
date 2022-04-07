@@ -59,69 +59,60 @@ object type_checking {
     )
   }
 
-  def collectAllDefns[B, R](defnBody: DefnBody[B])
-                           (fromLinkage: Linkage => DefnBody[B])
-                           (toResult: B => R)
-                           (emptyResult: R)
-                           (concatResults: (R, R) => R): R = {
+  def collectAllDefns[C, B, R](defnContainer: C)
+                              (defnFromContainer: C => DefnBody[B])
+                              (fromLinkage: Linkage => C)
+                              (toResult: C => R)
+                              (emptyResult: R)
+                              (concatResults: (R, R) => R): R = {
     val visitedPaths: scala.collection.mutable.Set[Path] = scala.collection.mutable.Set.empty
 
-    def collectAllDefnsHelp(defnBody: DefnBody[B]): R = {
+    def collectAllDefnsHelp(defnContainer: C): R = {
+      val defnBody = defnFromContainer(defnContainer)
       val extendsDefns: R = defnBody.extendsFrom match {
         case Some(p) if !visitedPaths.contains(p) =>
           visitedPaths += p
-          val extendsDefnBody = fromLinkage(getCompleteLinkage(p))
-          collectAllDefnsHelp(extendsDefnBody)
+          val extendsDefnContainer = fromLinkage(getCompleteLinkage(p))
+          collectAllDefnsHelp(extendsDefnContainer)
         case _ => emptyResult
       }
       val furtherBindsDefns: R = defnBody.furtherBindsFrom match {
         case Some(p) if !visitedPaths.contains(p) =>
           visitedPaths += p
-          val furtherBindsDefnBody = fromLinkage(getCompleteLinkage(p))
-          collectAllDefnsHelp(furtherBindsDefnBody)
+          val furtherBindsDefnContainer = fromLinkage(getCompleteLinkage(p))
+          collectAllDefnsHelp(furtherBindsDefnContainer)
         case _ => emptyResult
       }
-      val curDefns: R = defnBody.defn.map(toResult)getOrElse(emptyResult)
+      val curDefns: R = toResult(defnContainer)
 
       concatResults(concatResults(extendsDefns, furtherBindsDefns), curDefns)
     }
-    collectAllDefnsHelp(defnBody)
+    collectAllDefnsHelp(defnContainer)
   }
 
   def collectAllConstructors(adtDefn: AdtDefn): Map[String, RecType] = {
-    val AdtDefn(name, _, adtBody) = adtDefn
-    collectAllDefns(adtBody) { lkg =>
+    collectAllDefns(adtDefn)(_.adtBody) { lkg =>
       lkg.adts
-        .getOrElse(name, throw new Exception(s"${lkg.self} should contain an ADT definition for $name by construction"))
-        .adtBody
-    } { m => m } (Map.empty) { _ ++ _ }
+        .getOrElse(adtDefn.name, throw new Exception(s"${lkg.self} should contain an ADT definition for ${adtDefn.name} by construction"))
+    } { _.adtBody.defn.getOrElse(Map.empty) } (Map.empty) { _ ++ _ }
   }
 
   def collectAllNamedTypeFields(typeDefn: TypeDefn): Map[String, Type] = {
-    val TypeDefn(name, _, typeBody) = typeDefn
-    collectAllDefns(typeBody) { lkg =>
+    collectAllDefns(typeDefn)(_.typeBody) { lkg =>
       lkg.types
-        .getOrElse(name, throw new Exception(s"${lkg.self} should contain a type definition for $name by construction"))
-        .typeBody
-    } { r => r.fields } (Map.empty) { _ ++ _ }
+        .getOrElse(typeDefn.name, throw new Exception(s"${lkg.self} should contain a type definition for ${typeDefn.name} by construction"))
+    } { _.typeBody.defn.map(_.fields).getOrElse(Map.empty) } (Map.empty) { _ ++ _ }
   }
 
   def collectAllCaseHandlerTypes(casesDefn: CasesDefn): Either[String, Map[String, Type]] = {
-    val CasesDefn(name, _, t, _, casesBody) = casesDefn
-    def collectRec(p: Path): Either[String, Map[String, Type]] = {
-      val pLkg = getCompleteLinkage(p)
-      collectAllCaseHandlerTypes(pLkg.depot.getOrElse(name, throw new Exception("cases should exist by construction")))
-    }
-
-    for {
-      curCaseFnTypes <- t match {
-        case RecType (cfTypes) => Right (cfTypes)
-        case FunType (RecType (_), RecType (cfTypes)) => Right (cfTypes)
-        case _ => Left (s"Invalid shape for cases type: ${print_type (t)}")
-      }
-      extendsCaseFnTypes <- casesBody.extendsFrom.map(collectRec).getOrElse(Right(Map.empty))
-      furtherBindsCaseFnTypes <- casesBody.furtherBindsFrom.map(collectRec).getOrElse(Right(Map.empty))
-    } yield extendsCaseFnTypes ++ furtherBindsCaseFnTypes ++ curCaseFnTypes
+    collectAllDefns(casesDefn)(_.casesBody) { lkg =>
+      lkg.depot
+        .getOrElse(casesDefn.name, throw new Exception(s"${lkg.self} should contain a cases definition for ${casesDefn.name} by construction"))
+    } { cDefn => cDefn.t match {
+      case RecType (cfTypes) => Right (cfTypes)
+      case FunType (RecType (_), RecType (cfTypes)) => Right (cfTypes)
+      case _ => Left (s"Invalid shape for cases type: ${print_type(cDefn.t)}")
+    }} (Right(Map.empty)) { (result1, result2) => for { m1 <- result1; m2 <- result2 } yield m1 ++ m2 }
   }
 
   def unifyTypes(types: List[Type]): Either[String, Type] = types match {
@@ -275,16 +266,16 @@ object type_checking {
       // Exhaustive check
       _ <-
         if caseHandlerTypesAsCtors == allCtors then Right(())
-        else Left(s"Cases ${c.name} in ${print_path(curPath)} is non-exhaustive:\n$allCaseHandlerTypes\n$allCtors")
+        else Left(s"Cases ${c.name} in ${print_path(curPath)} is non-exhaustive.")
       caseHandlerOutTypes <- traverseMap(allCaseHandlerTypes) {
         case FunType(_, outType) => Right(outType)
-        case t => Left(s"Invalid type ${print_type(t)} for case handler for cases ${c.name}")
+        case t => Left(s"Invalid type ${print_type(t)} for case handler for cases ${c.name} in ${print_path(curPath)}")
       }.map(_.values.toList)
       // Consistent result type check
       _ <- unifyTypes(caseHandlerOutTypes).left.map { unifyErrMsg =>
-      s"""Inconsistent output types for case handlers for cases ${c.name} in ${print_path(curPath)}:
-         |$unifyErrMsg
-         |""".stripMargin
+        s"""Inconsistent output types for case handlers for cases ${c.name} in ${print_path(curPath)}:
+            |$unifyErrMsg
+            |""".stripMargin
       }
 
       // Check body
