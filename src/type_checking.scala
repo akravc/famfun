@@ -201,7 +201,7 @@ object type_checking {
   //   ie: reject Family X { Family Y { val f: self(Z).R -> B = ... } } even if Family Z exists
   def typeCheckLinkage(l: Linkage): Either[String, Unit] = {
     val completeL = getCompleteLinkage(l.path)
-    val curPath = resolvePath(completeL.path)
+    val curPath = concretizePath(completeL.path)
     for {
       _ <- traverseMap(completeL.defaults) { d =>
         val assocType = completeL.types.getOrElse(d.name, throw new Exception("Should not happen by construction"))
@@ -482,7 +482,7 @@ object type_checking {
     // K |- sp.A ~> L
     // ______________________ L-Self
     // K |- self(sp.A) ~> L
-    val pathResolved: Path = resolvePath(p)
+    val pathResolved: Path = concretizePath(p)
 
     K.get(pathResolved) match {
       case Some(lkg) => lkg
@@ -649,7 +649,7 @@ object type_checking {
           markInheritForm(l1InheritForm)(l1)
         )
       Linkage(
-        resolvePath(Sp(l2.self)),
+        concretizePath(Sp(l2.self)),
         l2.self,
         l2.sup,
         concatTypes(l1SelfSubbed.types, l2.types),

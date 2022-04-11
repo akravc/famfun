@@ -116,12 +116,12 @@ object name_resolution {
     } yield Lam(v, resolvedT, resolvedBody)
     case FamFun(None, name) => Right(FamFun(Some(Sp(curSelf)), name))
     case FamFun(Some(p), name) =>
-      validatePath(s"Invalid path ${print_path(p)} in ${print_path(resolvePath(Sp(curSelf)))}", curSelf)(p).map { validatedP =>
+      validatePath(s"Invalid path ${print_path(p)} in ${print_path(concretizePath(Sp(curSelf)))}", curSelf)(p).map { validatedP =>
         FamFun(Some(validatedP), name)
       }
     case FamCases(None, name) => Right(FamCases(Some(Sp(curSelf)), name))
     case FamCases(Some(p), name) =>
-      validatePath(s"Invalid path ${print_path(p)} in ${print_path(resolvePath(Sp(curSelf)))}", curSelf)(p).map { validatedP =>
+      validatePath(s"Invalid path ${print_path(p)} in ${print_path(concretizePath(Sp(curSelf)))}", curSelf)(p).map { validatedP =>
         FamFun(Some(validatedP), name)
       }
     case App(e1, e2) => for {
@@ -150,7 +150,7 @@ object name_resolution {
   def resolveSelfPathsType(curSelf: SelfPath)(t: Type): Either[String, Type] = t match {
     case FamType(None, name) => Right(FamType(Some(Sp(curSelf)), name))
     case FamType(Some(p), name) =>
-      validatePath(s"Invalid path ${print_path(p)} in ${print_path(resolvePath(Sp(curSelf)))}", curSelf)(p).map { validatedP =>
+      validatePath(s"Invalid path ${print_path(p)} in ${print_path(concretizePath(Sp(curSelf)))}", curSelf)(p).map { validatedP =>
         FamType(Some(validatedP), name)
       }
     case FunType(input, output) => for {

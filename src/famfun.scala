@@ -15,11 +15,10 @@ object famfun {
   }
 
   // Transforms all self paths into absolute paths (except Prog)
-  // TODO: is this what we want?
-  def resolvePath(p: Path): Path = p match {
+  def concretizePath(p: Path): Path = p match {
     case Sp(Prog) => p
-    case Sp(SelfFamily(pref, fam)) => AbsoluteFamily(resolvePath(Sp(pref)), fam)
-    case AbsoluteFamily(pref, fam) => AbsoluteFamily(resolvePath(pref), fam)
+    case Sp(SelfFamily(pref, fam)) => AbsoluteFamily(concretizePath(Sp(pref)), fam)
+    case AbsoluteFamily(pref, fam) => AbsoluteFamily(concretizePath(pref), fam)
   }
 
   // Types
@@ -32,7 +31,7 @@ object famfun {
 
   // Transforms self paths in types into absolute paths (except Prog)
   def resolveType(t: Type): Type = t match {
-    case FamType(path, name) => FamType(path.map(resolvePath), name)
+    case FamType(path, name) => FamType(path.map(concretizePath), name)
     case FunType(input, output) => FunType(resolveType(input), resolveType(output))
     case RecType(fields) => RecType(fields.view.mapValues(resolveType).toMap)
     case _ => t
