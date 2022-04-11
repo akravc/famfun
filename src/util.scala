@@ -88,7 +88,7 @@ object PrettyPrint {
 
     print("DEFAULTS:\n")
     val defmap = lkg.defaults.view.mapValues {
-      case DefaultDefn(s, m, defaultBody) => "type " + s + print_marker(m) +  print_body(defaultBody) + "\n"
+      case DefaultDefn(s, m, defaultBody) => "type " + s + print_marker(m) +  print_body(defaultBody)(print_exp) + "\n"
     }
     print(defmap.mkString)
     print("\n\n")

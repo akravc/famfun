@@ -1,5 +1,5 @@
 Family X {
-  type R = R1 {n: N}
+  type R = {n: N}
 
   Family C {
     type T = T1 {n: N}
@@ -26,7 +26,7 @@ Family X {
 }
 
 Family Y extends X {
-  type R += R2 {b: B}
+  type R += {b: B = true}
 
   Family C {
     type T += T3 {t: T} | T4 {t1: T, t2: T}

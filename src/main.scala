@@ -21,6 +21,7 @@ object famfun_main {
           case Left(msg) => println(msg)
           case Right(_) => println("Type-checking succeeded")
         }
+        print_lkg(getCompleteLinkage(AbsoluteFamily(Sp(Prog), "Y")))
       case _ => println(parsed)
     }
   }

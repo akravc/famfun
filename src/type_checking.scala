@@ -44,6 +44,9 @@ object type_checking {
       types = l.types.view.mapValues { typeDefn =>
         typeDefn.copy(typeBody = markBody(typeDefn.typeBody))
       }.toMap,
+      defaults= l.defaults.view.mapValues { defaultDefn =>
+        defaultDefn.copy(defaultBody = markBody(defaultDefn.defaultBody))
+      }.toMap,
       adts = l.adts.view.mapValues { adtDefn =>
         adtDefn.copy(adtBody = markBody(adtDefn.adtBody))
       }.toMap,
@@ -228,25 +231,45 @@ object type_checking {
     val completeL = getCompleteLinkage(l.path)
     val curPath = resolvePath(completeL.path)
     for {
-      //completeL.defaults.values.forall(typeCheckDefaults)
+      _ <- traverseMap(completeL.defaults) { d =>
+        val assocType = completeL.types.getOrElse(d.name, throw new Exception("Should not happen by construction"))
+        typeCheckDefaultDefns(curPath, assocType)(d)
+      }
       _ <- traverseMap(completeL.funs)(typeCheckFunDefns(curPath))
       _ <- traverseMap(completeL.depot)(typeCheckCasesDefns(curPath))
       _ <- traverseMap(completeL.nested)(typeCheckLinkage)
     } yield ()
   }
 
+  def typeCheckDefaultDefns(curPath: Path, assocType: TypeDefn)(d: DefaultDefn): Either[String, Unit] = (assocType.typeBody, d.defaultBody) match {
+    case (DefnBody(None, _, _), DefnBody(None, _, _)) => Right(())
+    case (DefnBody(Some(fieldTypes), _, _), DefnBody(Some(defn), _, _)) =>
+      traverseWithKeyMap(defn.fields) { (fieldName, expr) =>
+        typeOfExpression(Map.empty)(expr).flatMap { eType =>
+          val fieldType = fieldTypes.fields.getOrElse(fieldName, throw new Exception("Should not happen by construction"))
+          if isSubtype(eType, fieldType) then Right(())
+          else Left(
+            s"""Type mismatch for default value ${print_exp(expr)} for field $fieldName in type ${assocType.name} in ${print_path(curPath)}:
+               |Found:    ${print_type(eType)}
+               |Required: ${print_type(fieldType)}
+               |""".stripMargin
+          )
+        }
+      }.map(_ => ())
+    case _ => throw new Exception("Should not happen by construction")
+  }
+
   def typeCheckFunDefns(curPath: Path)(f: FunDefn): Either[String, Unit] = f.funBody match {
     case DefnBody(None, _, _) => Right(())
     case DefnBody(Some(defn), _, _) =>
       typeOfExpression(Map.empty)(defn).flatMap { defnType =>
-        if !isSubtype(defnType, f.t) then
-          Left(
-            s"""Type mismatch error for function `${f.name}` in ${print_path(curPath)}:
-               |Found:    ${print_type(defnType)}
-               |Required: ${print_type(f.t)}
-               |""".stripMargin
-          )
-        else Right(())
+        if isSubtype(defnType, f.t) then Right(())
+        else Left(
+          s"""Type mismatch error for function `${f.name}` in ${print_path(curPath)}:
+             |Found:    ${print_type(defnType)}
+             |Required: ${print_type(f.t)}
+             |""".stripMargin
+        )
       }
   }
 
@@ -658,7 +681,7 @@ object type_checking {
         l2.self,
         l2.sup,
         concatTypes(l1SelfSubbed.types, l2.types),
-        l2.defaults, // TODO: bring this back; concatDefaults(l1SelfSubbed.defaults, l2.defaults),
+        concatDefaults(l1SelfSubbed.defaults, l2.defaults),
         concatAdts(l1SelfSubbed.adts, l2.adts),
         concatFuns(l1SelfSubbed.funs, l2.funs),
         concatCases(l1SelfSubbed.depot, l2.depot),
@@ -690,7 +713,28 @@ object type_checking {
     case _ => throw new Exception("TODO invalid type definition")
   }
 
-  def concatDefaults(defaults1: Map[String, DefaultDefn], defaults2: Map[String, DefaultDefn]): Map[String, (Marker, Rec)] = ???
+  // forall D, def, def',
+  //     D = def in L'.DEFAULTS -->
+  //     D (+?)= def' notin I.DEFAULTS -->
+  //     D = def in L".DEFAULTS
+  //
+  // forall D, def, def',
+  //     D = def in I.DEFAULTS -->
+  //     D = def' notin L'.DEFAULTS -->
+  //     D = def in L".DEFAULTS
+  //
+  // forall D, ext, def,
+  //     D += ext in I.DEFAULTS -->
+  //     D = def in L'.DEFAULTS -->
+  //     def' = def + ext -->
+  //     D = def' in L".DEFAULTS
+  // ____________________________________ CAT_DEFAULTS
+  // L'.DEFAULTS + I.DEFAULTS = L".DEFAULTS
+  def concatDefaults(defaults1: Map[String, DefaultDefn], defaults2: Map[String, DefaultDefn]): Map[String, DefaultDefn] = unionWith(defaults1, defaults2) {
+    case (DefaultDefn(typeR, _, defLPrime), DefaultDefn(_typeR, PlusEq, defI)) =>
+      DefaultDefn(typeR, PlusEq, mergeDefnBody(defLPrime, defI))
+    case _ => throw new Exception("TODO invalid default definition")
+  }
 
   // forall R, adtdef, adtdef',
   //     R = adtdef in L'.ADTS -->
