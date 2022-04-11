@@ -1,107 +1,163 @@
-import famfun._
+import famfun.*
+import MapOps.*
+import PrettyPrint.*
+
+import scala.annotation.tailrec
 
 object name_resolution {
+  def validatePath(errMsg: String, ctx: SelfPath)(path: Path): Either[String, Path] =
+    if validPath(ctx)(path) then Right(path)
+    else Left(errMsg)
+
+  def validateOptPath(errMsg: String, ctx: SelfPath)(optPath: Option[Path]): Either[String, Option[Path]] = optPath match {
+    case None => Right(None)
+    case Some(path) => validatePath(errMsg, ctx)(path).map(Some.apply)
+  }
+
+  @tailrec
+  def validPath(ctx: SelfPath)(path: Path): Boolean = path match {
+    case Sp(sp) => validSelfPath(ctx)(sp)
+    case AbsoluteFamily(pref, _) => validPath(ctx)(pref)
+  }
+
+  // Determines whether `selfPath` is a valid self path in the context with self path `ctx`;
+  // ie: is `selfPath` a prefix of `curSelf`?
+  def validSelfPath(ctx: SelfPath)(selfPath: SelfPath): Boolean = {
+    @tailrec
+    def selfPathToFamList(sp: SelfPath, acc: List[String] = Nil): List[String] = sp match {
+      case Prog => acc
+      case SelfFamily(pref, fam) => selfPathToFamList(pref, fam :: acc)
+    }
+    @tailrec
+    def isPrefix[T](lst1: List[T], lst2: List[T]): Boolean = (lst1, lst2) match {
+      case (Nil, _) => true
+      case (x :: xs, y :: ys) if x == y => isPrefix(xs, ys)
+      case _ => false
+    }
+
+    isPrefix(selfPathToFamList(selfPath), selfPathToFamList(ctx))
+  }
+
   // A pass that:
   // 1. resolves whether things parsed as variables are actually variables or function names and
   // 2. resolves implicit self paths.
-  def resolveImplicitSelfPaths(l: Linkage): Linkage = l.copy(
-    types =
-      l.types.view
-        .mapValues(resolveImplicitSelfPathsTypeDefn(l.self))
-        .toMap
-    ,
-    defaults =
-      l.defaults.view
-        .mapValues(resolveImplicitSelfPathsDefaultDefn(l.self))
-        .toMap,
-    adts =
-      l.adts.view
-        .mapValues(resolveImplicitSelfPathsAdtDefn(l.self))
-        .toMap,
-    funs =
-      l.funs.view
-        .mapValues(resolveImplicitSelfPathsFunDefn(l.self, Set.empty))
-        .toMap,
-    depot =
-      l.depot.view
-        .mapValues(resolveImplicitSelfPathsCasesDefn(l.self, Set.empty))
-        .toMap,
-    nested =
-      l.nested.view
-        .mapValues(resolveImplicitSelfPaths)
-        .toMap
+  // 3. verifies self paths mentioned are valid.
+  def resolveSelfPaths(l: Linkage): Either[String, Linkage] = for {
+    resolvedSup <- l.sup match {
+      case None => Right(None)
+      case Some(p) =>
+        validatePath(s"Invalid path ${print_path(p)} in ${print_path(l.path)}", l.self)(p).map(Some.apply)
+    }
+    resolvedTypes <- traverseMap(l.types)(resolveSelfPathsTypeDefn(l.self))
+    resolvedDefaults <- traverseMap(l.defaults)(resolveSelfPathsDefaultDefn(l.self))
+    resolvedAdts <- traverseMap(l.adts)(resolveSelfPathsAdtDefn(l.self))
+    resolvedFuns <- traverseMap(l.funs)(resolveSelfPathsFunDefn(l.self, Set.empty))
+    resolvedDepot <- traverseMap(l.depot)(resolveSelfPathsCasesDefn(l.self, Set.empty))
+    resolvedNested <- traverseMap(l.nested)(resolveSelfPaths)
+  } yield l.copy(
+    sup = resolvedSup,
+    types = resolvedTypes,
+    defaults = resolvedDefaults,
+    adts = resolvedAdts,
+    funs = resolvedFuns,
+    depot = resolvedDepot,
+    nested = resolvedNested
   )
-  def resolveImplicitSelfPathsRec(curSelf: SelfPath, boundVars: Set[String])(r: Rec): Rec = r.copy(
-    fields =
-      r.fields.view
-        .mapValues(resolveImplicitSelfPathsExpression(curSelf, boundVars))
-        .toMap
-  )
-  def resolveImplicitSelfPathsTypeDefn(curSelf: SelfPath)(t: TypeDefn): TypeDefn = t.copy(
-    typeBody = resolveImplicitSelfPathsDefnBody { (rt: RecType) =>
-      resolveImplicitSelfPathsType(curSelf)(rt).asInstanceOf[RecType]
-    }(t.typeBody)
-  )
-  def resolveImplicitSelfPathsDefaultDefn(curSelf: SelfPath)(d: DefaultDefn): DefaultDefn = d.copy(
-    defaultBody = resolveImplicitSelfPathsDefnBody { (r: Rec) =>
-      resolveImplicitSelfPathsExpression(curSelf, Set.empty)(r).asInstanceOf[Rec]
-    }(d.defaultBody)
-  )
-  def resolveImplicitSelfPathsAdtDefn(curSelf: SelfPath)(a: AdtDefn): AdtDefn = a.copy(
-    adtBody = resolveImplicitSelfPathsDefnBody { (cs: Map[String, RecType]) =>
-      cs.view.mapValues { (rt: RecType) =>
-        resolveImplicitSelfPathsType(curSelf)(rt).asInstanceOf[RecType]
-      }.toMap
-    }(a.adtBody)
-  )
-  def resolveImplicitSelfPathsFunDefn(curSelf: SelfPath, boundVars: Set[String])(f: FunDefn): FunDefn = f.copy(
-    t = resolveImplicitSelfPathsType(curSelf)(f.t).asInstanceOf[FunType],
-    funBody = resolveImplicitSelfPathsDefnBody(resolveImplicitSelfPathsExpression(curSelf, boundVars))(f.funBody)
-  )
-  def resolveImplicitSelfPathsCasesDefn(curSelf: SelfPath, boundVars: Set[String])(c: CasesDefn): CasesDefn = c.copy(
-    matchType = resolveImplicitSelfPathsType(curSelf)(c.matchType).asInstanceOf[FamType],
-    t = resolveImplicitSelfPathsType(curSelf)(c.t),
-    casesBody = resolveImplicitSelfPathsDefnBody(resolveImplicitSelfPathsExpression(curSelf, boundVars))(c.casesBody)
-  )
-  def resolveImplicitSelfPathsDefnBody[B](resolveInB: B => B)(b: DefnBody[B]): DefnBody[B] = b.copy(
-    defn = b.defn.map(resolveInB)
-  )
-  def resolveImplicitSelfPathsExpression(curSelf: SelfPath, boundVars: Set[String])(e: Expression): Expression = e match {
-    case Var(id) if !boundVars.contains(id) => FamFun(Some(Sp(curSelf)), id)
-    case Lam(v, t, body) => Lam(
-      v,
-      resolveImplicitSelfPathsType(curSelf)(t),
-      resolveImplicitSelfPathsExpression(curSelf, boundVars + v.id)(body))
-    case FamFun(None, name) => FamFun(Some(Sp(curSelf)), name)
-    case FamCases(None, name) => FamCases(Some(Sp(curSelf)), name)
-    case App(e1, e2) => App(
-      resolveImplicitSelfPathsExpression(curSelf, boundVars)(e1),
-      resolveImplicitSelfPathsExpression(curSelf, boundVars)(e2)
-    )
-    case r@Rec(_) => resolveImplicitSelfPathsRec(curSelf, boundVars)(r)
-    case Proj(e, name) => Proj(resolveImplicitSelfPathsExpression(curSelf, boundVars)(e), name)
-    case Inst(t, rec) => Inst(
-      resolveImplicitSelfPathsType(curSelf)(t).asInstanceOf[FamType],
-      resolveImplicitSelfPathsRec(curSelf, boundVars)(rec)
-    )
-    case InstADT(t, cname, rec) => InstADT(
-      resolveImplicitSelfPathsType(curSelf)(t).asInstanceOf[FamType],
-      cname,
-      resolveImplicitSelfPathsRec(curSelf, boundVars)(rec)
-    )
-    case Match(e, g) => Match(
-      resolveImplicitSelfPathsExpression(curSelf, boundVars)(e),
-      resolveImplicitSelfPathsExpression(curSelf, boundVars)(g)
-    )
-    case _ => e
+
+  def resolveSelfPathsRec(curSelf: SelfPath, boundVars: Set[String])(r: Rec): Either[String, Rec] =
+    traverseMap(r.fields)(resolveSelfPathsExpression(curSelf, boundVars)).map { resolvedFields =>
+      r.copy(fields = resolvedFields)
+    }
+
+  def resolveSelfPathsTypeDefn(curSelf: SelfPath)(t: TypeDefn): Either[String, TypeDefn] =
+    resolveSelfPathsDefnBody { (rt: RecType) =>
+      resolveSelfPathsType(curSelf)(rt).asInstanceOf[Either[String, RecType]]
+    }(t.typeBody).map { resolvedTypeBody =>
+      t.copy(typeBody = resolvedTypeBody)
+    }
+
+  def resolveSelfPathsDefaultDefn(curSelf: SelfPath)(d: DefaultDefn): Either[String, DefaultDefn] =
+    resolveSelfPathsDefnBody { (r: Rec) =>
+      resolveSelfPathsExpression(curSelf, Set.empty)(r).asInstanceOf[Either[String, Rec]]
+    }(d.defaultBody).map { resolvedDefaultBody =>
+      d.copy(defaultBody = resolvedDefaultBody)
+    }
+
+  def resolveSelfPathsAdtDefn(curSelf: SelfPath)(a: AdtDefn): Either[String, AdtDefn] =
+    resolveSelfPathsDefnBody { (cs: Map[String, RecType]) =>
+      traverseMap(cs) { (rt: RecType) =>
+        resolveSelfPathsType(curSelf)(rt).asInstanceOf[Either[String, RecType]]
+      }
+    }(a.adtBody).map { resolvedAdtBody =>
+      a.copy(adtBody = resolvedAdtBody)
+    }
+
+  def resolveSelfPathsFunDefn(curSelf: SelfPath, boundVars: Set[String])(f: FunDefn): Either[String, FunDefn] = for {
+    resolvedT <- resolveSelfPathsType(curSelf)(f.t).asInstanceOf[Either[String, FunType]]
+    resolvedFunBody <- resolveSelfPathsDefnBody(resolveSelfPathsExpression(curSelf, boundVars))(f.funBody)
+  } yield f.copy(t = resolvedT, funBody = resolvedFunBody)
+
+  def resolveSelfPathsCasesDefn(curSelf: SelfPath, boundVars: Set[String])(c: CasesDefn): Either[String, CasesDefn] = for {
+    resolvedMatchType <- resolveSelfPathsType(curSelf)(c.matchType).asInstanceOf[Either[String, FamType]]
+    resolvedT <- resolveSelfPathsType(curSelf)(c.t)
+    resolvedCasesBody <- resolveSelfPathsDefnBody(resolveSelfPathsExpression(curSelf, boundVars))(c.casesBody)
+  } yield c.copy(matchType = resolvedMatchType, t = resolvedT, casesBody = resolvedCasesBody)
+
+  def resolveSelfPathsDefnBody[B](resolveInB: B => Either[String, B])(b: DefnBody[B]): Either[String, DefnBody[B]] = b.defn match {
+    case None => Right(b)
+    case Some(defn) => resolveInB(defn).map { resolvedDefn => b.copy(defn = Some(resolvedDefn)) }
   }
-}
-def resolveImplicitSelfPathsType(curSelf: SelfPath)(t: Type): Type = t match {
-  case FamType(None, name) => FamType(Some(Sp(curSelf)), name)
-  case FunType(input, output) => FunType(
-    resolveImplicitSelfPathsType(curSelf)(input),
-    resolveImplicitSelfPathsType(curSelf)(output)
-  )
-  case RecType(fields) => RecType(fields.view.mapValues(resolveImplicitSelfPathsType(curSelf)).toMap)
-  case _ => t
+
+  def resolveSelfPathsExpression(curSelf: SelfPath, boundVars: Set[String])(e: Expression): Either[String, Expression] = e match {
+    case Var(id) if !boundVars.contains(id) => Right(FamFun(Some(Sp(curSelf)), id))
+    case Lam(v, t, body) => for {
+      resolvedT <- resolveSelfPathsType(curSelf)(t)
+      resolvedBody <- resolveSelfPathsExpression(curSelf, boundVars + v.id)(body)
+    } yield Lam(v, resolvedT, resolvedBody)
+    case FamFun(None, name) => Right(FamFun(Some(Sp(curSelf)), name))
+    case FamFun(Some(p), name) =>
+      validatePath(s"Invalid path ${print_path(p)} in ${print_path(resolvePath(Sp(curSelf)))}", curSelf)(p).map { validatedP =>
+        FamFun(Some(validatedP), name)
+      }
+    case FamCases(None, name) => Right(FamCases(Some(Sp(curSelf)), name))
+    case FamCases(Some(p), name) =>
+      validatePath(s"Invalid path ${print_path(p)} in ${print_path(resolvePath(Sp(curSelf)))}", curSelf)(p).map { validatedP =>
+        FamFun(Some(validatedP), name)
+      }
+    case App(e1, e2) => for {
+      resolvedE1 <- resolveSelfPathsExpression(curSelf, boundVars)(e1)
+      resolvedE2 <- resolveSelfPathsExpression(curSelf, boundVars)(e2)
+    } yield App(resolvedE1, resolvedE2)
+    case r@Rec(_) => resolveSelfPathsRec(curSelf, boundVars)(r)
+    case Proj(e, name) => resolveSelfPathsExpression(curSelf, boundVars)(e).map { resolvedE =>
+      Proj(resolvedE, name)
+    }
+    case Inst(t, rec) => for {
+      resolvedT <- resolveSelfPathsType(curSelf)(t).asInstanceOf[Either[String, FamType]]
+      resolvedRec <- resolveSelfPathsRec(curSelf, boundVars)(rec)
+    } yield Inst(resolvedT, resolvedRec)
+    case InstADT(t, cname, rec) => for {
+      resolvedT <- resolveSelfPathsType(curSelf)(t).asInstanceOf[Either[String, FamType]]
+      resolvedRec <- resolveSelfPathsRec(curSelf, boundVars)(rec)
+    } yield InstADT(resolvedT, cname, resolvedRec)
+    case Match(e, g) => for {
+      resolvedE <- resolveSelfPathsExpression(curSelf, boundVars)(e)
+      resolvedG <- resolveSelfPathsExpression(curSelf, boundVars)(g)
+    } yield Match(resolvedE, resolvedG)
+    case _ => Right(e)
+  }
+
+  def resolveSelfPathsType(curSelf: SelfPath)(t: Type): Either[String, Type] = t match {
+    case FamType(None, name) => Right(FamType(Some(Sp(curSelf)), name))
+    case FamType(Some(p), name) =>
+      validatePath(s"Invalid path ${print_path(p)} in ${print_path(resolvePath(Sp(curSelf)))}", curSelf)(p).map { validatedP =>
+        FamType(Some(validatedP), name)
+      }
+    case FunType(input, output) => for {
+      resolvedInput <- resolveSelfPathsType(curSelf)(input)
+      resolvedOutput <- resolveSelfPathsType(curSelf)(output)
+    } yield FunType(resolvedInput, resolvedOutput)
+    case RecType(fields) => traverseMap(fields)(resolveSelfPathsType(curSelf)).map(RecType.apply)
+    case _ => Right(t)
+  }
 }

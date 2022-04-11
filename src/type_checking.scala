@@ -1,5 +1,6 @@
 import famfun._
 import PrettyPrint.*
+import MapOps.*
 
 object type_checking {
   val K: scala.collection.mutable.Map[Path, Linkage] = scala.collection.mutable.Map.empty
@@ -7,22 +8,6 @@ object type_checking {
   def initK(progLkg: Linkage): Unit = {
     K.clear()
     K += Sp(Prog) -> progLkg
-  }
-
-  def unionWith[K, V](m1: Map[K, V], m2: Map[K, V])(f: (V, V) => V)(implicit ordK: Ordering[K]): Map[K, V] = {
-    // l1 and l2 are sorted
-    def merge(l1: List[(K, V)], l2: List[(K, V)]): List[(K, V)] = (l1, l2) match {
-      case (Nil, ys) => ys
-      case (xs, Nil) => xs
-      case ((x@(xKey, xVal)) :: xs, (y@(yKey, yVal)) :: ys) =>
-        if ordK.lt(xKey, yKey) then
-          x :: merge(xs, l2)
-        else if ordK.gt(xKey, yKey) then
-          y :: merge(l1, ys)
-        else
-          (xKey, f(xVal, yVal)) :: merge(xs, ys)
-    }
-    merge(m1.toList.sortBy(_._1), m2.toList.sortBy(_._1)).toMap
   }
 
   sealed trait InheritForm
@@ -210,19 +195,6 @@ object type_checking {
     }
 
     isSubtypeResolved(resolveType(t1), resolveType(t2))
-  }
-
-  def traverseWithKeyMap[K, V, E, W](m: Map[K, V])(f: (K, V) => Either[E, W]): Either[E, Map[K, W]] = {
-    val kvpList: List[(K, V)] = m.toList
-    kvpList.foldLeft(Right(List.empty[(K, W)]).withLeft[E]) {
-      case (a, (curKey, curVal)) => for {
-        accList <- a
-        curValApplied <- f(curKey, curVal)
-      } yield (curKey, curValApplied) :: accList
-    }.map(_.toMap)
-  }
-  def traverseMap[K, V, E, W](m: Map[K, V])(f: V => Either[E, W]): Either[E, Map[K, W]] = {
-    traverseWithKeyMap(m)((_: K, v: V) => f(v))
   }
 
   // TODO: check whether a self path is valid

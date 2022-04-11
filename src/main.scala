@@ -15,13 +15,13 @@ object famfun_main {
     val parsed = parse0(pProgram, inp)
     parsed match {
       case Success(result, _) =>
-        val progLkg = resolveImplicitSelfPaths(parse0(pProgram, inp).get)
-        initK(progLkg)
-        typeCheckLinkage(progLkg) match {
+        resolveSelfPaths(parse0(pProgram, inp).get).flatMap { progLkg =>
+          initK(progLkg)
+          typeCheckLinkage(progLkg)
+        } match {
           case Left(msg) => println(msg)
           case Right(_) => println("Type-checking succeeded")
         }
-        print_lkg(getCompleteLinkage(AbsoluteFamily(Sp(Prog), "Y")))
       case _ => println(parsed)
     }
   }

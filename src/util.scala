@@ -1,7 +1,6 @@
 import famfun._
 
 object PrettyPrint {
-
   def print_selfPath(sp: SelfPath): String = sp match {
     case Prog => "<>"
     case SelfFamily(p, f) => "self(" + print_selfPath(p) + "." + f + ")"
@@ -115,5 +114,36 @@ object PrettyPrint {
     }
     print(casemap.mkString)
     print("\n\n")
+  }
+}
+
+object MapOps {
+  def traverseWithKeyMap[K, V, E, W](m: Map[K, V])(f: (K, V) => Either[E, W]): Either[E, Map[K, W]] = {
+    val kvpList: List[(K, V)] = m.toList
+    kvpList.foldLeft(Right(List.empty[(K, W)]).withLeft[E]) {
+      case (a, (curKey, curVal)) => for {
+        accList <- a
+        curValApplied <- f(curKey, curVal)
+      } yield (curKey, curValApplied) :: accList
+    }.map(_.toMap)
+  }
+  def traverseMap[K, V, E, W](m: Map[K, V])(f: V => Either[E, W]): Either[E, Map[K, W]] = {
+    traverseWithKeyMap(m)((_: K, v: V) => f(v))
+  }
+  
+  def unionWith[K, V](m1: Map[K, V], m2: Map[K, V])(f: (V, V) => V)(implicit ordK: Ordering[K]): Map[K, V] = {
+    // l1 and l2 are sorted
+    def merge(l1: List[(K, V)], l2: List[(K, V)]): List[(K, V)] = (l1, l2) match {
+      case (Nil, ys) => ys
+      case (xs, Nil) => xs
+      case ((x@(xKey, xVal)) :: xs, (y@(yKey, yVal)) :: ys) =>
+        if ordK.lt(xKey, yKey) then
+          x :: merge(xs, l2)
+        else if ordK.gt(xKey, yKey) then
+          y :: merge(l1, ys)
+        else
+          (xKey, f(xVal, yVal)) :: merge(xs, ys)
+    }
+    merge(m1.toList.sortBy(_._1), m2.toList.sortBy(_._1)).toMap
   }
 }
