@@ -43,6 +43,8 @@ object famfun {
   case object Eq extends Marker // type definition marker
 
   case class TypeDefn(name: String, marker: Marker, typeBody: DefnBody[RecType])
+  
+  case class DefaultDefn(name: String, marker: Marker, defaultBody: DefnBody[Rec])
 
   // ADTs
   case class AdtDefn(name: String, marker: Marker, adtBody: DefnBody[Map[String, RecType]])
@@ -79,7 +81,7 @@ object famfun {
                      self: SelfPath, // self
                      sup: Option[Path], // super
                      types: Map[String, TypeDefn],
-                     defaults: Map[String, (Marker, Rec)], // TODO: should this be combined with `types`?
+                     defaults: Map[String, DefaultDefn],
                      adts: Map[String, AdtDefn],
                      funs: Map[String, FunDefn],
                      depot: Map[String, CasesDefn],

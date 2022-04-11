@@ -529,7 +529,7 @@ object type_checking {
         case TypeDefn(name, marker, typeBody) => TypeDefn(
           name,
           marker,
-          subSelfInDefnBody(newSelf, oldSelf)(typeBody){ (ns, os) => t =>
+          subSelfInDefnBody(newSelf, oldSelf)(typeBody) { (ns, os) => t =>
             subSelfInType(ns, os)(t).asInstanceOf[RecType]
           }
         )
@@ -537,7 +537,13 @@ object type_checking {
       .toMap,
     lkg.defaults.view
       .mapValues {
-        case (marker, rec) => marker -> subSelfInExpression(newSelf, oldSelf)(rec).asInstanceOf[Rec]
+        case DefaultDefn(name, marker, defaultBody) => DefaultDefn(
+          name,
+          marker,
+          subSelfInDefnBody(newSelf, oldSelf)(defaultBody) { (ns, os) => rec =>
+            subSelfInExpression(ns, os)(rec).asInstanceOf[Rec]
+          }
+        )
       }
       .toMap,
     lkg.adts.view
@@ -684,7 +690,7 @@ object type_checking {
     case _ => throw new Exception("TODO invalid type definition")
   }
 
-  def concatDefaults(defaults1: Map[String, (Marker, Rec)], defaults2: Map[String, (Marker, Rec)]): Map[String, (Marker, Rec)] = ???
+  def concatDefaults(defaults1: Map[String, DefaultDefn], defaults2: Map[String, DefaultDefn]): Map[String, (Marker, Rec)] = ???
 
   // forall R, adtdef, adtdef',
   //     R = adtdef in L'.ADTS -->

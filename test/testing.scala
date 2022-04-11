@@ -175,7 +175,7 @@ class FamFunParserTesting extends AnyFunSuite {
         SelfFamily(Prog, "A"),
         None,
         Map("T" -> TypeDefn("T", Eq, DefnBody(Some(RecType(Map("f"->B, "n"->N))), None, None))),
-        Map("T"->(Eq, Rec(Map("f"->Bexp(true), "n"->Nexp(3))))),
+        Map("T" -> DefaultDefn("T", Eq, DefnBody(Some(Rec(Map("f"->Bexp(true), "n"->Nexp(3)))), None, None))),
         Map(), Map(), Map(), Map()
       )
     ){parseSuccess(pFamDef(Prog), "Family A { type T = {f: B = true, n: N = 3}}")}
@@ -191,7 +191,7 @@ class FamFunParserTesting extends AnyFunSuite {
         SelfFamily(Prog, "A"),
         Some(AbsoluteFamily(Sp(Prog), "C")),
         Map("T" -> TypeDefn("T", Eq, DefnBody(Some(RecType(Map("f"->B, "n"->N))), None, None))),
-        Map("T"->(Eq, Rec(Map("f"->Bexp(true), "n"->Nexp(3))))),
+        Map("T" -> DefaultDefn("T", Eq, DefnBody(Some(Rec(Map("f"->Bexp(true), "n"->Nexp(3)))), None, None))),
         Map(), Map(), Map(), Map()
       )
     ){parseSuccess(pFamDef(Prog), "Family A extends C { type T = {f: B = true, n: N = 3}}")}
@@ -213,7 +213,7 @@ class FamFunParserTesting extends AnyFunSuite {
         SelfFamily(Prog, "A"),
         Some(AbsoluteFamily(Sp(Prog), "C")),
         Map("T" -> TypeDefn("T", PlusEq, DefnBody(Some(RecType(Map("f"->B, "n"->N))), None, None))),
-        Map("T"->(PlusEq, Rec(Map("f"->Bexp(true), "n"->Nexp(3))))),
+        Map("T" -> DefaultDefn("T", PlusEq, DefnBody(Some(Rec(Map("f"->Bexp(true), "n"->Nexp(3)))), None, None))),
         Map(), Map(), Map(), Map()
       )
     ){parseSuccess(pFamDef(Prog), "Family A extends C { type T += {f: B = true, n: N = 3}}")}
@@ -236,8 +236,8 @@ class FamFunParserTesting extends AnyFunSuite {
           "R" -> TypeDefn("R", Eq, DefnBody(Some(RecType(Map("s"->FamType(Some(Sp(SelfFamily(Prog, "A"))), "T")))), None, None))
         ),
         Map(
-          "T"->(Eq, Rec(Map("f"->Bexp(true), "n"->Nexp(3)))),
-          "R"-> (Eq, Rec(Map("s"->Rec(Map()))))
+          "T" -> DefaultDefn("T", Eq, DefnBody(Some(Rec(Map("f"->Bexp(true), "n"->Nexp(3)))), None, None)),
+          "R" -> DefaultDefn("R", Eq, DefnBody(Some(Rec(Map("s"->Rec(Map())))), None, None))
         ),
         Map(), Map(), Map(), Map()
       )
@@ -268,8 +268,9 @@ class FamFunParserTesting extends AnyFunSuite {
         ),
         // defaults
         Map(
-          "T" -> (Eq, Rec(Map("f"->Bexp(true), "n"->Nexp(3)))),
-          "R" -> (Eq, Rec(Map("s"->Rec(Map()))))),
+          "T" -> DefaultDefn("T", Eq, DefnBody(Some(Rec(Map("f"->Bexp(true), "n"->Nexp(3)))), None, None)),
+          "R" -> DefaultDefn("R", Eq, DefnBody(Some(Rec(Map("s"->Rec(Map())))), None, None))
+        ),
         // adts
         Map(
           "List"-> AdtDefn(

@@ -12,7 +12,7 @@ object name_resolution {
     ,
     defaults =
       l.defaults.view
-        .mapValues { case (m, r) => m -> resolveImplicitSelfPathsRec(l.self, Set.empty)(r) }
+        .mapValues(resolveImplicitSelfPathsDefaultDefn(l.self))
         .toMap,
     adts =
       l.adts.view
@@ -41,6 +41,11 @@ object name_resolution {
     typeBody = resolveImplicitSelfPathsDefnBody { (rt: RecType) =>
       resolveImplicitSelfPathsType(curSelf)(rt).asInstanceOf[RecType]
     }(t.typeBody)
+  )
+  def resolveImplicitSelfPathsDefaultDefn(curSelf: SelfPath)(d: DefaultDefn): DefaultDefn = d.copy(
+    defaultBody = resolveImplicitSelfPathsDefnBody { (r: Rec) =>
+      resolveImplicitSelfPathsExpression(curSelf, Set.empty)(r).asInstanceOf[Rec]
+    }(d.defaultBody)
   )
   def resolveImplicitSelfPathsAdtDefn(curSelf: SelfPath)(a: AdtDefn): AdtDefn = a.copy(
     adtBody = resolveImplicitSelfPathsDefnBody { (cs: Map[String, RecType]) =>
