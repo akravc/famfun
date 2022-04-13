@@ -16,7 +16,7 @@ Family X {
     val f: B -> T = lam (x: B). T(T2 {b = true})
     val g: T -> N = lam (t: T). 10
 
-    // Currently fails to unify output types
+    // Currently fails to unify output types if trying to output T
     // self(self(<>.X).D).T (from this handler) with self(self(<>.X).C).T (from handler in X.C)
     cases someCases <T>: {} -> { T2: {b: B} -> X.C.T } += lam (_: {}).
       { T2 = lam (y: {b: B}). X.C.T(T1 {n = 2})

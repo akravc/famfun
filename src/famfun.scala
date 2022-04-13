@@ -30,10 +30,10 @@ object famfun {
   case class RecType(fields: Map[String, Type]) extends Type // {(f: T)*}
 
   // Transforms self paths in types into absolute paths (except Prog)
-  def resolveType(t: Type): Type = t match {
+  def concretizeType(t: Type): Type = t match {
     case FamType(path, name) => FamType(path.map(concretizePath), name)
-    case FunType(input, output) => FunType(resolveType(input), resolveType(output))
-    case RecType(fields) => RecType(fields.view.mapValues(resolveType).toMap)
+    case FunType(input, output) => FunType(concretizeType(input), concretizeType(output))
+    case RecType(fields) => RecType(fields.view.mapValues(concretizeType).toMap)
     case _ => t
   }
 

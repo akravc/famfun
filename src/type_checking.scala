@@ -105,10 +105,11 @@ object type_checking {
 
   def unifyTypes(types: List[Type]): Either[String, Type] = types match {
     case Nil => Left("No types given to unify")
-    case t :: ts => ts.foldLeft(Right(resolveType(t)).withLeft[String]) { (eAccType, curType) =>
+    case t :: ts => ts.foldLeft(Right(concretizeType(t)).withLeft[String]) { (eAccType, curType) =>
       eAccType.flatMap { accType =>
-        val resolvedAccType = resolveType(accType)
-        val resolvedCurType = resolveType(curType)
+        val resolvedAccType = concretizeType(accType)
+        val resolvedCurType = concretizeType(curType)
+        // TODO: needs to handle RecTypes specially instead; find common fields between all RecTypes...
         if isSubtype(resolvedAccType, resolvedCurType) then Right(resolvedCurType)
         else if isSubtype(resolvedCurType, resolvedAccType) then Right(resolvedAccType)
         else Left(s"Failed to unify types: ${types.map(print_type).mkString(", ")}")
@@ -194,11 +195,9 @@ object type_checking {
       })
     }
 
-    isSubtypeResolved(resolveType(t1), resolveType(t2))
+    isSubtypeResolved(concretizeType(t1), concretizeType(t2))
   }
 
-  // TODO: check whether a self path is valid
-  //   ie: reject Family X { Family Y { val f: self(Z).R -> B = ... } } even if Family Z exists
   def typeCheckLinkage(l: Linkage): Either[String, Unit] = {
     val completeL = getCompleteLinkage(l.path)
     val curPath = concretizePath(completeL.path)
@@ -417,12 +416,12 @@ object type_checking {
     case InstADT(famType@FamType(Some(path), tName), cname, rec) =>
       for {
         instFields <- traverseMap(rec.fields)(typeOfExpression(G))
-        instFieldsResolved = instFields.view.mapValues(resolveType).toMap
+        instFieldsResolved = instFields.view.mapValues(concretizeType).toMap
         lkg = getCompleteLinkage(path)
         adtDefn <- lkg.adts.get(tName).fold(Left(s"No ADT $tName in ${print_path(path)}")) (Right.apply)
         allCtors = collectAllConstructors(adtDefn)
         ctorRecType <- allCtors.get(cname).fold(Left(s"No constructor $cname for $tName in ${print_path(path)}"))(Right.apply)
-        ctorFieldsResolved = ctorRecType.fields.view.mapValues(resolveType).toMap
+        ctorFieldsResolved = ctorRecType.fields.view.mapValues(concretizeType).toMap
         // we do not allow subtyping within ADT records right now
         result <-
           if instFieldsResolved == ctorFieldsResolved then Right(famType)
@@ -773,10 +772,9 @@ object type_checking {
   // ____________________________________ CAT_CASES
   // L'.CASES + I.CASES = L".CASES
   def concatCases(depot1: Map[String, CasesDefn], depot2: Map[String, CasesDefn]): Map[String, CasesDefn] = unionWith(depot1, depot2) {
-    // TODO: check match types are consistent somehow?
     case ( CasesDefn(casesName, prevMatchType, prevT, _, prevCasesDefn)
          , CasesDefn(_casesName, curMatchType, curT, PlusEq, curCasesDefn)
-         ) =>
+         ) if concretizeType(prevMatchType) == concretizeType(curMatchType) =>
       val resultT: Type = (prevT, curT) match {
         case (RecType(_), RecType(_)) => curT
         case (FunType(RecType(prevFields), RecType(_)), FunType(RecType(curFields), curOutT@RecType(_))) =>
