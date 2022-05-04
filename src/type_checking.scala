@@ -107,14 +107,20 @@ object type_checking {
     case Nil => Left("No types given to unify")
     case t :: ts => ts.foldLeft(Right(concretizeType(t)).withLeft[String]) { (eAccType, curType) =>
       eAccType.flatMap { accType =>
-        val resolvedAccType = concretizeType(accType)
-        val resolvedCurType = concretizeType(curType)
+        val concreteAccType = concretizeType(accType)
+        val concreteCurType = concretizeType(curType)
         // TODO: needs to handle RecTypes specially instead; find common fields between all RecTypes...
-        if isSubtype(resolvedAccType, resolvedCurType) then Right(resolvedCurType)
-        else if isSubtype(resolvedCurType, resolvedAccType) then Right(resolvedAccType)
+        if isSubtype(concreteAccType, concreteCurType) then Right(concreteCurType)
+        else if isSubtype(concreteCurType, concreteAccType) then Right(concreteAccType)
         else Left(s"Failed to unify types: ${types.map(print_type).mkString(", ")}")
       }
     }
+  }
+
+  // If the given `path` is absolute, produces the concrete version of the given type `t`
+  def interpretType(path: Path, t: Type): Type = path match {
+    case AbsoluteFamily(_, _) => concretizeType(t)
+    case _ => t
   }
 
   def wf(t: Type): Boolean = t match {
@@ -195,7 +201,7 @@ object type_checking {
       })
     }
 
-    isSubtypeResolved(concretizeType(t1), concretizeType(t2))
+    isSubtypeResolved(t1, t2)
   }
 
   def typeCheckLinkage(l: Linkage): Either[String, Unit] = {
@@ -372,7 +378,7 @@ object type_checking {
     case FamFun(Some(path), name) =>
       val lkg = getCompleteLinkage(path)
       lkg.funs.get(name).fold(Left(s"No such function $name"))(Right.apply).map {
-        case FunDefn(_, fType, _) => fType
+        case FunDefn(_, fType, _) => interpretType(path, fType)
       }
 
     // K |- a ~> L
@@ -384,7 +390,7 @@ object type_checking {
       val lkg = getCompleteLinkage(path)
       // Validity of type for the defined `cases` will be checked at the top level (ie, match type works with defnType)
       lkg.depot.get(name).fold(Left("TODO no such cases"))(Right.apply).map {
-        case CasesDefn(_, _, casesType, _, _) => casesType
+        case CasesDefn(_, _, casesType, _, _) => interpretType(path, casesType)
       }
 
     // K |- a ~> L
@@ -749,7 +755,7 @@ object type_checking {
   def concatFuns(funs1: Map[String, FunDefn], funs2: Map[String, FunDefn]): Map[String, FunDefn] = unionWith(funs1, funs2) {
     case (FunDefn(funF, fType, fDefBody), FunDefn(_funF, fTypePrime, fDefPrimeBody)) if fType == fTypePrime =>
       FunDefn(funF, fTypePrime, mergeDefnBody(fDefBody, fDefPrimeBody))
-    case _ => throw new Exception("TODO invalid function definition")
+    case (fDef1, fDef2) => throw new Exception(s"TODO invalid function definition: $fDef1 VS $fDef2")
   }
 
   // forall r, Tm, Tc, Tc', cdef, cdef',
