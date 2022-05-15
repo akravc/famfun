@@ -1,3 +1,5 @@
+import scala.annotation.tailrec
+
 object famfun {
   // Families & Paths
   sealed trait Path
@@ -21,6 +23,18 @@ object famfun {
     case AbsoluteFamily(pref, fam) => AbsoluteFamily(concretizePath(pref), fam)
   }
 
+  @tailrec
+  def pathToFamList(p: Path, acc: List[String] = Nil): List[String] = p match {
+    case Sp(sp) => selfPathToFamList(sp, acc)
+    case AbsoluteFamily(pref, fam) => pathToFamList(pref, fam :: acc)
+  }
+  
+  @tailrec
+  def selfPathToFamList(sp: SelfPath, acc: List[String] = Nil): List[String] = sp match {
+    case Prog => acc
+    case SelfFamily(pref, fam) => selfPathToFamList(pref, fam :: acc)
+  }
+
   // Types
   sealed trait Type
   case object N extends Type
@@ -35,6 +49,27 @@ object famfun {
     case FunType(input, output) => FunType(concretizeType(input), concretizeType(output))
     case RecType(fields) => RecType(fields.view.mapValues(concretizeType).toMap)
     case _ => t
+  }
+  
+  // Replaces all self paths `sp` in `t` with the prefix path of `p` (as a self path) of the same length as `sp`
+  def subSelfInTypeAccordingTo(p: Path)(t: Type): Type = {
+    val pFamList: List[String] = pathToFamList(p)
+    def subHelp(t: Type): Type = t match {
+      case FamType(path, name) => FamType(
+        path.map {
+          case Sp(sp) => Sp(
+            pFamList.take(selfPathToFamList(sp).length).foldLeft(Prog)(SelfFamily.apply)
+          )
+          case other => other
+        },
+        name
+      )
+      case FunType(input, output) => FunType(subHelp(input), subHelp(output))
+      case RecType(fields) => RecType(fields.view.mapValues(subHelp).toMap)
+      case _ => t
+    }
+    
+    subHelp(t)
   }
 
   sealed trait Marker // either += or =

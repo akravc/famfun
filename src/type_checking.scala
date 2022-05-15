@@ -52,7 +52,7 @@ object type_checking {
                               (fromLinkage: Linkage => C)
                               (toResult: C => R)
                               (emptyResult: R)
-                              (concatResults: (R, R) => R): R = {
+                              (concatResults: (R, R) => R): (scala.collection.mutable.Set[Path], R) = {
     val visitedPaths: scala.collection.mutable.Set[Path] = scala.collection.mutable.Set.empty
 
     def collectAllDefnsHelp(defnContainer: C): R = {
@@ -75,25 +75,29 @@ object type_checking {
 
       concatResults(concatResults(extendsDefns, furtherBindsDefns), curDefns)
     }
-    collectAllDefnsHelp(defnContainer)
+    (visitedPaths, collectAllDefnsHelp(defnContainer))
   }
 
   def collectAllConstructors(adtDefn: AdtDefn): Map[String, RecType] = {
-    collectAllDefns(adtDefn)(_.adtBody) { lkg =>
+    val (_, result) = collectAllDefns(adtDefn)(_.adtBody) { lkg =>
       lkg.adts
         .getOrElse(adtDefn.name, throw new Exception(s"${lkg.self} should contain an ADT definition for ${adtDefn.name} by construction"))
     } { _.adtBody.defn.getOrElse(Map.empty) } (Map.empty) { _ ++ _ }
+
+    result
   }
 
   def collectAllNamedTypeFields(typeDefn: TypeDefn): Map[String, Type] = {
-    collectAllDefns(typeDefn)(_.typeBody) { lkg =>
+    val (_, result) = collectAllDefns(typeDefn)(_.typeBody) { lkg =>
       lkg.types
         .getOrElse(typeDefn.name, throw new Exception(s"${lkg.self} should contain a type definition for ${typeDefn.name} by construction"))
     } { _.typeBody.defn.map(_.fields).getOrElse(Map.empty) } (Map.empty) { _ ++ _ }
+
+    result
   }
 
   def collectAllCaseHandlerTypes(casesDefn: CasesDefn): Either[String, Map[String, Type]] = {
-    collectAllDefns(casesDefn)(_.casesBody) { lkg =>
+    val (_, result) = collectAllDefns(casesDefn)(_.casesBody) { lkg =>
       lkg.depot
         .getOrElse(casesDefn.name, throw new Exception(s"${lkg.self} should contain a cases definition for ${casesDefn.name} by construction"))
     } { cDefn => cDefn.t match {
@@ -101,6 +105,8 @@ object type_checking {
       case FunType (RecType (_), RecType (cfTypes)) => Right (cfTypes)
       case _ => Left (s"Invalid shape for cases type: ${print_type(cDefn.t)}")
     }} (Right(Map.empty)) { (result1, result2) => for { m1 <- result1; m2 <- result2 } yield m1 ++ m2 }
+
+    result
   }
 
   def unifyTypes(types: List[Type]): Either[String, Type] = types match {
@@ -422,19 +428,26 @@ object type_checking {
     case InstADT(famType@FamType(Some(path), tName), cname, rec) =>
       for {
         instFields <- traverseMap(rec.fields)(typeOfExpression(G))
-        instFieldsResolved = instFields.view.mapValues(concretizeType).toMap
         lkg = getCompleteLinkage(path)
         adtDefn <- lkg.adts.get(tName).fold(Left(s"No ADT $tName in ${print_path(path)}")) (Right.apply)
         allCtors = collectAllConstructors(adtDefn)
         ctorRecType <- allCtors.get(cname).fold(Left(s"No constructor $cname for $tName in ${print_path(path)}"))(Right.apply)
-        ctorFieldsResolved = ctorRecType.fields.view.mapValues(concretizeType).toMap
+        ctorFields = ctorRecType.fields
+
+        instFieldsType = RecType(instFields)
+        ctorFieldsType0 = subSelfInTypeAccordingTo(path)(RecType(ctorFields))
+        ctorFieldsType = path match {
+          case AbsoluteFamily(_, _) => concretizeType(ctorFieldsType0)
+          case _ => ctorFieldsType0
+        }
         // we do not allow subtyping within ADT records right now
         result <-
-          if instFieldsResolved == ctorFieldsResolved then Right(famType)
+          // TODO: how to handle recursive types?
+          if instFieldsType == ctorFieldsType then Right(famType)
           else Left(
             s"""Mismatching field types in ADT instance for $tName with constructor $cname in ${print_path(path)}:"
-               |Instance field types:    ${print_type(RecType(instFieldsResolved))}
-               |Constructor field types: ${print_type(RecType(ctorFieldsResolved))}
+               |Instance field types: ${print_type(instFieldsType)}
+               |Required field types: ${print_type(ctorFieldsType)}
                |""".stripMargin
           )
       } yield result

@@ -24,11 +24,6 @@ object name_resolution {
   // ie: is `selfPath` a prefix of `curSelf`?
   def validSelfPath(ctx: SelfPath)(selfPath: SelfPath): Boolean = {
     @tailrec
-    def selfPathToFamList(sp: SelfPath, acc: List[String] = Nil): List[String] = sp match {
-      case Prog => acc
-      case SelfFamily(pref, fam) => selfPathToFamList(pref, fam :: acc)
-    }
-    @tailrec
     def isPrefix[T](lst1: List[T], lst2: List[T]): Boolean = (lst1, lst2) match {
       case (Nil, _) => true
       case (x :: xs, y :: ys) if x == y => isPrefix(xs, ys)

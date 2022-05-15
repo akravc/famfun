@@ -1,13 +1,16 @@
 Family X {
   type R = {n: N}
 
+  val p: B -> B = lam (x: B). x
+
   Family C {
     type T = T1 {n: N}
+    // type U = T1 {...} disallow ctors with same names
 
-    val f: B -> T = lam (x: B). match T(T1 {n = 10}) with <someCases> {}
+    val f: B -> T = lam (x: B). T(T1 {n = 10}) // TODO: no typename for ctor, instead path.T1 {...}
 
     cases someCases <T>: {} -> { T1: {n: N} -> X.C.T } = lam (_: {}).
-      { T1 = lam (x: {n: N}). T(T1 {n = x.n})
+      { T1 = lam (x: {n: N}). X.C.T(T1 {n = x.n})
       }
   }
   Family D extends self(X).C {
@@ -19,7 +22,7 @@ Family X {
     // Currently fails to unify output types if trying to output T
     // self(self(<>.X).D).T (from this handler) with self(self(<>.X).C).T (from handler in X.C)
     cases someCases <T>: {} -> { T2: {b: B} -> X.C.T } += lam (_: {}).
-      { T2 = lam (y: {b: B}). X.C.T(T1 {n = 2})
+      { T2 = lam (y: {b: B}). X.C.T(T1 {n = 42})
       }
 
   }
@@ -35,9 +38,25 @@ Family Y extends X {
 
     val h: X.D.T -> N = X.D.g    // "Specialization" should typecheck
 
+    val rec: {} -> {n: N, b: B} = lam (_: {}). {n = 1, b = true, c = 3}
+
+    val doSomeCases: T -> X.C.T = lam (t: T). match t with <someCases> {}
+
     cases someCases <T>: {} -> { T3: {t: T} -> X.C.T, T4: {t1: T, t2: T} -> X.C.T } += lam (_: {}).
       { T4 = lam (x: {t1: T, t2: T}). match x.t1 with <someCases> {}
       , T3 = lam (x: {t: T}). match x.t with <someCases> {}
       }
   }
+  // Family D
+}
+
+Family Main {
+    val main1: {} -> X.C.T = lam (_: {}).
+        Y.D.doSomeCases Y.D.T(T1 {n = 10})
+
+    val main3: {} -> X.C.T = lam(_: {}).
+        Y.D.doSomeCases (Y.D.T(T4 {t1 = Y.D.T(T3 { t = Y.D.T(T1 {n = 10}) }), t2 = Y.D.T(T2 { b = true })}))
+
+    val main2: {} -> X.C.T = lam (_: {}).
+        Y.D.doSomeCases Y.D.T(T2 {b = true})
 }
