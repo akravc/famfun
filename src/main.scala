@@ -3,7 +3,10 @@ import TestFamParser.*
 import PrettyPrint.*
 import name_resolution.*
 import type_checking.*
+import code_generation.*
 
+import java.io.File
+import java.io.PrintWriter
 import scala.io.Source
 
 object famfun_main {
@@ -20,7 +23,15 @@ object famfun_main {
           typeCheckLinkage(progLkg)
         } match {
           case Left(msg) => println(msg)
-          case Right(_) => println("Type-checking succeeded")
+          case Right(_) =>
+            println("Type-checking succeeded")
+            generateCode(K.values).foreach { (fileName, contents) =>
+              val file = new File(s"test/gen/$fileName")
+              file.createNewFile()
+              val writer = new PrintWriter(file)
+              writer.write(contents)
+              writer.close()
+            }
         }
       case _ => println(parsed)
     }
