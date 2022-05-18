@@ -10,7 +10,7 @@ Family X {
     val f: B -> T = lam (x: B). T(T1 {n = 10}) // TODO: no typename for ctor, instead path.T1 {...}
 
     cases someCases <T>: {} -> { T1: {n: N} -> X.C.T } = lam (_: {}).
-      { T1 = lam (x: {n: N}). X.C.T(T1 {n = x.n})
+      { T1 = lam (x: {n: N}). X.C.T(T1 {n = 5 + x.n * x.n})
       }
   }
   Family D extends self(X).C {
@@ -36,6 +36,8 @@ Family Y extends X {
 
     val f: B -> T = lam (n: B). T(T3 {t = T(T1 {n = 3})})
 
+    val g: T -> N = lam (t: T). 0
+
     val h: X.D.T -> N = X.D.g    // "Specialization" should typecheck
 
     val rec: {} -> {n: N, b: B} = lam (_: {}). {n = 1, b = true, c = 3}
@@ -52,7 +54,7 @@ Family Y extends X {
 
 Family Main {
     val main1: {} -> X.C.T = lam (_: {}).
-        Y.D.doSomeCases Y.D.T(T1 {n = 10})
+        Y.D.doSomeCases Y.D.T(T1 {n = 10 * (Y.D.g (Y.D.f true))})
 
     val main3: {} -> X.C.T = lam(_: {}).
         Y.D.doSomeCases (Y.D.T(T4 {t1 = Y.D.T(T3 { t = Y.D.T(T1 {n = 10}) }), t2 = Y.D.T(T2 { b = true })}))

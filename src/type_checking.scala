@@ -304,7 +304,28 @@ object type_checking {
   def typeOfExpression(G: Map[String, Type])(e: Expression): Either[String, Type] = e match {
     // _________________ T_Num
     // K, G |- n : N
-    case Nexp(n) => Right(N)
+    case NConst(n) => Right(N)
+
+    // TODO!!!
+    case ABinExp(a1, _, a2) => for {
+      a1Type <- typeOfExpression(G)(a1)
+      a2Type <- typeOfExpression(G)(a2)
+      result <- (a1Type, a2Type) match {
+        case (N, N) => Right(N)
+        case (N, _) => Left(
+          s"""Type mismatch for ${print_exp(a2)}, the right-hand side of ${print_exp(e)}.
+             |Found:    ${print_type(a2Type)}
+             |Required: N
+             |""".stripMargin
+        )
+        case _ => Left(
+          s"""Type mismatch for ${print_exp(a1)}, the left-hand side of ${print_exp(e)}.
+             |Found:    ${print_type(a1Type)}
+             |Required: N
+             |""".stripMargin
+        )
+      }
+    } yield result
 
     // _________________ T_Bool
     // K, G |- b : B

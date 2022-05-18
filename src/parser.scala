@@ -130,7 +130,8 @@ class FamParser extends RegexParsers with PackratParsers {
 
   // EXPRESSIONS
   lazy val pExpBool: PackratParser[Bexp] = kwTrue ^^^ Bexp(true) | kwFalse ^^^ Bexp(false)
-  lazy val pExpNat: PackratParser[Nexp] = """(0|[1-9]\d*)""".r ^^ { n => Nexp(n.toInt) }
+  lazy val pExpNat: PackratParser[NConst] = """(0|[1-9]\d*)""".r ^^ { n => NConst(n.toInt) }
+
   lazy val pExpVar: PackratParser[Var] = pVarName ^^ { id => Var(id)}
   lazy val pExpLam: PackratParser[Lam] =
     kwLam ~> between("(", ")", pExpVar ~ (":" ~> pType)) ~ ("." ~> pExp) ^^ { case v~t~body => Lam(v, t, body) }
@@ -142,8 +143,8 @@ class FamParser extends RegexParsers with PackratParsers {
   lazy val pExpFamCases: PackratParser[FamCases] =
     between("<", ">", (pPath <~ ".").? ~ pFunctionName) ^^ { case p~n => FamCases(p, n) }
 
-  lazy val pExpApp: PackratParser[App] = pExp ~ pExp ^^ { case e~g => App(e, g) }
-  lazy val pExpProj: PackratParser[Proj] = pExp ~ "." ~ pFieldName ^^ {case e~_~n => Proj(e, n)}
+  lazy val pExpApp: PackratParser[App] = pPrimary ~ pPrimary ^^ { case e~g => App(e, g) }
+  lazy val pExpProj: PackratParser[Proj] = pPrimary ~ "." ~ pFieldName ^^ {case e~_~n => Proj(e, n)}
   lazy val pFieldVal: PackratParser[(String, Expression)] = pFieldName ~ "=" ~ pExp ^^ {case k~_~v => k -> v}
   lazy val pExpRec: PackratParser[Rec] = "{"~> repsep(pFieldVal, ",") <~"}" ^^ {
     lst =>
@@ -160,8 +161,17 @@ class FamParser extends RegexParsers with PackratParsers {
   lazy val pExpMatch: PackratParser[Match] =
     kwMatch ~> pExp ~ (kwWith ~> pExp) ^^ { case e~g => Match(e, g) }
 
-  lazy val pExp: PackratParser[Expression] =
-    pExpMatch | pExpProj | pExpInstAdt | pExpInst | pExpApp | pExpRec
+  lazy val pExp: PackratParser[Expression] = pTerm
+  lazy val pTerm: PackratParser[Expression] =
+    pTerm ~ ("+" ~> pFactor) ^^ { case a1~a2 => ABinExp(a1, AAdd, a2) }
+    | pTerm ~ ("-" ~> pFactor) ^^ { case a1~a2 => ABinExp(a1, ASub, a2) }
+    | pFactor
+  lazy val pFactor: PackratParser[Expression] =
+    pFactor ~ ("*" ~> pPrimary) ^^ { case a1~a2 => ABinExp(a1, AMul, a2) }
+    | pFactor ~ ("/" ~> pPrimary) ^^ { case a1~a2 => ABinExp(a1, ADiv, a2) }
+    | pPrimary
+  lazy val pPrimary: PackratParser[Expression] =
+    pExpProj | pExpMatch | pExpInstAdt | pExpInst | pExpApp | pExpRec
     | pExpFamFun | pExpFamCases
     | pExpLam | pExpBool | pExpNat
     | pExpVar

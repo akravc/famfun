@@ -519,7 +519,13 @@ object code_generation {
       case _ => throw new Exception(s"Expression $g not handled for match expressions")
     }
 
-    case Nexp(n) => n.toString
+    case NConst(n) => n.toString
+
+    case ABinExp(a1, op, a2) =>
+      val lhsCode = generateCodeExpression(curPath)(a1)
+      val rhsCode = generateCodeExpression(curPath)(a2)
+      val opCode = showAOp(op)
+      s"($lhsCode $opCode $rhsCode)"
 
     case Bexp(b) => b.toString
   }

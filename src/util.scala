@@ -32,7 +32,7 @@ object PrettyPrint {
       case PlusEq => " += "
     }
   }
-
+  
   def print_exp(e: Expression) : String = {
     e match {
       case Var(id) => id
@@ -49,8 +49,9 @@ object PrettyPrint {
       case Inst(t, r) => print_type(t) + " (" + print_exp(r) + ")"
       case InstADT(t, c, r) => print_type(t) + " (" + c + " " + print_exp(r) + ")"
       case Match(e, g) => "match " + print_exp(e) + " with " + print_exp(g)
-      case Nexp(n) => n.toString()
-      case Bexp(b) => b.toString()
+      case NConst(n) => n.toString
+      case ABinExp(a1, op, a2) => s"(${print_exp(a1)} ${showAOp(op)} ${print_exp(a2)})"
+      case Bexp(b) => b.toString
     }
   }
 
