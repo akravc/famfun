@@ -140,12 +140,10 @@ class FamParser extends RegexParsers with PackratParsers {
     between("\"", "\"", """[^"\\]*(\\.[^"\\]*)*""".r) ^^ StringLiteral.apply
       | (for {
           str <- "s" ~> between("\"", "\"", """[^"\\]*(\\.[^"\\]*)*""".r)
-          result <- (processInterpolatedCharList(str.toList, Nil) match {
-            case Right(interpolated) =>
-              Parser(inp => Success(StringInterpolated(interpolated), inp))
-            case Left(errMsg) =>
-              Parser(inp => Error(errMsg, inp))
-          })
+          result <- processInterpolatedCharList(str.toList, Nil) match {
+            case Right(interpolated) => success(StringInterpolated(interpolated))
+            case Left(errMsg) => err(errMsg)
+          }
         } yield result)
 
   def processInterpolatedCharList(l: List[Char], acc: List[StringInterpolationComponent])
