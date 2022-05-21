@@ -132,11 +132,15 @@ object type_checking {
   def wf(t: Type): Boolean = t match {
     // _________________ WF_Num
     // K |-  WF(N)
-    case N => true
+    case NType => true
 
     // _________________ WF_Bool
     // K |-  WF(B)
-    case B => true
+    case BType => true
+
+    // ----------------- WF_String
+    // K |- WF(String)
+    case StringType => true
 
     // K |- a ~> L
     // R in L.TYPES
@@ -301,18 +305,22 @@ object type_checking {
   }
 
   // Exceptions or Option?
-  def typeOfExpression(G: Map[String, Type])(e: Expression): Either[String, Type] = e match {
+  def typeOfExpression(G: Map[String, Type])(e: Expression): Either[String, Type] = (e match {
     // _________________ T_Num
     // K, G |- n : N
-    case NConst(n) => Right(N)
+    case NConst(_) => Right(NType)
 
-    // TODO!!!
+    // K, G |- a1 : N
+    // K, G |- a2 : N
+    // `op` \in {+, -, *, /}
+    // ------------------ T_AOp
+    // K, G |- a1 `op` a2 : N
     case ABinExp(a1, _, a2) => for {
       a1Type <- typeOfExpression(G)(a1)
       a2Type <- typeOfExpression(G)(a2)
       result <- (a1Type, a2Type) match {
-        case (N, N) => Right(N)
-        case (N, _) => Left(
+        case (NType, NType) => Right(NType)
+        case (NType, _) => Left(
           s"""Type mismatch for ${print_exp(a2)}, the right-hand side of ${print_exp(e)}.
              |Found:    ${print_type(a2Type)}
              |Required: N
@@ -329,7 +337,14 @@ object type_checking {
 
     // _________________ T_Bool
     // K, G |- b : B
-    case Bexp(b) => Right(B)
+    case Bexp(_) => Right(BType)
+
+    case StringLiteral(_) => Right(StringType)
+    case StringInterpolated(interpolated) =>
+      if interpolated.forall {
+        case StringComponent(_) => true
+        case InterpolatedComponent(exp) => typeOfExpression(G)(exp).isRight
+      } then Right(StringType) else Left("TODO invalid interpolated string")
 
     // x: T \in G
     // ________________T_Var
@@ -508,7 +523,7 @@ object type_checking {
 
     // All other cases
     case _ => Left(s"Expression ${print_exp(e)} does not type-check")
-  }
+  }).left.map(msg => s"$msg\nIn expression ${print_exp(e)}")
 
   def getCompleteLinkage(p: Path): Linkage = {
     // Handles

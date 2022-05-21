@@ -37,8 +37,9 @@ object famfun {
 
   // Types
   sealed trait Type
-  case object N extends Type
-  case object B extends Type
+  case object NType extends Type // N
+  case object BType extends Type // B
+  case object StringType extends Type // String
   case class FamType(path: Option[Path], name: String) extends Type // a.R
   case class FunType(input: Type, output: Type) extends Type // T -> T'
   case class RecType(fields: Map[String, Type]) extends Type // {(f: T)*}
@@ -100,19 +101,24 @@ object famfun {
   sealed trait AExp extends Expression // arithmetic expressions; how to parse?
   case class NConst(n: Int) extends AExp
   case class ABinExp(a1: Expression, op: AOp, a2: Expression) extends AExp
-
   sealed trait AOp
   case object AAdd extends AOp
   case object ASub extends AOp
   case object AMul extends AOp
   case object ADiv extends AOp
-
   def showAOp(op: AOp): String = op match {
     case AAdd => "+"
     case ASub => "-"
     case AMul => "*"
     case ADiv => "/"
   }
+
+  sealed trait StringExp extends Expression
+  case class StringLiteral(literal: String) extends StringExp
+  case class StringInterpolated(interpolated: List[StringInterpolationComponent]) extends StringExp
+  sealed trait StringInterpolationComponent
+  case class StringComponent(str: String) extends StringInterpolationComponent
+  case class InterpolatedComponent(exp: Expression) extends StringInterpolationComponent
 
   // Things that could be defined or extended / further bound
   case class DefnBody[B](defn: Option[B], extendsFrom: Option[Path], furtherBindsFrom: Option[Path])

@@ -1,7 +1,7 @@
 Family X {
   type R = {n: N}
 
-  val p: B -> B = lam (x: B). x
+  val p: B -> String = lam (x: B). s"bool given is ${x}"
 
   Family C {
     type T = T1 {n: N}
@@ -49,7 +49,7 @@ Family Y extends X {
       , T3 = lam (x: {t: T}). match x.t with <someCases> {}
       }
   }
-  // Family D
+  Family D {}
 }
 
 Family Main {

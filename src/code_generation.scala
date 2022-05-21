@@ -399,8 +399,9 @@ object code_generation {
   }
 
   def generateCodeType(t: Type): String = t match {
-    case N => "Int"
-    case B => "Boolean"
+    case NType => "Int"
+    case BType => "Boolean"
+    case StringType => "String"
     case FamType(Some(p), name) => s"${pathIdentifier(p)}.$name"
     case FamType(None, name) => throw new Exception("Should not have None paths after name resolution")
     case FunType(input, output) => s"${generateCodeType(input)} => ${generateCodeType(output)}"
@@ -520,7 +521,6 @@ object code_generation {
     }
 
     case NConst(n) => n.toString
-
     case ABinExp(a1, op, a2) =>
       val lhsCode = generateCodeExpression(curPath)(a1)
       val rhsCode = generateCodeExpression(curPath)(a2)
@@ -528,5 +528,13 @@ object code_generation {
       s"($lhsCode $opCode $rhsCode)"
 
     case Bexp(b) => b.toString
+
+    case StringLiteral(literal) => s"\"$literal\""
+    case StringInterpolated(interpolated) =>  
+      val inner: String = interpolated.map {
+        case StringComponent(str) => str
+        case InterpolatedComponent(exp) => s"$${${generateCodeExpression(curPath)(exp)}}"
+      }.mkString
+      s"s\"$inner\""
   }
 }

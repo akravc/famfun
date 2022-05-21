@@ -14,8 +14,9 @@ object PrettyPrint {
 
   def print_type(t: Type): String = {
     t match {
-      case N => "N"
-      case B => "B"
+      case NType => "N"
+      case BType => "B"
+      case StringType => "String"
       case FunType(a, b) => "(" + print_type(a) + " -> " + print_type(b) + ")"
       case FamType(path, n) => path.map(print_path).getOrElse("None") + "." + n
       case RecType(fields) =>
@@ -52,6 +53,13 @@ object PrettyPrint {
       case NConst(n) => n.toString
       case ABinExp(a1, op, a2) => s"(${print_exp(a1)} ${showAOp(op)} ${print_exp(a2)})"
       case Bexp(b) => b.toString
+      case StringLiteral(s) => s"\"$s\""
+      case StringInterpolated(interpolated) =>
+        val inner: String = interpolated.map {
+          case StringComponent(str) => str
+          case InterpolatedComponent(exp) => s"$${${print_exp(exp)}}"
+        }.mkString
+        s"s\"$inner\""
     }
   }
 

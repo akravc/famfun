@@ -139,6 +139,14 @@ object name_resolution {
       resolvedE <- resolveSelfPathsExpression(curSelf, boundVars)(e)
       resolvedG <- resolveSelfPathsExpression(curSelf, boundVars)(g)
     } yield Match(resolvedE, resolvedG)
+    case StringInterpolated(interpolated) =>
+      val resolveAttemptedInterpolated = interpolated.map {
+        case InterpolatedComponent(exp) => resolveSelfPathsExpression(curSelf, boundVars)(exp).map(InterpolatedComponent.apply)
+        case comp => Right(comp)
+      }
+      if resolveAttemptedInterpolated.forall(_.isRight)
+      then Right(StringInterpolated(resolveAttemptedInterpolated.map(_.getOrElse(throw new Exception("...")))))
+      else Left("TODO invalid string interpolation")
     case _ => Right(e)
   }
 
