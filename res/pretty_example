@@ -58,6 +58,7 @@ Family Adjust2 extends Adjust1 {
             then Val(Val_String { s = s"bool:${x.b}" })
             else Val(Val_int { i = 0 })
           )
+      , Val_String = lam (x: {s : String}). s"[hey look, a string! it's \"${x.s}\"]"
       }
 
     Family Lang1 {

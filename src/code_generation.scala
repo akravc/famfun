@@ -310,24 +310,23 @@ object code_generation {
       case Some(Lam(Var(v), t, Rec(caseHandlers))) =>
         val clauses = caseHandlers.toList.map {
           case (ctorName, Lam(Var(instName), RecType(ctorFieldTypes), handlerExp)) =>
-            // TODO: find inherit path to constructor along with constructor fields instead
-            val typeArgs: Set[String] = matchTypeAdtDefn.adtBody.defn match {
-              case None => throw new Exception("TODO: implement finding inherit path to constructor")
-              case Some(ctors) =>
-                ctors
-                  .getOrElse(ctorName, throw new Exception("TODO: implement finding inherit path to constructor"))
-                  .fields.values.toSet.flatMap {
-                    case FamType(Some(p@Sp(_)), name) if getCompleteLinkage(p).adts.contains(name) =>
-                      Set(s"${pathIdentifier(p)}.$name")
-                    case _ => Set.empty
-                  }
+            val pathToCtor: List[Path] = findPathToConstructor(matchTypeAdtDefn, matchTypePath, ctorName)
+            val lastCtorCode: String = s"${pathIdentifier(pathToCtor.last)}.$ctorName"
+            val ignoredFields = List.fill(ctorFieldTypes.size)("_").mkString(", ")
+            val caseMatched: String =
+              ctorCallListFromPathList(pathToCtor, matchType.name)
+                .foldRight(s"matched@$lastCtorCode($ignoredFields)") { (c, r) => s"$c($r)" }
+
+            val typeArgs: Set[String] = ctorFieldTypes.values.toSet.flatMap {
+              case FamType(Some(p@Sp(_)), name) if getCompleteLinkage(p).adts.contains(name) =>
+                Set(s"${pathIdentifier(p)}.$name")
+              case _ => Set.empty
             }
             val typeArgsCode: String = if typeArgs.isEmpty then "" else s"[${typeArgs.mkString(", ")}]"
-
-            val ignoredFields = List.fill(ctorFieldTypes.size)("_").mkString(", ")
-            val instType = s"$matchTypePathId.$ctorName$typeArgsCode"
-            s"""case $matchTypePathId.$ctorName($ignoredFields) =>
-               |  val $instName: $instType = matched.asInstanceOf[$instType]
+            val instType: String = s"$lastCtorCode$typeArgsCode"
+            val matchedCast: String = if typeArgs.isEmpty then "" else s".asInstanceOf[$instType]"
+            s"""case $caseMatched =>
+               |  val $instName: $instType = matched$matchedCast
                |${indentBy(1)(generateCodeExpression(curPath)(handlerExp))}""".stripMargin
           case _ => throw new Exception("Other shapes for case handlers not handled")
         }
@@ -343,7 +342,6 @@ object code_generation {
              |  $inheritPathCode.Family.${casesDefn.name}$$Impl($selfArgs)(inherited)($envParamName)""".stripMargin
         }
 
-    // TODO: all clauses
     val caseClauses: List[String] = definedClauses ++ inheritedClauses
 
     s"""${generateCodeCasesSignature(None)(casesDefn)} = ${casesDefn.name}$$Impl($selfArgs)(matched.asInstanceOf[$concreteMatchTypeCode])
@@ -378,12 +376,12 @@ object code_generation {
     }
   }
 
-  def generateCodeTranslationFunction(curPath: Path)(adtDefn: AdtDefn): String = {
-    def ctorCallPath(pathList: List[Path]): List[String] = pathList match {
-      case p1 :: p2 :: ps => s"${pathIdentifier(p1)}.${pathIdentifier(p2)}$$$$${adtDefn.name}" :: ctorCallPath(p2 :: ps)
-      case _ => Nil
-    }
+  def ctorCallListFromPathList(pathList: List[Path], adtName: String): List[String] = pathList match {
+    case p1 :: p2 :: ps => s"${pathIdentifier(p1)}.${pathIdentifier(p2)}$$$$$adtName" :: ctorCallListFromPathList(p2 :: ps, adtName)
+    case _ => Nil
+  }
 
+  def generateCodeTranslationFunction(curPath: Path)(adtDefn: AdtDefn): String = {
     val curPathId: String = pathIdentifier(curPath)
 
     // Collect all paths from which this adt extends a definition
@@ -397,7 +395,7 @@ object code_generation {
     allPaths.map { targetPath =>
       val targetPathId: String = pathIdentifier(targetPath)
       // TODO: find target paths and generate translation terms at once to be more efficient
-      val ctorCalls = ctorCallPath(findPathToPath(adtDefn, curPath, targetPath))
+      val ctorCalls = ctorCallListFromPathList(findPathToPath(adtDefn, curPath, targetPath), adtDefn.name)
       val translationTerm: String = ctorCalls.foldRight("from") { (c, r) =>
         s"$c($r)"
       }

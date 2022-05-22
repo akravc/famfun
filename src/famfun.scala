@@ -130,11 +130,8 @@ object famfun {
   // Cases
   case class CasesDefn(name: String, matchType: FamType, t: Type, marker: Marker, casesBody: DefnBody[Expression])
 
-  // TODO: should we add a `furtherBinds: Option[Path]` field,
-  //       or should things that can be extended (Marker = PlusEq)
-  //       have field for what definitions they extend?
   // Linkages
-  case class Linkage(path: Path, // TODO: should this hold an absolute path?
+  case class Linkage(path: Path,
                      self: SelfPath, // self
                      sup: Option[Path], // super
                      types: Map[String, TypeDefn],
