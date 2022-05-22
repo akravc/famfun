@@ -49,7 +49,6 @@ Family Y extends X {
       , T3 = lam (x: {t: T}). match x.t with <someCases> {}
       }
   }
-  Family D {}
 }
 
 Family Main {

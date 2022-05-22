@@ -52,10 +52,12 @@ Family Adjust2 extends Adjust1 {
 
     cases pretty_Val_cases <Val> : {} -> {Val_bool : {b : B} -> String} +=
       lam (_ : {}).
-      { Val_bool = lam (x: {b : B}). s"${x.b}"
-          // if x.b
-          // then self(self(Adjust2).LangBase).pretty_Val (Val_int 1)
-          // else self(self(Adjust2).LangBase).pretty_Val (Val_int 0)
+      { Val_bool = lam (x: {b : B}).
+          self(self(Adjust2).LangBase).pretty_Val (
+            if x.b
+            then Val(Val_String { s = s"bool:${x.b}" })
+            else Val(Val_int { i = 0 })
+          )
       }
 
     Family Lang1 {
@@ -94,7 +96,7 @@ Family Main {
     Adjust2.LangBase.Lang1.pretty_Exp
       (Adjust2.LangBase.Lang1.Exp(Exp_if {
         e0 = Adjust2.LangBase.Lang1.Exp(Exp_Val {
-          v = Adjust2.LangBase.Val(Val_bool { b = true })
+          v = Adjust2.LangBase.Val(Val_bool { b = false })
         }),
         e1 = Adjust2.LangBase.Lang1.Exp(Exp_Val {
           v = Adjust2.LangBase.Val(Val_int { i = 42 })

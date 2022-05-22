@@ -147,6 +147,11 @@ object name_resolution {
       if resolveAttemptedInterpolated.forall(_.isRight)
       then Right(StringInterpolated(resolveAttemptedInterpolated.map(_.getOrElse(throw new Exception("...")))))
       else Left("TODO invalid string interpolation")
+    case IfThenElse(condExpr, ifExpr, elseExpr) => for {
+      resolvedCondExpr <- resolveSelfPathsExpression(curSelf, boundVars)(condExpr)
+      resolvedIfExpr <- resolveSelfPathsExpression(curSelf, boundVars)(ifExpr)
+      resolvedElseExpr <- resolveSelfPathsExpression(curSelf, boundVars)(elseExpr)
+    } yield IfThenElse(resolvedCondExpr, resolvedIfExpr, resolvedElseExpr)
     case _ => Right(e)
   }
 

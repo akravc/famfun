@@ -44,9 +44,12 @@ class FamParser extends RegexParsers with PackratParsers {
   val kwString: Parser[String] = "String\\b".r
   val kwSelf: Parser[String] = "self\\b".r
   val kwCases: Parser[String] = "cases\\b".r
+  val kwIf: Parser[String] = "if\\b".r
+  val kwThen: Parser[String] = "then\\b".r
+  val kwElse: Parser[String] = "else\\b".r
 
   val reserved: Parser[String] = kwMatch | kwWith | kwTrue | kwFalse | kwLam  | kwType | kwVal | kwFamily
-    | kwExtends | kwN | kwB | kwString | kwSelf | kwCases
+    | kwExtends | kwN | kwB | kwString | kwSelf | kwCases | kwIf | kwThen | kwElse
 
   // NAMES
   lazy val pVarName: Parser[String] = not(reserved) ~> """_|[a-z][a-zA-Z0-9_]*""".r
@@ -136,35 +139,45 @@ class FamParser extends RegexParsers with PackratParsers {
   lazy val pExpBool: PackratParser[Bexp] = kwTrue ^^^ Bexp(true) | kwFalse ^^^ Bexp(false)
   lazy val pExpNat: PackratParser[NConst] = """(0|[1-9]\d*)""".r ^^ { n => NConst(n.toInt) }
 
+  lazy val pExpIfThenElse: PackratParser[IfThenElse] =
+    (kwIf ~> pExp) ~ (kwThen ~> pExp) ~ (kwElse ~> pExp) ^^ {
+      case condExpr~ifExpr~elseExpr => IfThenElse(condExpr, ifExpr, elseExpr)
+    }
+
   lazy val pExpString: PackratParser[StringExp] =
     between("\"", "\"", """[^"\\]*(\\.[^"\\]*)*""".r) ^^ StringLiteral.apply
-      | (for {
-          str <- "s" ~> between("\"", "\"", """[^"\\]*(\\.[^"\\]*)*""".r)
-          result <- processInterpolatedCharList(str.toList, Nil) match {
-            case Right(interpolated) => success(StringInterpolated(interpolated))
-            case Left(errMsg) => err(errMsg)
-          }
-        } yield result)
-
-  def processInterpolatedCharList(l: List[Char], acc: List[StringInterpolationComponent])
-  : Either[String, List[StringInterpolationComponent]] =
-    l match {
-      case Nil => Right(acc.reverse)
-      case '$' :: '{' :: rest =>
-        val (expStr, rest2) = rest.span(_ != '}')
-        rest2 match {
-          case Nil => Left("TODO unclosed string interpolation")
-          case _ :: rest3 =>
-            parseAll(phrase(pExp), expStr.mkString) match {
-              case Success(result, _) => processInterpolatedCharList(rest3, InterpolatedComponent(result) :: acc)
-              case err => Left(s"$err")
-            }
+    | (for {
+        str <- "s" ~> between("\"", "\"", """[^"\\]*(\\.[^"\\]*)*""".r)
+        result <- processInterpolatedString(str) match {
+          case Right(interpolated) => success(StringInterpolated(interpolated))
+          case Left(errMsg) => err(errMsg)
         }
-      case hd :: rest =>
-        val (litRest, rest2) = rest.span(_ != '$')
-        val curComponent = StringComponent((hd :: litRest).mkString)
-        processInterpolatedCharList(rest2, curComponent :: acc)
-    }
+      } yield result)
+
+  def processInterpolatedString(s: String): Either[String, List[StringInterpolationComponent]] = {
+    @tailrec
+    def processInterpolatedCharList(l: List[Char], acc: List[StringInterpolationComponent])
+    : Either[String, List[StringInterpolationComponent]] =
+      l match {
+        case Nil => Right(acc.reverse)
+        case '$' :: '{' :: rest =>
+          val (expStr, rest2) = rest.span(_ != '}')
+          rest2 match {
+            case Nil => Left("TODO unclosed string interpolation")
+            case _ :: rest3 =>
+              parseAll(phrase(pExp), expStr.mkString) match {
+                case Success(result, _) => processInterpolatedCharList(rest3, InterpolatedComponent(result) :: acc)
+                case err => Left(s"$err")
+              }
+          }
+        case hd :: rest =>
+          val (litRest, rest2) = rest.span(_ != '$')
+          val curComponent = StringComponent((hd :: litRest).mkString)
+          processInterpolatedCharList(rest2, curComponent :: acc)
+      }
+
+    processInterpolatedCharList(s.toList, Nil)
+  }
 
   lazy val pExpVar: PackratParser[Var] = pVarName ^^ { id => Var(id) }
   lazy val pExpLam: PackratParser[Lam] =
@@ -206,8 +219,8 @@ class FamParser extends RegexParsers with PackratParsers {
     | pPrimary
   lazy val pPrimary: PackratParser[Expression] =
     pExpProj | pExpMatch | pExpInstAdt | pExpInst | pExpApp | pExpRec
+    | pExpIfThenElse | pExpLam | pExpString | pExpBool | pExpNat
     | pExpFamFun | pExpFamCases
-    | pExpLam | pExpString | pExpBool | pExpNat
     | pExpVar
     | between("(", ")", pExp)
 

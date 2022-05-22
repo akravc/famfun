@@ -97,6 +97,7 @@ object famfun {
   case class InstADT(t: FamType, cname: String, rec: Rec) extends Expression // a.R(C {(f = e)*})
   case class Match(e: Expression, g: Expression) extends Expression // match e with g
   case class Bexp(b: Boolean) extends Expression
+  case class IfThenElse(condExpr: Expression, ifExpr: Expression, elseExpr: Expression) extends Expression
 
   sealed trait AExp extends Expression // arithmetic expressions; how to parse?
   case class NConst(n: Int) extends AExp

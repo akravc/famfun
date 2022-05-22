@@ -111,13 +111,11 @@ object type_checking {
 
   def unifyTypes(types: List[Type]): Either[String, Type] = types match {
     case Nil => Left("No types given to unify")
-    case t :: ts => ts.foldLeft(Right(concretizeType(t)).withLeft[String]) { (eAccType, curType) =>
+    case t :: ts => ts.foldLeft(Right(t).withLeft[String]) { (eAccType, curType) =>
       eAccType.flatMap { accType =>
-        val concreteAccType = concretizeType(accType)
-        val concreteCurType = concretizeType(curType)
         // TODO: needs to handle RecTypes specially instead; find common fields between all RecTypes...
-        if isSubtype(concreteAccType, concreteCurType) then Right(concreteCurType)
-        else if isSubtype(concreteCurType, concreteAccType) then Right(concreteAccType)
+        if isSubtype(accType, curType) then Right(curType)
+        else if isSubtype(curType, accType) then Right(accType)
         else Left(s"Failed to unify types: ${types.map(print_type).mkString(", ")}")
       }
     }
@@ -339,6 +337,26 @@ object type_checking {
     // K, G |- b : B
     case Bexp(_) => Right(BType)
 
+    // K, G |- e0 : B
+    // K, G |- e1 : T
+    // K, G |- e2 : T
+    // ---------------------------------- T_IfThenElse
+    // K, G |- if e0 then e1 else e2 : T
+    case IfThenElse(condExpr, ifExpr, elseExpr) => for {
+      condType <- typeOfExpression(G)(condExpr)
+      ifType <- typeOfExpression(G)(ifExpr)
+      elseType <- typeOfExpression(G)(elseExpr)
+      result <- condType match {
+        case BType => unifyTypes(List(ifType, elseType))
+        case _ => Left(
+          s"""Type mismatch for ${print_exp(condExpr)}, the condition of if expression ${print_exp(e)}.
+             |Found:    ${print_type(condType)}
+             |Required: B
+             |""".stripMargin
+        )
+      }
+    } yield result
+
     case StringLiteral(_) => Right(StringType)
     case StringInterpolated(interpolated) =>
       if interpolated.forall {
@@ -372,8 +390,8 @@ object type_checking {
               val e1Pretty = print_exp(e1)
               val e2Pretty = print_exp(e2)
               Left(
-                s"""Cannot apply $e1Pretty to $e2Pretty;
-                   |$e1Pretty expects an argument of type $iType but got one of type $e2Type.
+                s"""Cannot apply $e2Pretty to $e1Pretty;
+                   |$e1Pretty expects an argument of type ${print_type(iType)} but got one of type ${print_type(e2Type)}.
                    |""".stripMargin
               )
             }

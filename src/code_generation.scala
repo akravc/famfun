@@ -529,6 +529,12 @@ object code_generation {
 
     case Bexp(b) => b.toString
 
+    case IfThenElse(condExpr, ifExpr, elseExpr) =>
+      val condCode = generateCodeExpression(curPath)(condExpr)
+      val ifCode = generateCodeExpression(curPath)(ifExpr)
+      val elseCode = generateCodeExpression(curPath)(elseExpr)
+      s"(if $condCode then $ifCode else $elseCode)"
+
     case StringLiteral(literal) => s"\"$literal\""
     case StringInterpolated(interpolated) =>  
       val inner: String = interpolated.map {
