@@ -1,3 +1,4 @@
+import OptionOps.firstSome
 import famfun.*
 import type_checking.{collectAllCaseHandlerTypes, collectAllDefns, getCompleteLinkage, unifyTypes}
 
@@ -66,6 +67,25 @@ object code_generation {
     findPathAdt(curDefn, curPath) { (_, p) => p == targetPath }
   }
 
+  // Produces the path of the family that the family of the given path further binds from
+  def findFurtherBinds(path: Path): Option[Path] = {
+    def findNext(optNextPath: Option[Path], targetFam: String): Option[Path] = for {
+      nextPath <- optNextPath
+      nextLkg = getCompleteLinkage(nextPath)
+      resultLkg <- nextLkg.nested.get(targetFam)
+    } yield resultLkg.path
+
+    path match {
+      case Sp(Prog) => None
+      case Sp(_) => findFurtherBinds(concretizePath(path))
+      case AbsoluteFamily(pref, fam) =>
+        val prefLkg: Linkage = getCompleteLinkage(pref)
+        val fromExtends: Option[Path] = findNext(prefLkg.sup, fam)
+        lazy val fromFurtherBinds: Option[Path] = findNext(findFurtherBinds(prefLkg.path), fam)
+        firstSome(fromExtends, fromFurtherBinds)
+    }
+  }
+
   // Produces a list of pairs of desired file names with the code they contain
   // generated from the complete linkages given
   def generateCode(completeLinkages: Iterable[Linkage]): Iterable[(String, String)] =
@@ -111,24 +131,11 @@ object code_generation {
 
   def generateCodeInterface(curPath: Path)
                            (adts: Iterable[AdtDefn], funs: Iterable[FunDefn], cases: Iterable[CasesDefn]): String = {
-    // TODO: move this out somewhere
-    def firstSome[T](opt1: Option[T], opt2: Option[T]): Option[T] = opt1 match {
-      case None => opt2
-      case Some(_) => opt1
-    }
-
     val curPathId: String = pathIdentifier(curPath)
 
     val allBodies: Iterable[DefnBody[Expression]] = funs.map { _.funBody } ++ cases.map { _.casesBody }
-    // TODO: need a more robust way of doing this; does not detect extends or further-binds relation
-    //       if there is nothing to be inherited
-    val optInheritPaths: (Option[Path], Option[Path]) =
-      allBodies.foldLeft((Option.empty[Path], Option.empty[Path])) {
-        case ((accExtends, accFurtherBinds), DefnBody(_, extendsFrom, furtherBindsFrom)) =>
-          (firstSome(accExtends, extendsFrom), firstSome(accFurtherBinds, furtherBindsFrom))
-      }
 
-    val interfaceExtension: String = optInheritPaths match {
+    val interfaceExtension: String = (getCompleteLinkage(curPath).sup, findFurtherBinds(curPath)) match {
       case (None, None) => ""
       case (Some(extendsPath), None) => s"extends ${pathIdentifier(extendsPath)}.Interface"
       case (None, Some(furtherBindsPath)) => s"extends ${pathIdentifier(furtherBindsPath)}.Interface"

@@ -158,3 +158,14 @@ object MapOps {
     merge(m1.toList.sortBy(_._1), m2.toList.sortBy(_._1)).toMap
   }
 }
+
+object OptionOps {
+  def firstSome[T](opt1: Option[T], opt2: => Option[T]): Option[T] = opt1 match {
+    case None => opt2
+    case Some(_) => opt1
+  }
+  def lastSome[T](opt1: => Option[T], opt2: Option[T]): Option[T] = opt2 match {
+    case None => opt1
+    case Some(_) => opt2
+  }
+}

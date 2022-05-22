@@ -1,6 +1,7 @@
-import famfun._
+import famfun.*
 import PrettyPrint.*
 import MapOps.*
+import OptionOps.lastSome
 
 object type_checking {
   val K: scala.collection.mutable.Map[Path, Linkage] = scala.collection.mutable.Map.empty
@@ -690,10 +691,6 @@ object type_checking {
   // Replaces `extendsFrom` and `furtherBindsFrom` in `curDefnBody` with those of `inheritedDefnBody`
   // if they are not already defined (Some(_))
   def mergeDefnBody[B](inheritedDefnBody: DefnBody[B], curDefnBody: DefnBody[B]): DefnBody[B] = {
-    def lastSome[T](opt1: Option[T], opt2: Option[T]): Option[T] = opt2 match {
-      case None => opt1
-      case Some(_) => opt2
-    }
     DefnBody(
       curDefnBody.defn,
       lastSome(inheritedDefnBody.extendsFrom, curDefnBody.extendsFrom),
