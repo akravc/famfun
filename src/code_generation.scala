@@ -94,10 +94,6 @@ object code_generation {
       .map { lkg => linkageFileName(lkg) -> generateCodeLinkage(lkg) }
 
   def generateCodeLinkage(lkg: Linkage): String = {
-    // TODO: types with defaults?
-
-    val curPathId = pathIdentifier(lkg.path)
-
     val typesCode: String = lkg.types.values.map { case typeDefn@TypeDefn(typeName, _, _) =>
       generateCodeTypeDefn(
         typeDefn,
@@ -114,7 +110,7 @@ object code_generation {
 
     s"""import reflect.Selectable.reflectiveSelectable
        |
-       |object $curPathId {
+       |object ${pathIdentifier(lkg.path)} {
        |  // Types
        |${indentBy(1)(typesCode)}
        |
@@ -198,7 +194,6 @@ object code_generation {
 
     val translationsCode: String = adts.map(generateCodeTranslationFunction(curPath)).mkString("\n")
 
-    // TODO: translation functions for adt constructors in curPath too
     s"""object Family extends ${pathIdentifier(curPath)}.Interface {
        |  // Self field instantiation
        |${indentBy(1)(selfFields)}
@@ -499,7 +494,6 @@ object code_generation {
         case Sp(_) => ""
         case _ => ".Family"
       })
-      // TODO: find family p.A where constructor ctorName came from instread
       val lkg: Linkage = getCompleteLinkage(path)
       val adtDefn: AdtDefn =
         lkg.adts.getOrElse(name, throw new Exception("Should be defined after type-checking"))

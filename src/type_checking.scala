@@ -272,9 +272,12 @@ object type_checking {
           .fold(Left(s"No ADT ${c.matchType.name} in ${print_path(c.matchType.path.get)}"))(Right.apply)
       allCtors = collectAllConstructors(matchAdtDefn)
 
+      normCtorsHandled = caseHandlerTypesAsCtors.view.mapValues(subSelfInTypeAccordingTo(curPath)).toMap
+      normAllCtors = allCtors.view.mapValues(subSelfInTypeAccordingTo(curPath)).toMap
       // Exhaustive check
       _ <-
-        if caseHandlerTypesAsCtors == allCtors then Right(())
+        if normCtorsHandled == normAllCtors
+        then Right(())
         else Left(s"Cases ${c.name} in ${print_path(curPath)} is non-exhaustive.")
       caseHandlerOutTypes <- traverseMap(allCaseHandlerTypes) {
         case FunType(_, outType) => Right(outType)
