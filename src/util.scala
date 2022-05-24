@@ -52,7 +52,8 @@ object PrettyPrint {
       case Match(e, g) => "match " + print_exp(e) + " with " + print_exp(g)
       case NConst(n) => n.toString
       case ABinExp(a1, op, a2) => s"(${print_exp(a1)} ${showAOp(op)} ${print_exp(a2)})"
-      case Bexp(b) => b.toString
+      case BConst(b) => b.toString
+      case BBinExp(e1, op, e2) => s"(${print_exp(e1)} ${showBOp(op)} ${print_exp(e2)})"
       case IfThenElse(condExpr, ifExpr, elseExpr) =>
         s"if ${print_exp(condExpr)} then ${print_exp(ifExpr)} else ${print_exp(elseExpr)}"
       case StringLiteral(s) => s"\"$s\""

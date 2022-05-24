@@ -52,12 +52,17 @@ Family Y extends X {
 }
 
 Family Main {
-    val main1: {} -> X.C.T = lam (_: {}).
-        Y.D.doSomeCases Y.D.T(T1 {n = 10 * (Y.D.g (Y.D.f true))})
+  val main1: {} -> X.C.T = lam (_: {}).
+    Y.D.doSomeCases Y.D.T(T1 {n = 10 * (Y.D.g (Y.D.f true))})
 
-    val main3: {} -> X.C.T = lam(_: {}).
-        Y.D.doSomeCases (Y.D.T(T4 {t1 = Y.D.T(T3 { t = Y.D.T(T1 {n = 10}) }), t2 = Y.D.T(T2 { b = true })}))
+  val main3: {} -> X.C.T = lam(_: {}).
+    Y.D.doSomeCases (Y.D.T(T4 {t1 = Y.D.T(T3 { t = Y.D.T(T1 {n = 10}) }), t2 = Y.D.T(T2 { b = true })}))
 
-    val main2: {} -> X.C.T = lam (_: {}).
-        Y.D.doSomeCases Y.D.T(T2 {b = true})
+  val main2: {} -> X.C.T = lam (_: {}).
+    Y.D.doSomeCases Y.D.T(T2 {b = true})
+
+  val fact: N -> N = lam (n: N).
+    if !(n != 0)
+    then 1
+    else n * fact (n - 1)
 }

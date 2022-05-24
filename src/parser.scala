@@ -136,7 +136,7 @@ class FamParser extends RegexParsers with PackratParsers {
     }
 
   // EXPRESSIONS
-  lazy val pExpBool: PackratParser[Bexp] = kwTrue ^^^ Bexp(true) | kwFalse ^^^ Bexp(false)
+  lazy val pExpBool: PackratParser[BConst] = kwTrue ^^^ BConst(true) | kwFalse ^^^ BConst(false)
   lazy val pExpNat: PackratParser[NConst] = """(0|[1-9]\d*)""".r ^^ { n => NConst(n.toInt) }
 
   lazy val pExpIfThenElse: PackratParser[IfThenElse] =
@@ -208,7 +208,23 @@ class FamParser extends RegexParsers with PackratParsers {
   lazy val pExpMatch: PackratParser[Match] =
     kwMatch ~> pExp ~ (kwWith ~> pExp) ^^ { case e~g => Match(e, g) }
 
-  lazy val pExp: PackratParser[Expression] = pTerm
+  lazy val pExp: PackratParser[Expression] = pCondAnd
+  lazy val pCondAnd: PackratParser[Expression] =
+    pCondAnd ~ ("&&" ~> pCondOr) ^^ { case e1~e2 => BBinExp(e1, BAnd, e2) }
+    | pCondOr
+  lazy val pCondOr: PackratParser[Expression] =
+    pCondOr ~ ("||" ~> pEquality) ^^ { case e1~e2 => BBinExp(e1, BOr, e2) }
+    | pEquality
+  lazy val pEquality: PackratParser[Expression] =
+    pEquality ~ ("==" ~> pComparison) ^^ { case e1~e2 => BBinExp(e1, BEq, e2) }
+    | pEquality ~ ("!=" ~> pComparison) ^^ { case e1~e2 => BBinExp(e1, BNeq, e2) }
+    | pComparison
+  lazy val pComparison: PackratParser[Expression] =
+    pComparison ~ ("<" ~> pTerm) ^^ { case e1~e2 => BBinExp(e1, BLt, e2) }
+    | pComparison ~ (">" ~> pTerm) ^^ { case e1~e2 => BBinExp(e1, BGt, e2) }
+    | pComparison ~ ("<=" ~> pTerm) ^^ { case e1~e2 => BBinExp(e1, BLeq, e2) }
+    | pComparison ~ (">=" ~> pTerm) ^^ { case e1~e2 => BBinExp(e1, BGeq, e2) }
+    | pTerm
   lazy val pTerm: PackratParser[Expression] =
     pTerm ~ ("+" ~> pFactor) ^^ { case a1~a2 => ABinExp(a1, AAdd, a2) }
     | pTerm ~ ("-" ~> pFactor) ^^ { case a1~a2 => ABinExp(a1, ASub, a2) }
@@ -216,6 +232,9 @@ class FamParser extends RegexParsers with PackratParsers {
   lazy val pFactor: PackratParser[Expression] =
     pFactor ~ ("*" ~> pPrimary) ^^ { case a1~a2 => ABinExp(a1, AMul, a2) }
     | pFactor ~ ("/" ~> pPrimary) ^^ { case a1~a2 => ABinExp(a1, ADiv, a2) }
+    | pUnary
+  lazy val pUnary: PackratParser[Expression] =
+    "!" ~> pUnary ^^ BNot.apply
     | pPrimary
   lazy val pPrimary: PackratParser[Expression] =
     pExpProj | pExpMatch | pExpInstAdt | pExpInst | pExpApp | pExpRec

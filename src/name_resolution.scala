@@ -139,6 +139,15 @@ object name_resolution {
       resolvedE <- resolveSelfPathsExpression(curSelf, boundVars)(e)
       resolvedG <- resolveSelfPathsExpression(curSelf, boundVars)(g)
     } yield Match(resolvedE, resolvedG)
+    case ABinExp(a1, op, a2) => for {
+      resolvedA1 <- resolveSelfPathsExpression(curSelf, boundVars)(a1)
+      resolvedA2 <- resolveSelfPathsExpression(curSelf, boundVars)(a2)
+    } yield ABinExp(resolvedA1, op, resolvedA2)
+    case BBinExp(e1, op, e2) => for {
+      resolvedE1 <- resolveSelfPathsExpression(curSelf, boundVars)(e1)
+      resolvedE2 <- resolveSelfPathsExpression(curSelf, boundVars)(e2)
+    } yield BBinExp(resolvedE1, op, resolvedE2)
+    case BNot(e) => resolveSelfPathsExpression(curSelf, boundVars)(e).map(BNot.apply)
     case StringInterpolated(interpolated) =>
       val resolveAttemptedInterpolated = interpolated.map {
         case InterpolatedComponent(exp) => resolveSelfPathsExpression(curSelf, boundVars)(exp).map(InterpolatedComponent.apply)

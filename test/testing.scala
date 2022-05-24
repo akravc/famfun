@@ -98,12 +98,12 @@ class FamFunParserTesting extends AnyFunSuite {
   // Parsing Expressions
   test("exp: true") {
     assert(canParse(pExp, "true"))
-    assertResult(Bexp(true)){parseSuccess(pExp, "true")}
+    assertResult(BConst(true)){parseSuccess(pExp, "true")}
   }
 
   test("exp: false") {
     assert(canParse(pExp, "false"))
-    assertResult(Bexp(false)){parseSuccess(pExp, "false")}
+    assertResult(BConst(false)){parseSuccess(pExp, "false")}
   }
 
   test("exp: nat") {
@@ -128,17 +128,17 @@ class FamFunParserTesting extends AnyFunSuite {
 
   test("exp: app") {
     assert(canParse(pExp, "(lam (x: B). x) true"))
-    assertResult(App(Lam(Var("x"), BType, Var("x")), Bexp(true))){parseSuccess(pExp, "(lam (x: B). x) true")}
+    assertResult(App(Lam(Var("x"), BType, Var("x")), BConst(true))){parseSuccess(pExp, "(lam (x: B). x) true")}
   }
 
   test("exp: record") {
     assert(canParse(pExp, "{ a = 5 , b = true }"))
-    assertResult(Rec(Map("a"-> NConst(5), "b" -> Bexp(true)))){parseSuccess(pExp, "{ a = 5, b = true }")}
+    assertResult(Rec(Map("a"-> NConst(5), "b" -> BConst(true)))){parseSuccess(pExp, "{ a = 5, b = true }")}
   }
 
   test("exp: projection") {
     assert(canParse(pExp, "{ a = 5 , b = true }.b"))
-    assertResult(Proj(Rec(Map("a"-> NConst(5), "b" -> Bexp(true))), "b")){parseSuccess(pExp, "{ a = 5 , b = true }.b")}
+    assertResult(Proj(Rec(Map("a"-> NConst(5), "b" -> BConst(true))), "b")){parseSuccess(pExp, "{ a = 5 , b = true }.b")}
   }
 
   test("exp: instance") {
@@ -175,7 +175,7 @@ class FamFunParserTesting extends AnyFunSuite {
         SelfFamily(Prog, "A"),
         None,
         Map("T" -> TypeDefn("T", Eq, DefnBody(Some(RecType(Map("f"->BType, "n"->NType))), None, None))),
-        Map("T" -> DefaultDefn("T", Eq, DefnBody(Some(Rec(Map("f"->Bexp(true), "n"->NConst(3)))), None, None))),
+        Map("T" -> DefaultDefn("T", Eq, DefnBody(Some(Rec(Map("f"->BConst(true), "n"->NConst(3)))), None, None))),
         Map(), Map(), Map(), Map()
       )
     ){parseSuccess(pFamDef(Prog), "Family A { type T = {f: B = true, n: N = 3}}")}
@@ -191,7 +191,7 @@ class FamFunParserTesting extends AnyFunSuite {
         SelfFamily(Prog, "A"),
         Some(AbsoluteFamily(Sp(Prog), "C")),
         Map("T" -> TypeDefn("T", Eq, DefnBody(Some(RecType(Map("f"->BType, "n"->NType))), None, None))),
-        Map("T" -> DefaultDefn("T", Eq, DefnBody(Some(Rec(Map("f"->Bexp(true), "n"->NConst(3)))), None, None))),
+        Map("T" -> DefaultDefn("T", Eq, DefnBody(Some(Rec(Map("f"->BConst(true), "n"->NConst(3)))), None, None))),
         Map(), Map(), Map(), Map()
       )
     ){parseSuccess(pFamDef(Prog), "Family A extends C { type T = {f: B = true, n: N = 3}}")}
@@ -213,7 +213,7 @@ class FamFunParserTesting extends AnyFunSuite {
         SelfFamily(Prog, "A"),
         Some(AbsoluteFamily(Sp(Prog), "C")),
         Map("T" -> TypeDefn("T", PlusEq, DefnBody(Some(RecType(Map("f"->BType, "n"->NType))), None, None))),
-        Map("T" -> DefaultDefn("T", PlusEq, DefnBody(Some(Rec(Map("f"->Bexp(true), "n"->NConst(3)))), None, None))),
+        Map("T" -> DefaultDefn("T", PlusEq, DefnBody(Some(Rec(Map("f"->BConst(true), "n"->NConst(3)))), None, None))),
         Map(), Map(), Map(), Map()
       )
     ){parseSuccess(pFamDef(Prog), "Family A extends C { type T += {f: B = true, n: N = 3}}")}
@@ -236,7 +236,7 @@ class FamFunParserTesting extends AnyFunSuite {
           "R" -> TypeDefn("R", Eq, DefnBody(Some(RecType(Map("s"->FamType(Some(Sp(SelfFamily(Prog, "A"))), "T")))), None, None))
         ),
         Map(
-          "T" -> DefaultDefn("T", Eq, DefnBody(Some(Rec(Map("f"->Bexp(true), "n"->NConst(3)))), None, None)),
+          "T" -> DefaultDefn("T", Eq, DefnBody(Some(Rec(Map("f"->BConst(true), "n"->NConst(3)))), None, None)),
           "R" -> DefaultDefn("R", Eq, DefnBody(Some(Rec(Map("s"->Rec(Map())))), None, None))
         ),
         Map(), Map(), Map(), Map()
@@ -268,7 +268,7 @@ class FamFunParserTesting extends AnyFunSuite {
         ),
         // defaults
         Map(
-          "T" -> DefaultDefn("T", Eq, DefnBody(Some(Rec(Map("f"->Bexp(true), "n"->NConst(3)))), None, None)),
+          "T" -> DefaultDefn("T", Eq, DefnBody(Some(Rec(Map("f"->BConst(true), "n"->NConst(3)))), None, None)),
           "R" -> DefaultDefn("R", Eq, DefnBody(Some(Rec(Map("s"->Rec(Map())))), None, None))
         ),
         // adts

@@ -96,7 +96,6 @@ object famfun {
   case class Inst(t: FamType, rec: Rec) extends Expression // a.R({(f = e)*})
   case class InstADT(t: FamType, cname: String, rec: Rec) extends Expression // a.R(C {(f = e)*})
   case class Match(e: Expression, g: Expression) extends Expression // match e with g
-  case class Bexp(b: Boolean) extends Expression
   case class IfThenElse(condExpr: Expression, ifExpr: Expression, elseExpr: Expression) extends Expression
 
   sealed trait AExp extends Expression // arithmetic expressions; how to parse?
@@ -112,6 +111,30 @@ object famfun {
     case ASub => "-"
     case AMul => "*"
     case ADiv => "/"
+  }
+
+  sealed trait BExp extends Expression
+  case class BConst(b: Boolean) extends BExp
+  case class BBinExp(e1: Expression, op: BOp, e2: Expression) extends BExp
+  case class BNot(e: Expression) extends BExp
+  sealed trait BOp
+  case object BAnd extends BOp
+  case object BOr extends BOp
+  case object BEq extends BOp
+  case object BNeq extends BOp
+  case object BLt extends BOp
+  case object BGt extends BOp
+  case object BLeq extends BOp
+  case object BGeq extends BOp
+  def showBOp(op: BOp): String = op match {
+    case BAnd => "&&"
+    case BOr => "||"
+    case BEq => "=="
+    case BNeq => "!="
+    case BLt => "<"
+    case BGt => ">"
+    case BLeq => "<="
+    case BGeq => ">="
   }
 
   sealed trait StringExp extends Expression
@@ -151,9 +174,17 @@ object famfun {
     case Inst(t, rec) => rec.fields.forall { case (_, exp) => is_value(exp) }
     case InstADT(t, cname, rec) => rec.fields.forall { case (_, exp) => is_value(exp) }
     case Rec(fields) => fields.forall { case (_, exp) => is_value(exp) }
-    case NConst(n) => true
+    case NConst(_) => true
     case ABinExp(a1, _, a2) => is_value(a1) && is_value(a2)
-    case Bexp(b) => true
+    case BConst(_) => true
+    case BBinExp(e1, _, e2) => is_value(e1) && is_value(e2)
+    case BNot(inner) => is_value(inner)
+    case StringLiteral(_) => true
+    case StringInterpolated(components) => components.forall {
+      case StringComponent(_) => true
+      case InterpolatedComponent(exp) => is_value(exp)
+    }
+    case IfThenElse(condExpr, ifExpr, elseExpr) => is_value(condExpr) && is_value(ifExpr) && is_value(elseExpr)
     case _ => false
   }
 }

@@ -339,7 +339,65 @@ object type_checking {
 
     // _________________ T_Bool
     // K, G |- b : B
-    case Bexp(_) => Right(BType)
+    case BConst(_) => Right(BType)
+
+    case BBinExp(e1, op, e2) => for {
+      e1Type <- typeOfExpression(G)(e1)
+      e2Type <- typeOfExpression(G)(e2)
+      result <- op match {
+        case BAnd | BOr => (e1Type, e2Type) match {
+          case (BType, BType) => Right(BType)
+          case (BType, _) => Left(
+            s"""Type mismatch for ${print_exp(e2)}, the right-hand side of ${print_exp(e)}.
+               |Found:    ${print_type(e2Type)}
+               |Required: B
+               |""".stripMargin
+          )
+          case _ => Left(
+            s"""Type mismatch for ${print_exp(e1)}, the left-hand side of ${print_exp(e)}.
+               |Found:    ${print_type(e1Type)}
+               |Required: B
+               |""".stripMargin
+          )
+        }
+
+        case BEq | BNeq =>
+          if isSubtype(e1Type, e2Type) || isSubtype(e1Type, e2Type)
+          then Right(BType)
+          else Left(
+            s"""Type mismatch for ${print_exp(e2)}, the right-hand side of ${print_exp(e)}.
+               |Found:    ${print_type(e2Type)}
+               |Required: ${print_type(e1Type)}
+               |""".stripMargin
+          )
+
+        case BLt | BGt | BLeq | BGeq => (e1Type, e2Type) match {
+          case (NType, NType) => Right(BType)
+          case (NType, _) => Left(
+            s"""Type mismatch for ${print_exp(e2)}, the right-hand side of ${print_exp(e)}.
+               |Found:    ${print_type(e2Type)}
+               |Required: N
+               |""".stripMargin
+          )
+          case _ => Left(
+            s"""Type mismatch for ${print_exp(e1)}, the left-hand side of ${print_exp(e)}.
+               |Found:    ${print_type(e1Type)}
+               |Required: N
+               |""".stripMargin
+          )
+        }
+      }
+    } yield result
+
+    case BNot(inner) => typeOfExpression(G)(inner).flatMap {
+      case BType => Right(BType)
+      case innerType => Left(
+        s"""Type mismatch for ${print_exp(inner)}, the inner expression of ${print_exp(e)}.
+           |Found:    ${print_type(innerType)}
+           |Required: B
+           |""".stripMargin
+      )
+    }
 
     // K, G |- e0 : B
     // K, G |- e1 : T

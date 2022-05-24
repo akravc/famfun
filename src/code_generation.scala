@@ -526,7 +526,13 @@ object code_generation {
       val opCode = showAOp(op)
       s"($lhsCode $opCode $rhsCode)"
 
-    case Bexp(b) => b.toString
+    case BConst(b) => b.toString
+    case BBinExp(e1, op, e2) =>
+      val lhsCode = generateCodeExpression(curPath)(e1)
+      val rhsCode = generateCodeExpression(curPath)(e2)
+      val opCode = showBOp(op)
+      s"($lhsCode $opCode $rhsCode)"
+    case BNot(e) => s"!${generateCodeExpression(curPath)(e)}"
 
     case IfThenElse(condExpr, ifExpr, elseExpr) =>
       val condCode = generateCodeExpression(curPath)(condExpr)
