@@ -9,8 +9,8 @@ Family X {
 
     val f: B -> T = lam (x: B). T(T1 {n = 10}) // TODO: no typename for ctor, instead path.T1 {...}
 
-    cases someCases <T>: {} -> { T1: {n: N} -> X.C.T } = lam (_: {}).
-      { T1 = lam (x: {n: N}). X.C.T(T1 {n = 5 + x.n * x.n})
+    cases someCases <T>: {} -> { T1: {n: N} -> T } = lam (_: {}).
+      { T1 = lam (x: {n: N}). T(T1 {n = 5 + x.n * x.n})
       }
   }
   Family D extends self(X).C {
@@ -19,10 +19,8 @@ Family X {
     val f: B -> T = lam (x: B). T(T2 {b = true})
     val g: T -> N = lam (t: T). 10
 
-    // Currently fails to unify output types if trying to output T
-    // self(self(<>.X).D).T (from this handler) with self(self(<>.X).C).T (from handler in X.C)
-    cases someCases <T>: {} -> { T2: {b: B} -> X.C.T } += lam (_: {}).
-      { T2 = lam (y: {b: B}). X.C.T(T1 {n = 42})
+    cases someCases <T>: {} -> { T2: {b: B} -> T } += lam (_: {}).
+      { T2 = lam (y: {b: B}). T(T1 {n = 42})
       }
 
   }
@@ -42,9 +40,9 @@ Family Y extends X {
 
     val rec: {} -> {n: N, b: B} = lam (_: {}). {n = 1, b = true, c = 3}
 
-    val doSomeCases: T -> X.C.T = lam (t: T). match t with <someCases> {}
+    val doSomeCases: T -> T = lam (t: T). match t with <someCases> {}
 
-    cases someCases <T>: {} -> { T3: {t: T} -> X.C.T, T4: {t1: T, t2: T} -> X.C.T } += lam (_: {}).
+    cases someCases <T>: {} -> { T3: {t: T} -> T, T4: {t1: T, t2: T} -> T } += lam (_: {}).
       { T4 = lam (x: {t1: T, t2: T}). match x.t1 with <someCases> {}
       , T3 = lam (x: {t: T}). match x.t with <someCases> {}
       }
@@ -52,17 +50,17 @@ Family Y extends X {
 }
 
 Family Main {
-  val main1: {} -> X.C.T = lam (_: {}).
+  val main1: {} -> Y.D.T = lam (_: {}).
     Y.D.doSomeCases Y.D.T(T1 {n = 10 * (Y.D.g (Y.D.f true))})
 
-  val main3: {} -> X.C.T = lam(_: {}).
+  val main3: {} -> Y.D.T = lam(_: {}).
     Y.D.doSomeCases (Y.D.T(T4 {t1 = Y.D.T(T3 { t = Y.D.T(T1 {n = 10}) }), t2 = Y.D.T(T2 { b = true })}))
 
-  val main2: {} -> X.C.T = lam (_: {}).
+  val main2: {} -> Y.D.T = lam (_: {}).
     Y.D.doSomeCases Y.D.T(T2 {b = true})
 
   val fact: N -> N = lam (n: N).
-    if !(n != 0)
+    if !(n > 0)
     then 1
     else n * fact (n - 1)
 }

@@ -284,7 +284,7 @@ object type_checking {
         case t => Left(s"Invalid type ${print_type(t)} for case handler for cases ${c.name} in ${print_path(curPath)}")
       }.map(_.values.toList)
       // Consistent result type check
-      _ <- unifyTypes(caseHandlerOutTypes).left.map { unifyErrMsg =>
+      _ <- unifyTypes(caseHandlerOutTypes.map(subSelfInTypeAccordingTo(curPath))).left.map { unifyErrMsg =>
         s"""Inconsistent output types for case handlers for cases ${c.name} in ${print_path(curPath)}:
             |$unifyErrMsg
             |""".stripMargin
@@ -306,7 +306,6 @@ object type_checking {
     } yield ()
   }
 
-  // Exceptions or Option?
   def typeOfExpression(G: Map[String, Type])(e: Expression): Either[String, Type] = (e match {
     // _________________ T_Num
     // K, G |- n : N
@@ -594,7 +593,7 @@ object type_checking {
                 case FunType(_, outType) => Right(outType)
                 case t => Left(s"Invalid type ${print_type(t)} for case handler for cases ${casesDefn.name}")
               }.map(_.values.toList)
-              outType <- unifyTypes(caseHandlerOutTypes)
+              outType <- unifyTypes(caseHandlerOutTypes.map(subSelfInTypeAccordingTo(path)))
             } yield outType
             case _ => Left("TODO cannot have cases in family that does not extend adt")
           }

@@ -149,7 +149,7 @@ object code_generation {
 
     val funsSig: String = funs.map(generateCodeFunSignature(None)).mkString("\n")
 
-    val casesSig: String = cases.map(generateCodeCasesSignature(None)).mkString("\n")
+    val casesSig: String = cases.map(generateCodeCasesSignature(curPath)).mkString("\n")
 
     val translationsSig: String = adts.map { adtDefn =>
       val adtName: String = adtDefn.name
@@ -247,7 +247,9 @@ object code_generation {
       List(adtDefn.adtBody.extendsFrom, adtDefn.adtBody.furtherBindsFrom)
         .collect { case Some(inheritPath) =>
           val inheritPathCode = pathIdentifier(inheritPath)
-          s"case class $inheritPathCode$$$$$adtName(inherited: $inheritPathCode.$adtName) extends $adtName"
+          s"""case class $inheritPathCode$$$$$adtName(inherited: $inheritPathCode.$adtName) extends $adtName {
+             |  override def toString(): String = inherited.toString()
+             |}""".stripMargin
         }
 
     s"""sealed trait $adtName
@@ -339,14 +341,13 @@ object code_generation {
 
     val caseClauses: List[String] = definedClauses ++ inheritedClauses
 
-    s"""${generateCodeCasesSignature(None)(casesDefn)} = ${casesDefn.name}$$Impl($selfArgs)(matched.asInstanceOf[$concreteMatchTypeCode])
-       |${generateCodeCasesSignature(Some(curPath))(casesDefn)} = ($envParamName: ${generateCodeType(envParamType)}) => matched match {
+    s"""${generateCodeCasesSignature(curPath)(casesDefn)} = ${casesDefn.name}$$Impl($selfArgs)(matched.asInstanceOf[$concreteMatchTypeCode])
+       |${generateCodeCasesImplSignature(curPath)(casesDefn)} = ($envParamName: ${generateCodeType(envParamType)}) => matched match {
        |${indentBy(1)(caseClauses.mkString("\n"))}
        |}""".stripMargin
   }
 
-  // When optSelf is Some(_), generates the signature for the $Impl function
-  def generateCodeCasesSignature(optPath: Option[Path])(casesDefn: CasesDefn): String = {
+  def generateCodeCasesSignature(curPath: Path)(casesDefn: CasesDefn): String = {
     val envType: Type = casesDefn.t match {
       case FunType(input, _) => input
       case _ => throw new Exception("Other shapes for cases types not handled")
@@ -357,18 +358,30 @@ object code_generation {
         case FunType(_, outType) => outType
         case _ => throw new Exception("Should not happen after type-checking")
       }.toList
-      outT <- unifyTypes(caseHandlerOutTypes)
+      outT <- unifyTypes(caseHandlerOutTypes.map(subSelfInTypeAccordingTo(curPath)))
     } yield outT).getOrElse(throw new Exception("Should not happen after type-checking"))
     val casesDefnType: Type = FunType(envType, outType)
 
-    optPath match {
-      case None =>
-        s"def ${casesDefn.name}(matched: ${generateCodeType(casesDefn.matchType)}): ${generateCodeType(casesDefnType)}"
-      case Some(curPath) =>
-        val concreteMatchType = concretizeType(casesDefn.matchType)
-        val selfParamsCode: String = generateSelfParams(curPath).mkString(", ")
-        s"def ${casesDefn.name}$$Impl($selfParamsCode)(matched: ${generateCodeType(concreteMatchType)}): ${generateCodeType(casesDefnType)}"
+    s"def ${casesDefn.name}(matched: ${generateCodeType(casesDefn.matchType)}): ${generateCodeType(casesDefnType)}"
+  }
+  def generateCodeCasesImplSignature(curPath: Path)(casesDefn: CasesDefn): String = {
+    val envType: Type = casesDefn.t match {
+      case FunType(input, _) => input
+      case _ => throw new Exception("Other shapes for cases types not handled")
     }
+    val outType: Type = (for {
+      allCaseHandlerTypes <- collectAllCaseHandlerTypes(casesDefn)
+      caseHandlerOutTypes = allCaseHandlerTypes.values.map {
+        case FunType(_, outType) => outType
+        case _ => throw new Exception("Should not happen after type-checking")
+      }.toList
+      outT <- unifyTypes(caseHandlerOutTypes.map(subSelfInTypeAccordingTo(curPath)))
+    } yield outT).getOrElse(throw new Exception("Should not happen after type-checking"))
+    val casesDefnType: Type = FunType(envType, outType)
+
+    val concreteMatchType = concretizeType(casesDefn.matchType)
+    val selfParamsCode: String = generateSelfParams(curPath).mkString(", ")
+    s"def ${casesDefn.name}$$Impl($selfParamsCode)(matched: ${generateCodeType(concreteMatchType)}): ${generateCodeType(casesDefnType)}"
   }
 
   def ctorCallListFromPathList(pathList: List[Path], adtName: String): List[String] = pathList match {
@@ -452,7 +465,7 @@ object code_generation {
             case FunType(_, outType) => outType
             case _ => throw new Exception("Should not happen after type-checking")
           }.toList
-          outT <- unifyTypes(caseHandlerOutTypes)
+          outT <- unifyTypes(caseHandlerOutTypes.map(subSelfInTypeAccordingTo(curPath)))
         } yield outT).getOrElse(throw new Exception("Should not happen after type-checking"))
         val casesDefnType: Type = FunType(envType, outType)
 
