@@ -13,20 +13,20 @@ Family Adjust1 {
 
     cases pretty_Val_cases <Val> : {} -> {Val_int : {i : N} -> String, Val_String : {s : String} -> String} =
       lam (_ : {}).
-      { Val_int = lam (x: {i : N}). self(Adjust1).showN x.i
+      { Val_int = lam (x: {i : N}). showN x.i
       , Val_String = lam (x: {s : String}). s"\"${x.s}\""
       }
 
     Family Lang1 {
       type Exp =
-        Exp_Val {v : self(self(Adjust1).LangBase).Val}
+        Exp_Val {v : Val}
 
       val pretty_Exp : (Exp -> String) =
         lam (e : Exp). match e with <pretty_Exp_cases> {}
 
-      cases pretty_Exp_cases <Exp> : {} -> {Exp_Val : {v : self(self(Adjust1).LangBase).Val} -> String} =
+      cases pretty_Exp_cases <Exp> : {} -> {Exp_Val : {v : Val} -> String} =
         lam (_ : {}).
-        { Exp_Val = lam (x: {v : self(self(Adjust1).LangBase).Val}). self(self(Adjust1).LangBase).pretty_Val x.v
+        { Exp_Val = lam (x: {v : Val}). pretty_Val x.v
         }
     }
 
@@ -55,7 +55,7 @@ Family Adjust2 extends Adjust1 {
     cases pretty_Val_cases <Val> : {} -> {Val_bool : {b : B} -> String, Val_String : {s: String} -> String} +=
       lam (_ : {}).
       { Val_bool = lam (x: {b : B}).
-          self(self(Adjust2).LangBase).pretty_Val (
+          pretty_Val (
             if x.b
             then Val(Val_String { s = s"bool:${x.b}" })
             else Val(Val_int { i = 0 })
@@ -75,7 +75,7 @@ Family Adjust2 extends Adjust1 {
     }
 
     // Lang2 inherited; TODO: check that this extends makes sense / is present when needed
-    Family Lang2 extends self(self(Adjust2).LangBase).Lang1 {}
+    // Family Lang2 extends self(self(Adjust2).LangBase).Lang1 {}
   }
 }
 
@@ -124,4 +124,9 @@ Family Main {
           v = Adjust2.LangBase.Val(Val_int { i = 1 })
         })
       }))
+
+  val fact: N -> N = lam (n: N).
+    if !(n > 0)
+    then 1
+    else n * fact (n - 1)
 }

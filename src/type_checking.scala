@@ -3,6 +3,8 @@ import PrettyPrint.*
 import MapOps.*
 import OptionOps.lastSome
 
+import scala.annotation.tailrec
+
 object type_checking {
   val K: scala.collection.mutable.Map[Path, Linkage] = scala.collection.mutable.Map.empty
 
@@ -10,6 +12,37 @@ object type_checking {
     K.clear()
     K += Sp(Prog) -> progLkg
   }
+
+  @tailrec
+  def resolvedImplicitPathFor[A](getDefns: Linkage => Map[String, A])(curLkg: Linkage, name: String): Option[Path] = curLkg.path match {
+    case Sp(Prog) => None
+    case Sp(sp) => throw new Exception("path of Linkage should never be a self path")
+    case AbsoluteFamily(pref, _) =>
+      getDefns(curLkg).get(name) match {
+        case None => resolvedImplicitPathFor(getDefns)(getCompleteLinkage(pref), name)
+        case Some(_) => Some(Sp(curLkg.self))
+      }
+  }
+  def resolveImplicitPathForType(curLkg: Linkage, typeName: String): Either[String, Path] =
+    resolvedImplicitPathFor(_.types)(curLkg, typeName) match {
+      case None => Left(s"Unable to resolve implicit path for type $typeName")
+      case Some(p) => Right(p)
+    }
+  def resolveImplicitPathForAdt(curLkg: Linkage, adtName: String): Either[String, Path] =
+    resolvedImplicitPathFor(_.adts)(curLkg, adtName) match {
+      case None => Left(s"Unable to resolve implicit path for ADT $adtName")
+      case Some(p) => Right(p)
+    }
+  def resolveImplicitPathForFun(curLkg: Linkage, funName: String): Either[String, Path] =
+    resolvedImplicitPathFor(_.funs)(curLkg, funName) match {
+      case None => Left(s"Unable to resolve implicit path for function $funName")
+      case Some(p) => Right(p)
+    }
+  def resolveImplicitPathForCases(curLkg: Linkage, casesName: String): Either[String, Path] =
+    resolvedImplicitPathFor(_.depot)(curLkg, casesName) match {
+      case None => Left(s"Unable to resolve implicit path for cases $casesName")
+      case Some(p) => Right(p)
+    }
 
   sealed trait InheritForm
   case object Extends extends InheritForm
@@ -219,23 +252,23 @@ object type_checking {
     for {
       _ <- traverseMap(completeL.defaults) { d =>
         val assocType = completeL.types.getOrElse(d.name, throw new Exception("Should not happen by construction"))
-        typeCheckDefaultDefns(curPath, assocType)(d)
+        typeCheckDefaultDefns(completeL, assocType)(d)
       }
-      _ <- traverseMap(completeL.funs)(typeCheckFunDefns(curPath))
-      _ <- traverseMap(completeL.depot)(typeCheckCasesDefns(curPath))
+      _ <- traverseMap(completeL.funs)(typeCheckFunDefns(completeL))
+      _ <- traverseMap(completeL.depot)(typeCheckCasesDefns(completeL))
       _ <- traverseMap(completeL.nested)(typeCheckLinkage)
     } yield ()
   }
 
-  def typeCheckDefaultDefns(curPath: Path, assocType: TypeDefn)(d: DefaultDefn): Either[String, Unit] = (assocType.typeBody, d.defaultBody) match {
+  def typeCheckDefaultDefns(curLkg: Linkage, assocType: TypeDefn)(d: DefaultDefn): Either[String, Unit] = (assocType.typeBody, d.defaultBody) match {
     case (DefnBody(None, _, _), DefnBody(None, _, _)) => Right(())
     case (DefnBody(Some(fieldTypes), _, _), DefnBody(Some(defn), _, _)) =>
       traverseWithKeyMap(defn.fields) { (fieldName, expr) =>
-        typeOfExpression(Map.empty)(expr).flatMap { eType =>
+        typeOfExpression(curLkg, Map.empty)(expr).flatMap { eType =>
           val fieldType = fieldTypes.fields.getOrElse(fieldName, throw new Exception("Should not happen by construction"))
           if isSubtype(eType, fieldType) then Right(())
           else Left(
-            s"""Type mismatch for default value ${print_exp(expr)} for field $fieldName in type ${assocType.name} in ${print_path(curPath)}:
+            s"""Type mismatch for default value ${print_exp(expr)} for field $fieldName in type ${assocType.name} in ${print_path(curLkg.path)}:
                |Found:    ${print_type(eType)}
                |Required: ${print_type(fieldType)}
                |""".stripMargin
@@ -245,13 +278,13 @@ object type_checking {
     case _ => throw new Exception("Should not happen by construction")
   }
 
-  def typeCheckFunDefns(curPath: Path)(f: FunDefn): Either[String, Unit] = f.funBody match {
+  def typeCheckFunDefns(curLkg: Linkage)(f: FunDefn): Either[String, Unit] = f.funBody match {
     case DefnBody(None, _, _) => Right(())
     case DefnBody(Some(defn), _, _) =>
-      typeOfExpression(Map.empty)(defn).flatMap { defnType =>
+      typeOfExpression(curLkg, Map.empty)(defn).flatMap { defnType =>
         if isSubtype(defnType, f.t) then Right(())
         else Left(
-          s"""Type mismatch error for function `${f.name}` in ${print_path(curPath)}:
+          s"""Type mismatch error for function `${f.name}` in ${print_path(curLkg.path)}:
              |Found:    ${print_type(defnType)}
              |Required: ${print_type(f.t)}
              |""".stripMargin
@@ -259,7 +292,7 @@ object type_checking {
       }
   }
 
-  def typeCheckCasesDefns(curPath: Path)(c: CasesDefn): Either[String, Unit] = {
+  def typeCheckCasesDefns(curLkg: Linkage)(c: CasesDefn): Either[String, Unit] = {
     for {
       allCaseHandlerTypes <- collectAllCaseHandlerTypes(c)
       caseHandlerTypesAsCtors <- traverseMap(allCaseHandlerTypes) {
@@ -272,20 +305,20 @@ object type_checking {
           .fold(Left(s"No ADT ${c.matchType.name} in ${print_path(c.matchType.path.get)}"))(Right.apply)
       allCtors = collectAllConstructors(matchAdtDefn)
 
-      normCtorsHandled = caseHandlerTypesAsCtors.view.mapValues(subSelfInTypeAccordingTo(curPath)).toMap
-      normAllCtors = allCtors.view.mapValues(subSelfInTypeAccordingTo(curPath)).toMap
+      normCtorsHandled = caseHandlerTypesAsCtors.view.mapValues(subSelfInTypeAccordingTo(curLkg.path)).toMap
+      normAllCtors = allCtors.view.mapValues(subSelfInTypeAccordingTo(curLkg.path)).toMap
       // Exhaustive check
       _ <-
         if normCtorsHandled == normAllCtors
         then Right(())
-        else Left(s"Cases ${c.name} in ${print_path(curPath)} is non-exhaustive.")
+        else Left(s"Cases ${c.name} in ${print_path(curLkg.path)} is non-exhaustive.")
       caseHandlerOutTypes <- traverseMap(allCaseHandlerTypes) {
         case FunType(_, outType) => Right(outType)
-        case t => Left(s"Invalid type ${print_type(t)} for case handler for cases ${c.name} in ${print_path(curPath)}")
+        case t => Left(s"Invalid type ${print_type(t)} for case handler for cases ${c.name} in ${print_path(curLkg.path)}")
       }.map(_.values.toList)
       // Consistent result type check
-      _ <- unifyTypes(caseHandlerOutTypes.map(subSelfInTypeAccordingTo(curPath))).left.map { unifyErrMsg =>
-        s"""Inconsistent output types for case handlers for cases ${c.name} in ${print_path(curPath)}:
+      _ <- unifyTypes(caseHandlerOutTypes.map(subSelfInTypeAccordingTo(curLkg.path))).left.map { unifyErrMsg =>
+        s"""Inconsistent output types for case handlers for cases ${c.name} in ${print_path(curLkg.path)}:
             |$unifyErrMsg
             |""".stripMargin
       }
@@ -293,10 +326,10 @@ object type_checking {
       // Check body
       _ <- c.casesBody.defn match {
         case None => Right(())
-        case Some(defn) => typeOfExpression(Map.empty)(defn).flatMap { defnType =>
+        case Some(defn) => typeOfExpression(curLkg, Map.empty)(defn).flatMap { defnType =>
           if isSubtype(defnType, c.t) then Right(())
           else Left(
-            s"""Type mismatch error for cases `${c.name}` in ${print_path(curPath)}:
+            s"""Type mismatch error for cases `${c.name}` in ${print_path(curLkg.path)}:
                |Found:    ${print_type(defnType)}
                |Required: ${print_type(c.t)}
                |""".stripMargin
@@ -306,303 +339,336 @@ object type_checking {
     } yield ()
   }
 
-  def typeOfExpression(G: Map[String, Type])(e: Expression): Either[String, Type] = (e match {
-    // _________________ T_Num
-    // K, G |- n : N
-    case NConst(_) => Right(NType)
+  def resolveImplicitPathsInType(curLkg: Linkage)(t: Type): Either[String, Type] = t match {
+    case toResolve@FamType(None, name) => for {
+      resolvedPath <- resolveImplicitPathForType(curLkg, name).orElse(resolveImplicitPathForAdt(curLkg, name))
+    } yield { toResolve.path = Some(resolvedPath); t }
+    case FunType(input, output) => for {
+      resolvedInput <- resolveImplicitPathsInType(curLkg)(input)
+      resolvedOutput <- resolveImplicitPathsInType(curLkg)(output)
+    } yield FunType(resolvedInput, resolvedOutput)
+    case RecType(fields) => traverseMap(fields)(resolveImplicitPathsInType(curLkg)).map(RecType.apply)
+    case _ => Right(t)
+  }
+  def resolveImplicitPathsInExprShallow(curLkg: Linkage)(e: Expression): Either[String, Expression] = e match {
+    case Lam(_, toResolve, _) => for {
+      _ <- resolveImplicitPathsInType(curLkg)(toResolve)
+    } yield e
+    case toResolve@FamFun(None, funName) => for {
+      resolvedPath <- resolveImplicitPathForFun(curLkg, funName)
+    } yield { toResolve.path = Some(resolvedPath); e }
+    case toResolve@FamCases(None, casesName) => for {
+      resolvedPath <- resolveImplicitPathForCases(curLkg, casesName)
+    } yield { toResolve.path = Some(resolvedPath); e }
+    case Inst(toResolve@FamType(None, typeName), _) => for {
+      resolvedPath <- resolveImplicitPathForType(curLkg, typeName)
+    } yield { toResolve.path = Some(resolvedPath); e }
+    case InstADT(toResolve@FamType(None, adtName), _, _) => for {
+      resolvedPath <- resolveImplicitPathForAdt(curLkg, adtName)
+    } yield { toResolve.path = Some(resolvedPath); e }
+    case Match(_, App(toResolve@FamCases(None, casesName), Rec(_))) => for {
+      resolvedPath <- resolveImplicitPathForCases(curLkg, casesName)
+    } yield { toResolve.path = Some(resolvedPath); e }
+    case _ => Right(e)
+  }
+    def typeOfExpression(curLkg: Linkage, G: Map[String, Type])(e: Expression): Either[String, Type] =
+      resolveImplicitPathsInExprShallow(curLkg)(e).flatMap { _ =>
+      e match {
+        // _________________ T_Num
+        // K, G |- n : N
+        case NConst(_) => Right(NType)
 
-    // K, G |- a1 : N
-    // K, G |- a2 : N
-    // `op` \in {+, -, *, /}
-    // ------------------ T_AOp
-    // K, G |- a1 `op` a2 : N
-    case ABinExp(a1, _, a2) => for {
-      a1Type <- typeOfExpression(G)(a1)
-      a2Type <- typeOfExpression(G)(a2)
-      result <- (a1Type, a2Type) match {
-        case (NType, NType) => Right(NType)
-        case (NType, _) => Left(
-          s"""Type mismatch for ${print_exp(a2)}, the right-hand side of ${print_exp(e)}.
-             |Found:    ${print_type(a2Type)}
-             |Required: N
-             |""".stripMargin
-        )
-        case _ => Left(
-          s"""Type mismatch for ${print_exp(a1)}, the left-hand side of ${print_exp(e)}.
-             |Found:    ${print_type(a1Type)}
-             |Required: N
-             |""".stripMargin
-        )
-      }
-    } yield result
+        // K, G |- a1 : N
+        // K, G |- a2 : N
+        // `op` \in {+, -, *, /}
+        // ------------------ T_AOp
+        // K, G |- a1 `op` a2 : N
+        case ABinExp(a1, _, a2) => for {
+          a1Type <- typeOfExpression(curLkg, G)(a1)
+          a2Type <- typeOfExpression(curLkg, G)(a2)
+          result <- (a1Type, a2Type) match {
+            case (NType, NType) => Right(NType)
+            case (NType, _) => Left(
+              s"""Type mismatch for ${print_exp(a2)}, the right-hand side of ${print_exp(e)}.
+                 |Found:    ${print_type(a2Type)}
+                 |Required: N
+                 |""".stripMargin
+            )
+            case _ => Left(
+              s"""Type mismatch for ${print_exp(a1)}, the left-hand side of ${print_exp(e)}.
+                 |Found:    ${print_type(a1Type)}
+                 |Required: N
+                 |""".stripMargin
+            )
+          }
+        } yield result
 
-    // _________________ T_Bool
-    // K, G |- b : B
-    case BConst(_) => Right(BType)
+        // _________________ T_Bool
+        // K, G |- b : B
+        case BConst(_) => Right(BType)
 
-    case BBinExp(e1, op, e2) => for {
-      e1Type <- typeOfExpression(G)(e1)
-      e2Type <- typeOfExpression(G)(e2)
-      result <- op match {
-        case BAnd | BOr => (e1Type, e2Type) match {
-          case (BType, BType) => Right(BType)
-          case (BType, _) => Left(
-            s"""Type mismatch for ${print_exp(e2)}, the right-hand side of ${print_exp(e)}.
-               |Found:    ${print_type(e2Type)}
-               |Required: B
-               |""".stripMargin
-          )
-          case _ => Left(
-            s"""Type mismatch for ${print_exp(e1)}, the left-hand side of ${print_exp(e)}.
-               |Found:    ${print_type(e1Type)}
-               |Required: B
-               |""".stripMargin
-          )
-        }
+        case BBinExp(e1, op, e2) => for {
+          e1Type <- typeOfExpression(curLkg, G)(e1)
+          e2Type <- typeOfExpression(curLkg, G)(e2)
+          result <- op match {
+            case BAnd | BOr => (e1Type, e2Type) match {
+              case (BType, BType) => Right(BType)
+              case (BType, _) => Left(
+                s"""Type mismatch for ${print_exp(e2)}, the right-hand side of ${print_exp(e)}.
+                   |Found:    ${print_type(e2Type)}
+                   |Required: B
+                   |""".stripMargin
+              )
+              case _ => Left(
+                s"""Type mismatch for ${print_exp(e1)}, the left-hand side of ${print_exp(e)}.
+                   |Found:    ${print_type(e1Type)}
+                   |Required: B
+                   |""".stripMargin
+              )
+            }
 
-        case BEq | BNeq =>
-          if isSubtype(e1Type, e2Type) || isSubtype(e1Type, e2Type)
-          then Right(BType)
-          else Left(
-            s"""Type mismatch for ${print_exp(e2)}, the right-hand side of ${print_exp(e)}.
-               |Found:    ${print_type(e2Type)}
-               |Required: ${print_type(e1Type)}
-               |""".stripMargin
-          )
+            case BEq | BNeq =>
+              if isSubtype(e1Type, e2Type) || isSubtype(e1Type, e2Type)
+              then Right(BType)
+              else Left(
+                s"""Type mismatch for ${print_exp(e2)}, the right-hand side of ${print_exp(e)}.
+                   |Found:    ${print_type(e2Type)}
+                   |Required: ${print_type(e1Type)}
+                   |""".stripMargin
+              )
 
-        case BLt | BGt | BLeq | BGeq => (e1Type, e2Type) match {
-          case (NType, NType) => Right(BType)
-          case (NType, _) => Left(
-            s"""Type mismatch for ${print_exp(e2)}, the right-hand side of ${print_exp(e)}.
-               |Found:    ${print_type(e2Type)}
-               |Required: N
-               |""".stripMargin
-          )
-          case _ => Left(
-            s"""Type mismatch for ${print_exp(e1)}, the left-hand side of ${print_exp(e)}.
-               |Found:    ${print_type(e1Type)}
-               |Required: N
-               |""".stripMargin
-          )
-        }
-      }
-    } yield result
-
-    case BNot(inner) => typeOfExpression(G)(inner).flatMap {
-      case BType => Right(BType)
-      case innerType => Left(
-        s"""Type mismatch for ${print_exp(inner)}, the inner expression of ${print_exp(e)}.
-           |Found:    ${print_type(innerType)}
-           |Required: B
-           |""".stripMargin
-      )
-    }
-
-    // K, G |- e0 : B
-    // K, G |- e1 : T
-    // K, G |- e2 : T
-    // ---------------------------------- T_IfThenElse
-    // K, G |- if e0 then e1 else e2 : T
-    case IfThenElse(condExpr, ifExpr, elseExpr) => for {
-      condType <- typeOfExpression(G)(condExpr)
-      ifType <- typeOfExpression(G)(ifExpr)
-      elseType <- typeOfExpression(G)(elseExpr)
-      result <- condType match {
-        case BType => unifyTypes(List(ifType, elseType))
-        case _ => Left(
-          s"""Type mismatch for ${print_exp(condExpr)}, the condition of if expression ${print_exp(e)}.
-             |Found:    ${print_type(condType)}
-             |Required: B
-             |""".stripMargin
-        )
-      }
-    } yield result
-
-    case StringLiteral(_) => Right(StringType)
-    case StringInterpolated(interpolated) =>
-      if interpolated.forall {
-        case StringComponent(_) => true
-        case InterpolatedComponent(exp) => typeOfExpression(G)(exp).isRight
-      } then Right(StringType) else Left("TODO invalid interpolated string")
-
-    // x: T \in G
-    // ________________T_Var
-    // K, G |- x : T
-    case Var(x) => G.get(x).fold(Left(s"Variable $x unbound"))(Right.apply)
-
-    // K |- WF(T)
-    // K, (x : T, G) |- body : T'
-    // _____________________________________ T_Lam
-    // K, G |- lam (x : T). body : T -> T'
-    case Lam(Var(x), xType, body) =>
-      if wf(xType) then typeOfExpression(G + (x -> xType))(body).map(FunType(xType, _))
-      else Left(s"Type $xType is not well-formed")
-
-    // K, G |- e : T
-    // K, G |- g : T -> T'
-    // _____________________ T_App
-    // K, G |- g e : T'
-    case App(e1, e2) =>
-      typeOfExpression(G)(e1).flatMap { // type e1
-        case FunType(iType, oType) =>
-          typeOfExpression(G)(e2).flatMap { e2Type =>
-            if isSubtype(e2Type, iType) then Right(oType)
-            else {
-              val e1Pretty = print_exp(e1)
-              val e2Pretty = print_exp(e2)
-              Left(
-                s"""Cannot apply $e2Pretty to $e1Pretty;
-                   |$e1Pretty expects an argument of type ${print_type(iType)} but got one of type ${print_type(e2Type)}.
+            case BLt | BGt | BLeq | BGeq => (e1Type, e2Type) match {
+              case (NType, NType) => Right(BType)
+              case (NType, _) => Left(
+                s"""Type mismatch for ${print_exp(e2)}, the right-hand side of ${print_exp(e)}.
+                   |Found:    ${print_type(e2Type)}
+                   |Required: N
+                   |""".stripMargin
+              )
+              case _ => Left(
+                s"""Type mismatch for ${print_exp(e1)}, the left-hand side of ${print_exp(e)}.
+                   |Found:    ${print_type(e1Type)}
+                   |Required: N
                    |""".stripMargin
               )
             }
           }
-        case _ =>
-          val e1Pretty = print_exp(e1)
-          val e2Pretty = print_exp(e2)
-          Left(
-            s"""Cannot apply $e1Pretty to $e2Pretty;
-               |$e1Pretty does not have a function type.
+        } yield result
+
+        case BNot(inner) => typeOfExpression(curLkg, G)(inner).flatMap {
+          case BType => Right(BType)
+          case innerType => Left(
+            s"""Type mismatch for ${print_exp(inner)}, the inner expression of ${print_exp(e)}.
+               |Found:    ${print_type(innerType)}
+               |Required: B
                |""".stripMargin
           )
-      }
-
-    // forall i,
-    //     K, G |- e_i : T_i
-    // ________________________________________ T_Rec
-    // K, G |- {(f_i = e_i)*} : {(f_i: T_i)*}
-    case Rec(fields) =>
-      traverseMap(fields)(typeOfExpression(G)).map(RecType.apply)
-
-    // K, G |- e : {(f': T')*}
-    // (f: T) in (f': T')*
-    // _________________________ T_Proj
-    // K, G |- e.f : T
-    case Proj(e, f) =>
-      typeOfExpression(G)(e).flatMap {
-        case RecType(fTypes) =>
-          fTypes.get(f).fold(Left("TODO no such field"))(Right.apply)
-        // if we have an instance of a type, the inferred type will be a famtype
-        case FamType(Some(p), typeName) =>
-          val lkg = getCompleteLinkage(p)
-          lkg.types.get(typeName).fold(Left("TODO no such named type"))(Right.apply).flatMap { typeDefn =>
-            val allTypeFields: Map[String, Type] = collectAllNamedTypeFields(typeDefn)
-            allTypeFields.get(f).fold(Left("TODO no such field"))(Right.apply)
-          }
-        case _ => Left("TODO invalid projection")
-      }
-
-    // K |- a ~> L
-    // m : (T -> T') = lam (x : T). body in L.FUNS
-    // _______________________________________________ T_FamFun
-    // K, G |- a.m : T -> T'
-    case FamFun(Some(path), name) =>
-      val lkg = getCompleteLinkage(path)
-      lkg.funs.get(name).fold(Left(s"No such function $name"))(Right.apply).map {
-        case FunDefn(_, fType, _) => interpretType(path, fType)
-      }
-
-    // K |- a ~> L
-    // r : {(f_i:T_i)*} -> {(C_j':T_j'->T_j'')*} =
-    //         lam (x: {(f_i:T_i)*}). body in L.CASES
-    // _______________________________________________________________ T_Cases
-    // K, G |- a.r : {(f_i:T_i)*} -> {(C_j':T_j'->T_j'')*}
-    case FamCases(Some(path), name) =>
-      val lkg = getCompleteLinkage(path)
-      // Validity of type for the defined `cases` will be checked at the top level (ie, match type works with defnType)
-      lkg.depot.get(name).fold(Left("TODO no such cases"))(Right.apply).map {
-        case CasesDefn(_, _, casesType, _, _) => interpretType(path, casesType)
-      }
-
-    // K |- a ~> L
-    // R = {(f_i: T_i)*} in L.TYPES
-    // forall i,
-    //     K, G |- e_i : T_i
-    // ______________________________________ T_Constructor
-    // K, G |- a.R({(f_i = e_i)*}) : a.R
-    case Inst(famType@FamType(Some(path), typeName), rec) =>
-      val lkg = getCompleteLinkage(path)
-      lkg.types.get(typeName).fold(Left(s"No type $typeName in $path"))(Right.apply).flatMap { typeDefn =>
-        val allTypeFields: Map[String, Type] = collectAllNamedTypeFields(typeDefn)
-
-        traverseWithKeyMap(rec.fields) { (f: String, e: Expression) => // typeCheck all fields wrt linkage definition
-          allTypeFields.get(f).fold(Left("TODO no such field"))(Right.apply).flatMap { fieldType =>
-            typeOfExpression(G)(e).flatMap { eType =>
-              if isSubtype(eType, fieldType) then Right(())
-              else Left("TODO field types in instance don't match")
-            }
-          }
-        }.map(_ => famType)
-      }
-
-    //  R = \overline{C' {(f': T')*}} in {{a}}
-    //  C {(f_i: T_i)*} in \overline{C' {(f': T')*}}
-    //  forall i, G |- e_i : T_i
-    //_________________________________________________ T_ADT
-    //  G |- a.R(C {(f_i = e_i)*}) : a.R
-    case InstADT(famType@FamType(Some(path), tName), cname, rec) =>
-      for {
-        instFields <- traverseMap(rec.fields)(typeOfExpression(G))
-        lkg = getCompleteLinkage(path)
-        adtDefn <- lkg.adts.get(tName).fold(Left(s"No ADT $tName in ${print_path(path)}")) (Right.apply)
-        allCtors = collectAllConstructors(adtDefn)
-        ctorRecType <- allCtors.get(cname).fold(Left(s"No constructor $cname for $tName in ${print_path(path)}"))(Right.apply)
-        ctorFields = ctorRecType.fields
-
-        instFieldsType = RecType(instFields)
-        ctorFieldsType0 = subSelfInTypeAccordingTo(path)(RecType(ctorFields))
-        ctorFieldsType = path match {
-          case AbsoluteFamily(_, _) => concretizeType(ctorFieldsType0)
-          case _ => ctorFieldsType0
         }
-        // we do not allow subtyping within ADT records right now
-        result <-
-          // TODO: how to handle recursive types?
-          if instFieldsType == ctorFieldsType then Right(famType)
-          else Left(
-            s"""Mismatching field types in ADT instance for $tName with constructor $cname in ${print_path(path)}:"
-               |Instance field types: ${print_type(instFieldsType)}
-               |Required field types: ${print_type(ctorFieldsType)}
-               |""".stripMargin
-          )
-      } yield result
 
-    // K |- a ~> L
-    // K, G |- e : a.R
-    // R = \overline{C_i {(f_i: T_i)*}} in L.ADTS
-    // g = a'.r {(f_arg = e_arg)*}
-    // K, G |- g: {(C_i: {(f_i: T_i)*} -> T')*}
-    // ___________________________________________ T_Match
-    // K, G |- match e with g : T'
-    case Match(e, g) =>
-      typeOfExpression(G)(e).flatMap {
-        case FamType(Some(path), tName) =>
-          val lkg = getCompleteLinkage(path)
-          // look up the name of the ADT type in the linkage
-          lkg.adts.get(tName).fold(Left(s"No ADT $tName in ${print_path(path)}"))(Right.apply).flatMap {
-            case AdtDefn(name, marker, DefnBody(Some(ctors), _, _)) => for {
-              // Checking shape of g
-              casesDefn <- g match {
-                case App(FamCases(Some(casesPath), casesName), Rec(_)) =>
-                  val lkg = getCompleteLinkage(casesPath)
-                  lkg.depot.get(casesName).fold(Left(s"No cases $casesName in ${print_path(path)}"))(Right.apply)
-                case _ => Left(s"${print_exp(g)} is not a valid match argument.")
-              }
-              allCaseHandlerTypes <- collectAllCaseHandlerTypes(casesDefn)
-              caseHandlerOutTypes <- traverseMap(allCaseHandlerTypes) {
-                case FunType(_, outType) => Right(outType)
-                case t => Left(s"Invalid type ${print_type(t)} for case handler for cases ${casesDefn.name}")
-              }.map(_.values.toList)
-              outType <- unifyTypes(caseHandlerOutTypes.map(subSelfInTypeAccordingTo(path)))
-            } yield outType
-            case _ => Left("TODO cannot have cases in family that does not extend adt")
+        // K, G |- e0 : B
+        // K, G |- e1 : T
+        // K, G |- e2 : T
+        // ---------------------------------- T_IfThenElse
+        // K, G |- if e0 then e1 else e2 : T
+        case IfThenElse(condExpr, ifExpr, elseExpr) => for {
+          condType <- typeOfExpression(curLkg, G)(condExpr)
+          ifType <- typeOfExpression(curLkg, G)(ifExpr)
+          elseType <- typeOfExpression(curLkg, G)(elseExpr)
+          result <- condType match {
+            case BType => unifyTypes(List(ifType, elseType))
+            case _ => Left(
+              s"""Type mismatch for ${print_exp(condExpr)}, the condition of if expression ${print_exp(e)}.
+                 |Found:    ${print_type(condType)}
+                 |Required: B
+                 |""".stripMargin
+            )
           }
-        case t => Left(s"Cannot match on type ${print_type(t)}; not an ADT type.")
-      }
+        } yield result
 
-    // All other cases
-    case _ => Left(s"Expression ${print_exp(e)} does not type-check")
-  }).left.map(msg => s"$msg\nIn expression ${print_exp(e)}")
+        case StringLiteral(_) => Right(StringType)
+        case StringInterpolated(interpolated) =>
+          if interpolated.forall {
+            case StringComponent(_) => true
+            case InterpolatedComponent(exp) => typeOfExpression(curLkg, G)(exp).isRight
+          } then Right(StringType) else Left("TODO invalid interpolated string")
+
+        // x: T \in G
+        // ________________T_Var
+        // K, G |- x : T
+        case Var(x) => G.get(x).fold(Left(s"Variable $x unbound"))(Right.apply)
+
+        // K |- WF(T)
+        // K, (x : T, G) |- body : T'
+        // _____________________________________ T_Lam
+        // K, G |- lam (x : T). body : T -> T'
+        case Lam(Var(x), xType, body) =>
+          if wf(xType) then typeOfExpression(curLkg, G + (x -> xType))(body).map(FunType(xType, _))
+          else Left(s"Type $xType is not well-formed")
+
+        // K, G |- e : T
+        // K, G |- g : T -> T'
+        // _____________________ T_App
+        // K, G |- g e : T'
+        case App(e1, e2) =>
+          typeOfExpression(curLkg, G)(e1).flatMap { // type e1
+            case FunType(iType, oType) =>
+              typeOfExpression(curLkg, G)(e2).flatMap { e2Type =>
+                if isSubtype(e2Type, iType) then Right(oType)
+                else {
+                  val e1Pretty = print_exp(e1)
+                  val e2Pretty = print_exp(e2)
+                  Left(
+                    s"""Cannot apply $e2Pretty to $e1Pretty;
+                       |$e1Pretty expects an argument of type ${print_type(iType)} but got one of type ${print_type(e2Type)}.
+                       |""".stripMargin
+                  )
+                }
+              }
+            case _ =>
+              val e1Pretty = print_exp(e1)
+              val e2Pretty = print_exp(e2)
+              Left(
+                s"""Cannot apply $e1Pretty to $e2Pretty;
+                   |$e1Pretty does not have a function type.
+                   |""".stripMargin
+              )
+          }
+
+        // forall i,
+        //     K, G |- e_i : T_i
+        // ________________________________________ T_Rec
+        // K, G |- {(f_i = e_i)*} : {(f_i: T_i)*}
+        case Rec(fields) =>
+          traverseMap(fields)(typeOfExpression(curLkg, G)).map(RecType.apply)
+
+        // K, G |- e : {(f': T')*}
+        // (f: T) in (f': T')*
+        // _________________________ T_Proj
+        // K, G |- e.f : T
+        case Proj(e, f) =>
+          typeOfExpression(curLkg, G)(e).flatMap {
+            case RecType(fTypes) =>
+              fTypes.get(f).fold(Left("TODO no such field"))(Right.apply)
+            // if we have an instance of a type, the inferred type will be a famtype
+            case FamType(Some(p), typeName) =>
+              val lkg = getCompleteLinkage(p)
+              lkg.types.get(typeName).fold(Left("TODO no such named type"))(Right.apply).flatMap { typeDefn =>
+                val allTypeFields: Map[String, Type] = collectAllNamedTypeFields(typeDefn)
+                allTypeFields.get(f).fold(Left("TODO no such field"))(Right.apply)
+              }
+            case _ => Left("TODO invalid projection")
+          }
+
+        // K |- a ~> L
+        // m : (T -> T') = lam (x : T). body in L.FUNS
+        // _______________________________________________ T_FamFun
+        // K, G |- a.m : T -> T'
+        case FamFun(Some(path), name) =>
+          val lkg = getCompleteLinkage(path)
+          lkg.funs.get(name).fold(Left(s"No such function $name"))(Right.apply).map {
+            case FunDefn(_, fType, _) => interpretType(path, fType)
+          }
+
+        // K |- a ~> L
+        // r : {(f_i:T_i)*} -> {(C_j':T_j'->T_j'')*} =
+        //         lam (x: {(f_i:T_i)*}). body in L.CASES
+        // _______________________________________________________________ T_Cases
+        // K, G |- a.r : {(f_i:T_i)*} -> {(C_j':T_j'->T_j'')*}
+        case FamCases(Some(path), name) =>
+          val lkg = getCompleteLinkage(path)
+          // Validity of type for the defined `cases` will be checked at the top level (ie, match type works with defnType)
+          lkg.depot.get(name).fold(Left("TODO no such cases"))(Right.apply).map {
+            case CasesDefn(_, _, casesType, _, _) => interpretType(path, casesType)
+          }
+
+        // K |- a ~> L
+        // R = {(f_i: T_i)*} in L.TYPES
+        // forall i,
+        //     K, G |- e_i : T_i
+        // ______________________________________ T_Constructor
+        // K, G |- a.R({(f_i = e_i)*}) : a.R
+        case Inst(famType@FamType(Some(path), typeName), rec) =>
+          val lkg = getCompleteLinkage(path)
+          lkg.types.get(typeName).fold(Left(s"No type $typeName in $path"))(Right.apply).flatMap { typeDefn =>
+            val allTypeFields: Map[String, Type] = collectAllNamedTypeFields(typeDefn)
+
+            traverseWithKeyMap(rec.fields) { (f: String, e: Expression) => // typeCheck all fields wrt linkage definition
+              allTypeFields.get(f).fold(Left("TODO no such field"))(Right.apply).flatMap { fieldType =>
+                typeOfExpression(curLkg, G)(e).flatMap { eType =>
+                  if isSubtype(eType, fieldType) then Right(())
+                  else Left("TODO field types in instance don't match")
+                }
+              }
+            }.map(_ => famType)
+          }
+
+        //  R = \overline{C' {(f': T')*}} in {{a}}
+        //  C {(f_i: T_i)*} in \overline{C' {(f': T')*}}
+        //  forall i, G |- e_i : T_i
+        //_________________________________________________ T_ADT
+        //  G |- a.R(C {(f_i = e_i)*}) : a.R
+        case InstADT(famType@FamType(Some(path), tName), cname, rec) =>
+          for {
+            instFields <- traverseMap(rec.fields)(typeOfExpression(curLkg, G))
+            lkg = getCompleteLinkage(path)
+            adtDefn <- lkg.adts.get(tName).fold(Left(s"No ADT $tName in ${print_path(path)}")) (Right.apply)
+            allCtors = collectAllConstructors(adtDefn)
+            ctorRecType <- allCtors.get(cname).fold(Left(s"No constructor $cname for $tName in ${print_path(path)}"))(Right.apply)
+            ctorFields = ctorRecType.fields
+
+            instFieldsType = RecType(instFields)
+            ctorFieldsType0 = subSelfInTypeAccordingTo(path)(RecType(ctorFields))
+            ctorFieldsType = path match {
+              case AbsoluteFamily(_, _) => concretizeType(ctorFieldsType0)
+              case _ => ctorFieldsType0
+            }
+            // we do not allow subtyping within ADT records right now
+            result <-
+              if instFieldsType == ctorFieldsType then Right(famType)
+              else Left(
+                s"""Mismatching field types in ADT instance for $tName with constructor $cname in ${print_path(path)}:
+                   |Instance field types: ${print_type(instFieldsType)}
+                   |Required field types: ${print_type(ctorFieldsType)}
+                   |""".stripMargin
+              )
+          } yield result
+
+        // K |- a ~> L
+        // K, G |- e : a.R
+        // R = \overline{C_i {(f_i: T_i)*}} in L.ADTS
+        // g = a'.r {(f_arg = e_arg)*}
+        // K, G |- g: {(C_i: {(f_i: T_i)*} -> T')*}
+        // ___________________________________________ T_Match
+        // K, G |- match e with g : T'
+        case Match(e, g) =>
+          typeOfExpression(curLkg, G)(e).flatMap {
+            case FamType(Some(path), tName) =>
+              val lkg = getCompleteLinkage(path)
+              // look up the name of the ADT type in the linkage
+              lkg.adts.get(tName).fold(Left(s"No ADT $tName in ${print_path(path)}"))(Right.apply).flatMap {
+                case AdtDefn(name, marker, DefnBody(Some(ctors), _, _)) => for {
+                  // Checking shape of g
+                  casesDefn <- g match {
+                    case App(FamCases(Some(casesPath), casesName), Rec(_)) =>
+                      val lkg = getCompleteLinkage(casesPath)
+                      lkg.depot.get(casesName).fold(Left(s"No cases $casesName in ${print_path(path)}"))(Right.apply)
+                    case _ => Left(s"${print_exp(g)} is not a valid match argument.")
+                  }
+                  allCaseHandlerTypes <- collectAllCaseHandlerTypes(casesDefn)
+                  caseHandlerOutTypes <- traverseMap(allCaseHandlerTypes) {
+                    case FunType(_, outType) => Right(outType)
+                    case t => Left(s"Invalid type ${print_type(t)} for case handler for cases ${casesDefn.name}")
+                  }.map(_.values.toList)
+                  outType <- unifyTypes(caseHandlerOutTypes.map(subSelfInTypeAccordingTo(path)))
+                } yield outType
+                case _ => Left("TODO cannot have cases in family that does not extend adt")
+              }
+            case t => Left(s"Cannot match on type ${print_type(t)}; not an ADT type.")
+          }
+
+        // All other cases
+        case _ => Left(s"Expression ${print_exp(e)} does not type-check")
+      }}.left.map(msg => s"$msg\nIn expression ${print_exp(e)}")
 
   def getCompleteLinkage(p: Path): Linkage = {
     // Handles
@@ -640,10 +706,42 @@ object type_checking {
       val enclosingLkg = getCompleteLinkage(pref)
       // I
       val incompleteCurLkg = enclosingLkg.nested.getOrElse(fam, throw new Exception(s"TODO no such path $path"))
+      resolveImplicitPathsInSigs(incompleteCurLkg)
       // L'
       val optSupLkg = incompleteCurLkg.sup.map(getCompleteLinkage)
 
       concatLinkages(Extends)(optSupLkg, incompleteCurLkg)
+  }
+  def resolveImplicitPathsInSigs(l: Linkage): Unit = {
+    val curPath: Path = l.path
+    // Resolve paths in type fields
+    l.types.values.foreach {
+      case TypeDefn(name, marker, typeBody) => typeBody match {
+        case DefnBody(Some(RecType(fields)), extendsFrom, furtherBindsFrom) =>
+          fields.values.foreach(resolveImplicitPathsInType(l))
+        case _ => ()
+      }
+    }
+
+    l.adts.values.foreach {
+      case AdtDefn(name, marker, adtBody) => adtBody match {
+        case DefnBody(Some(ctors), extendsFrom, furtherBindsFrom) =>
+          ctors.values.foreach {
+            _.fields.values.foreach(resolveImplicitPathsInType(l))
+          }
+        case _ => ()
+      }
+    }
+
+    l.funs.values.foreach {
+      case FunDefn(name, t, _) => resolveImplicitPathsInType(l)(t)
+    }
+
+    l.depot.values.foreach {
+      case CasesDefn(name, matchType, t, _, _) =>
+        resolveImplicitPathsInType(l)(matchType)
+        resolveImplicitPathsInType(l)(t)
+    }
   }
 
   // Recursively substitutes instances of `newSelf` for `oldSelf` in lkg
@@ -916,7 +1014,7 @@ object type_checking {
       // The result `DefnBody` is instead marked with information about where it inherits from,
       // which is used to look up those other cases recursively
       CasesDefn(casesName, curMatchType, resultT, PlusEq, mergeDefnBody(prevCasesDefn, curCasesDefn))
-    case _ => throw new Exception("TODO invalid cases definition")
+    case wat => println(wat); throw new Exception("TODO invalid cases definition")
   }
 
   // forall A,

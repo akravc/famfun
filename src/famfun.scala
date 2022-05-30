@@ -23,6 +23,12 @@ object famfun {
     case AbsoluteFamily(pref, fam) => AbsoluteFamily(concretizePath(pref), fam)
   }
 
+  // Transforms all absolute paths into self paths
+  def relativizePath(p: Path): SelfPath = p match {
+    case Sp(sp) => sp
+    case AbsoluteFamily(pref, fam) => SelfFamily(relativizePath(pref), fam)
+  }
+
   @tailrec
   def pathToFamList(p: Path, acc: List[String] = Nil): List[String] = p match {
     case Sp(sp) => selfPathToFamList(sp, acc)
@@ -40,7 +46,7 @@ object famfun {
   case object NType extends Type // N
   case object BType extends Type // B
   case object StringType extends Type // String
-  case class FamType(path: Option[Path], name: String) extends Type // a.R
+  case class FamType(var path: Option[Path], name: String) extends Type // a.R
   case class FunType(input: Type, output: Type) extends Type // T -> T'
   case class RecType(fields: Map[String, Type]) extends Type // {(f: T)*}
 
@@ -88,8 +94,8 @@ object famfun {
   sealed trait Expression
   case class Var(id: String) extends Expression // x
   case class Lam(v: Var, t: Type, body: Expression) extends Expression // lam (x: T). body
-  case class FamFun(path: Option[Path], name: String) extends Expression // a.m
-  case class FamCases(path: Option[Path], name: String) extends Expression // a.r
+  case class FamFun(var path: Option[Path], name: String) extends Expression // a.m
+  case class FamCases(var path: Option[Path], name: String) extends Expression // a.r
   case class App(e1: Expression, e2: Expression) extends Expression // e g
   case class Rec(fields: Map[String, Expression]) extends Expression // {(f = e)*}
   case class Proj(e: Expression, name: String) extends Expression // e.f

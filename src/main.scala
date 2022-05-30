@@ -12,13 +12,14 @@ import scala.io.Source
 object famfun_main {
   def main(args: Array[String]): Unit = {
     // Testing code for now
-    val buf = Source.fromFile("res/example")
+    val buf = Source.fromFile("res/pretty_example")
     val inp = buf.getLines.mkString("\n")
     buf.close()
     val parsed = parse0(pProgram, inp)
     parsed match {
       case Success(result, _) =>
-        resolveSelfPaths(parse0(pProgram, inp).get).flatMap { progLkg =>
+        //println(result)
+        resolveVarsAndValidateSelfPaths(result).flatMap { progLkg =>
           initK(progLkg)
           typeCheckLinkage(progLkg)
         } match {
