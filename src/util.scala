@@ -144,20 +144,16 @@ object MapOps {
     traverseWithKeyMap(m)((_: K, v: V) => f(v))
   }
   
-  def unionWith[K, V](m1: Map[K, V], m2: Map[K, V])(f: (V, V) => V)(implicit ordK: Ordering[K]): Map[K, V] = {
-    // l1 and l2 are sorted
-    def merge(l1: List[(K, V)], l2: List[(K, V)]): List[(K, V)] = (l1, l2) match {
-      case (Nil, ys) => ys
-      case (xs, Nil) => xs
-      case ((x@(xKey, xVal)) :: xs, (y@(yKey, yVal)) :: ys) =>
-        if ordK.lt(xKey, yKey) then
-          x :: merge(xs, l2)
-        else if ordK.gt(xKey, yKey) then
-          y :: merge(l1, ys)
-        else
-          (xKey, f(xVal, yVal)) :: merge(xs, ys)
+  def unionWithM[K, V, E](m1: Map[K, V], m2: Map[K, V])(f: (V, V) => Either[E, V])(implicit ordK: Ordering[K]): Either[E, Map[K, V]] = {
+    m2.toList.foldLeft(Right(m1).withLeft[E]) {
+      case (eAccMap, (curK, curV)) => for {
+        accMap <- eAccMap
+        result <- (accMap.get(curK) match {
+          case None => Right(curV)
+          case Some(existingV) => f(existingV, curV)
+        }).map(resultV => accMap + (curK -> resultV))
+      } yield result
     }
-    merge(m1.toList.sortBy(_._1), m2.toList.sortBy(_._1)).toMap
   }
 }
 

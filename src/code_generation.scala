@@ -5,6 +5,11 @@ import type_checking.{collectAllCaseHandlerTypes, collectAllDefns, getCompleteLi
 import reflect.Selectable.reflectiveSelectable
 
 object code_generation {
+
+  // Every getCompleteLinkage call should be a Right for the paths we use after type-checking
+  def getCompleteLinkageUnsafe(p: Path): Linkage =
+    getCompleteLinkage(p).getOrElse(throw new Exception("Should not happen after type-checking"))
+
   val indent: String = "  "
 
   def indentBy(n: Int)(str: String): String = indent + str.flatMap {
@@ -34,7 +39,7 @@ object code_generation {
 
   def findPathAdt(curDefn: AdtDefn, curPath: Path)(check: (Map[String, RecType], Path) => Boolean): List[Path] = {
     def findNext(nextPath: Path): List[Path] = {
-      val nextLkg = getCompleteLinkage(nextPath)
+      val nextLkg = getCompleteLinkageUnsafe(nextPath)
       val nextDefn =
         nextLkg.adts.getOrElse(curDefn.name, throw new Exception("Should be defined after type-checking"))
       findPathAdt(nextDefn, nextPath)(check)
@@ -71,7 +76,7 @@ object code_generation {
   def findFurtherBinds(path: Path): Option[Path] = {
     def findNext(optNextPath: Option[Path], targetFam: String): Option[Path] = for {
       nextPath <- optNextPath
-      nextLkg = getCompleteLinkage(nextPath)
+      nextLkg = getCompleteLinkageUnsafe(nextPath)
       resultLkg <- nextLkg.nested.get(targetFam)
     } yield resultLkg.path
 
@@ -79,7 +84,7 @@ object code_generation {
       case Sp(Prog) => None
       case Sp(_) => findFurtherBinds(concretizePath(path))
       case AbsoluteFamily(pref, fam) =>
-        val prefLkg: Linkage = getCompleteLinkage(pref)
+        val prefLkg: Linkage = getCompleteLinkageUnsafe(pref)
         val fromExtends: Option[Path] = findNext(prefLkg.sup, fam)
         lazy val fromFurtherBinds: Option[Path] = findNext(findFurtherBinds(prefLkg.path), fam)
         firstSome(fromExtends, fromFurtherBinds)
@@ -131,7 +136,7 @@ object code_generation {
 
     val allBodies: Iterable[DefnBody[Expression]] = funs.map { _.funBody } ++ cases.map { _.casesBody }
 
-    val interfaceExtension: String = (getCompleteLinkage(curPath).sup, findFurtherBinds(curPath)) match {
+    val interfaceExtension: String = (getCompleteLinkageUnsafe(curPath).sup, findFurtherBinds(curPath)) match {
       case (None, None) => ""
       case (Some(extendsPath), None) => s"extends ${pathIdentifier(extendsPath)}.Interface"
       case (None, Some(furtherBindsPath)) => s"extends ${pathIdentifier(furtherBindsPath)}.Interface"
@@ -230,7 +235,7 @@ object code_generation {
               ctorFields
                 .map { (fieldName, fieldType) =>
                   val fieldTypeCode = fieldType match {
-                    case FamType(Some(p@Sp(_)), name) if getCompleteLinkage(p).adts.contains(name) =>
+                    case FamType(Some(p@Sp(_)), name) if getCompleteLinkageUnsafe(p).adts.contains(name) =>
                       val famTypeCode = s"${pathIdentifier(p)}$$$$$name"
                       typeParams += famTypeCode
                       famTypeCode
@@ -295,7 +300,7 @@ object code_generation {
         .getOrElse(throw new Exception("Should not have None paths after name resolution"))
     )
     val matchTypePathId: String = pathIdentifier(matchTypePath)
-    val matchTypePathLkg: Linkage = getCompleteLinkage(matchTypePath)
+    val matchTypePathLkg: Linkage = getCompleteLinkageUnsafe(matchTypePath)
     val matchTypeAdtDefn: AdtDefn =
       matchTypePathLkg.adts.getOrElse(matchType.name, throw new Exception("Should be defined after type-checking"))
 
@@ -315,7 +320,7 @@ object code_generation {
                 .foldRight(s"matched@$lastCtorCode($ignoredFields)") { (c, r) => s"$c($r)" }
 
             val typeArgs: Set[String] = ctorFieldTypes.values.toSet.flatMap {
-              case FamType(Some(p@Sp(_)), name) if getCompleteLinkage(p).adts.contains(name) =>
+              case FamType(Some(p@Sp(_)), name) if getCompleteLinkageUnsafe(p).adts.contains(name) =>
                 Set(s"${pathIdentifier(p)}.$name")
               case _ => Set.empty
             }
@@ -396,7 +401,7 @@ object code_generation {
     val (inheritedPaths, _) = collectAllDefns(adtDefn)(_.adtBody) { lkg =>
       lkg.adts
         .getOrElse(adtDefn.name, throw new Exception(s"${lkg.self} should contain an ADT definition for ${adtDefn.name} by construction"))
-    } { _ => () } (()) { (_, _) => () }
+    } { _ => () } (()) { (_, _) => () }.getOrElse(throw new Exception("Should not fail after type-checking"))
 
     val allPaths = curPath :: inheritedPaths.toList
 
@@ -441,7 +446,7 @@ object code_generation {
         s"${pathIdentifier(path)}.Family.$name$$Impl($selfArgs)"
       case Sp(_) =>
         // TODO: only cast if needed (fType contains relative types)
-        val lkg: Linkage = getCompleteLinkage(path)
+        val lkg: Linkage = getCompleteLinkageUnsafe(path)
         val fType: Type = lkg.funs.getOrElse(name, throw new Exception("Should exist after type checking")).t
         s"${pathIdentifier(path)}.$name.asInstanceOf[${generateCodeType(fType)}]"
     }
@@ -453,7 +458,7 @@ object code_generation {
         s"${pathIdentifier(path)}.Family.$name$$Impl($selfArgs)"
       case Sp(_) =>
         // TODO: only cast if needed (fType contains relative types)
-        val lkg: Linkage = getCompleteLinkage(path)
+        val lkg: Linkage = getCompleteLinkageUnsafe(path)
         val casesDefn: CasesDefn = lkg.depot.getOrElse(name, throw new Exception("Should exist after type checking"))
         val envType: Type = casesDefn.t match {
           case FunType(input, _) => input
@@ -507,7 +512,7 @@ object code_generation {
         case Sp(_) => ""
         case _ => ".Family"
       })
-      val lkg: Linkage = getCompleteLinkage(path)
+      val lkg: Linkage = getCompleteLinkageUnsafe(path)
       val adtDefn: AdtDefn =
         lkg.adts.getOrElse(name, throw new Exception("Should be defined after type-checking"))
       // TODO: can be done more efficiently if searched directly
