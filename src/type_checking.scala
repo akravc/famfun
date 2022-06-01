@@ -124,6 +124,14 @@ object type_checking {
     result = collected._2
   } yield result
 
+  def collectAllDefaults(defaultDefn: DefaultDefn): Either[String, Map[String, Expression]] = for {
+    collected <- collectAllDefns(defaultDefn)(_.defaultBody) { lkg =>
+      lkg.defaults
+        .getOrElse(defaultDefn.name, throw new Exception(s"${lkg.self} should contain a default definition for ${defaultDefn.name} by construction"))
+    } { _.defaultBody.defn.map(_.fields).getOrElse(Map.empty) } (Map.empty) { _ ++ _ }
+    result = collected._2
+  } yield result
+
   def collectAllCaseHandlerTypes(casesDefn: CasesDefn): Either[String, Map[String, Type]] = for {
     collected <- collectAllDefns(casesDefn)(_.casesBody) { lkg =>
       lkg.depot
@@ -692,7 +700,12 @@ object type_checking {
 
         // All other cases
         case _ => Left(s"Expression ${print_exp(e)} does not type-check")
-      }}.left.map(msg => s"$msg\nIn expression ${print_exp(e)}")
+      }} match {
+        case Left(msg) => Left(s"$msg\nIn expression ${print_exp(e)}")
+        case result@Right(t) =>
+          e.exprType = Some(t)
+          result
+      }
 
   def getCompleteLinkage(p: Path): Either[String, Linkage] = {
     // Handles

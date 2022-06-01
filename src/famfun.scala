@@ -91,7 +91,9 @@ object famfun {
   case class AdtDefn(name: String, marker: Marker, adtBody: DefnBody[Map[String, RecType]])
 
   // Expressions
-  sealed trait Expression
+  sealed trait Expression {
+    var exprType: Option[Type] = None
+  }
   case class Var(id: String) extends Expression // x
   case class Lam(v: Var, t: Type, body: Expression) extends Expression // lam (x: T). body
   case class FamFun(var path: Option[Path], name: String) extends Expression // a.m
