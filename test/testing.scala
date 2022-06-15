@@ -36,17 +36,17 @@ class FamFunParserTesting extends AnyFunSuite {
   // Parsing Types
   test("types: nat") {
     assert(canParse(pType, "N"))
-    assertResult(N){parseSuccess(pType, "N")}
+    assertResult(NType){parseSuccess(pType, "N")}
   }
 
   test("types: bool") {
     assert(canParse(pType, "B"))
-    assertResult(B){parseSuccess(pType, "B")}
+    assertResult(BType){parseSuccess(pType, "B")}
   }
 
   test("types: arrow") {
     assert(canParse(pType, "B -> N"))
-    assertResult(FunType(B, N)){parseSuccess(pType, "B -> N")}
+    assertResult(FunType(BType, NType)){parseSuccess(pType, "B -> N")}
   }
 
   test("types: absolute famtype") {
@@ -86,29 +86,29 @@ class FamFunParserTesting extends AnyFunSuite {
   test("types: record type") {
     assert(canParse(pType, "{ a: N, b: B, c: A.R }"))
     assertResult(
-      RecType(Map("a"->N, "b"->B, "c"->FamType(Some(AbsoluteFamily(Sp(Prog), "A")), "R")))
+      RecType(Map("a"->NType, "b"->BType, "c"->FamType(Some(AbsoluteFamily(Sp(Prog), "A")), "R")))
     ){parseSuccess(pType, "{ a: N, b: B, c: A.R }")}
   }
 
   test("types: paren form") {
     assert(canParse(pType, "(B->{})"))
-    assertResult(FunType(B, RecType(Map()))){parseSuccess(pType, "(B->{})")}
+    assertResult(FunType(BType, RecType(Map()))){parseSuccess(pType, "(B->{})")}
   }
 
   // Parsing Expressions
   test("exp: true") {
     assert(canParse(pExp, "true"))
-    assertResult(Bexp(true)){parseSuccess(pExp, "true")}
+    assertResult(BConst(true)){parseSuccess(pExp, "true")}
   }
 
   test("exp: false") {
     assert(canParse(pExp, "false"))
-    assertResult(Bexp(false)){parseSuccess(pExp, "false")}
+    assertResult(BConst(false)){parseSuccess(pExp, "false")}
   }
 
   test("exp: nat") {
     assert(canParse(pExp, "5"))
-    assertResult(Nexp(5)){parseSuccess(pExp, "5")}
+    assertResult(NConst(5)){parseSuccess(pExp, "5")}
   }
 
   test("exp: var") {
@@ -118,7 +118,7 @@ class FamFunParserTesting extends AnyFunSuite {
 
   test("exp: lam") {
     assert(canParse(pExp, "lam (x: B). x"))
-    assertResult(Lam(Var("x"), B, Var("x"))){parseSuccess(pExp, "lam (x: B). x")}
+    assertResult(Lam(Var("x"), BType, Var("x"))){parseSuccess(pExp, "lam (x: B). x")}
   }
 
   test("exp: select function from family") {
@@ -128,23 +128,23 @@ class FamFunParserTesting extends AnyFunSuite {
 
   test("exp: app") {
     assert(canParse(pExp, "(lam (x: B). x) true"))
-    assertResult(App(Lam(Var("x"), B, Var("x")), Bexp(true))){parseSuccess(pExp, "(lam (x: B). x) true")}
+    assertResult(App(Lam(Var("x"), BType, Var("x")), BConst(true))){parseSuccess(pExp, "(lam (x: B). x) true")}
   }
 
   test("exp: record") {
     assert(canParse(pExp, "{ a = 5 , b = true }"))
-    assertResult(Rec(Map("a"-> Nexp(5), "b" -> Bexp(true)))){parseSuccess(pExp, "{ a = 5, b = true }")}
+    assertResult(Rec(Map("a"-> NConst(5), "b" -> BConst(true)))){parseSuccess(pExp, "{ a = 5, b = true }")}
   }
 
   test("exp: projection") {
     assert(canParse(pExp, "{ a = 5 , b = true }.b"))
-    assertResult(Proj(Rec(Map("a"-> Nexp(5), "b" -> Bexp(true))), "b")){parseSuccess(pExp, "{ a = 5 , b = true }.b")}
+    assertResult(Proj(Rec(Map("a"-> NConst(5), "b" -> BConst(true))), "b")){parseSuccess(pExp, "{ a = 5 , b = true }.b")}
   }
 
   test("exp: instance") {
     assert(canParse(pExp, "A.R({a = 4})"))
     assertResult(
-      Inst(FamType(Some(AbsoluteFamily(Sp(Prog), "A")), "R"), Rec(Map("a"->Nexp(4))))
+      Inst(FamType(Some(AbsoluteFamily(Sp(Prog), "A")), "R"), Rec(Map("a"->NConst(4))))
     ){parseSuccess(pExp, "A.R({a = 4})")}
   }
 
@@ -171,28 +171,27 @@ class FamFunParserTesting extends AnyFunSuite {
     ))
     assertResult(
       "A" -> Linkage(
-        Sp(SelfFamily(Prog, "A")),
+        AbsoluteFamily(Sp(Prog), "A"),
         SelfFamily(Prog, "A"),
         None,
-        Map("T"->(Eq, RecType(Map("f"->B, "n"->N)))),
-        Map("T"->(Eq, Rec(Map("f"->Bexp(true), "n"->Nexp(3))))),
+        Map("T" -> TypeDefn("T", Eq, DefnBody(Some(RecType(Map("f"->BType, "n"->NType))), None, None))),
+        Map("T" -> DefaultDefn("T", Eq, DefnBody(Some(Rec(Map("f"->BConst(true), "n"->NConst(3)))), None, None))),
         Map(), Map(), Map(), Map()
       )
     ){parseSuccess(pFamDef(Prog), "Family A { type T = {f: B = true, n: N = 3}}")}
   }
 
   test("famdef extends") {
-    // TODO: should C be absolute or self family?
     assert(canParse(
       pFamDef(Prog), "Family A extends C { type T = {f: B = true, n: N = 3}}"
     ))
     assertResult(
       "A" -> Linkage(
-        Sp(SelfFamily(Prog, "A")),
+        AbsoluteFamily(Sp(Prog), "A"),
         SelfFamily(Prog, "A"),
         Some(AbsoluteFamily(Sp(Prog), "C")),
-        Map("T"->(Eq, RecType(Map("f"->B, "n"->N)))),
-        Map("T"->(Eq, Rec(Map("f"->Bexp(true), "n"->Nexp(3))))),
+        Map("T" -> TypeDefn("T", Eq, DefnBody(Some(RecType(Map("f"->BType, "n"->NType))), None, None))),
+        Map("T" -> DefaultDefn("T", Eq, DefnBody(Some(Rec(Map("f"->BConst(true), "n"->NConst(3)))), None, None))),
         Map(), Map(), Map(), Map()
       )
     ){parseSuccess(pFamDef(Prog), "Family A extends C { type T = {f: B = true, n: N = 3}}")}
@@ -210,11 +209,11 @@ class FamFunParserTesting extends AnyFunSuite {
     ))
     assertResult(
       "A" -> Linkage(
-        Sp(SelfFamily(Prog, "A")),
+        AbsoluteFamily(Sp(Prog), "A"),
         SelfFamily(Prog, "A"),
         Some(AbsoluteFamily(Sp(Prog), "C")),
-        Map("T"->(PlusEq, RecType(Map("f"->B, "n"->N)))),
-        Map("T"->(PlusEq, Rec(Map("f"->Bexp(true), "n"->Nexp(3))))),
+        Map("T" -> TypeDefn("T", PlusEq, DefnBody(Some(RecType(Map("f"->BType, "n"->NType))), None, None))),
+        Map("T" -> DefaultDefn("T", PlusEq, DefnBody(Some(Rec(Map("f"->BConst(true), "n"->NConst(3)))), None, None))),
         Map(), Map(), Map(), Map()
       )
     ){parseSuccess(pFamDef(Prog), "Family A extends C { type T += {f: B = true, n: N = 3}}")}
@@ -229,16 +228,16 @@ class FamFunParserTesting extends AnyFunSuite {
     ))
     assertResult(
       "A" -> Linkage(
-        Sp(SelfFamily(Prog, "A")),
+        AbsoluteFamily(Sp(Prog), "A"),
         SelfFamily(Prog, "A"),
         None,
         Map(
-          "T"->(Eq, RecType(Map("f"->B, "n"->N))),
-          "R"->(Eq, RecType(Map("s"->FamType(Some(Sp(SelfFamily(Prog, "A"))), "T"))))
+          "T" -> TypeDefn("T", Eq, DefnBody(Some(RecType(Map("f"->BType, "n"->NType))), None, None)),
+          "R" -> TypeDefn("R", Eq, DefnBody(Some(RecType(Map("s"->FamType(Some(Sp(SelfFamily(Prog, "A"))), "T")))), None, None))
         ),
         Map(
-          "T"->(Eq, Rec(Map("f"->Bexp(true), "n"->Nexp(3)))),
-          "R"-> (Eq, Rec(Map("s"->Rec(Map()))))
+          "T" -> DefaultDefn("T", Eq, DefnBody(Some(Rec(Map("f"->BConst(true), "n"->NConst(3)))), None, None)),
+          "R" -> DefaultDefn("R", Eq, DefnBody(Some(Rec(Map("s"->Rec(Map())))), None, None))
         ),
         Map(), Map(), Map(), Map()
       )
@@ -259,27 +258,31 @@ class FamFunParserTesting extends AnyFunSuite {
     ))
     assertResult(
       "A" -> Linkage(
-        Sp(SelfFamily(Prog, "A")),
+        AbsoluteFamily(Sp(Prog), "A"),
         SelfFamily(Prog, "A"),
         None,
         // types
         Map(
-          "T" -> (Eq, RecType(Map("f"->B, "n"->N))),
-          "R" -> (Eq, RecType(Map("s"->FamType(Some(Sp(SelfFamily(Prog, "A"))), "T"))))
+          "T" -> TypeDefn("T", Eq, DefnBody(Some(RecType(Map("f"->BType, "n"->NType))), None, None)),
+          "R" -> TypeDefn("R", Eq, DefnBody(Some(RecType(Map("s"->FamType(Some(Sp(SelfFamily(Prog, "A"))), "T")))), None, None))
         ),
         // defaults
         Map(
-          "T" -> (Eq, Rec(Map("f"->Bexp(true), "n"->Nexp(3)))),
-          "R" -> (Eq, Rec(Map("s"->Rec(Map()))))),
+          "T" -> DefaultDefn("T", Eq, DefnBody(Some(Rec(Map("f"->BConst(true), "n"->NConst(3)))), None, None)),
+          "R" -> DefaultDefn("R", Eq, DefnBody(Some(Rec(Map("s"->Rec(Map())))), None, None))
+        ),
         // adts
         Map(
-          "List"-> ADT(
-            "List", Eq, Map(
-              "Nil" -> RecType(Map()),
-              "Cons" -> RecType(Map(
-                "x" -> N,
-                "tail" -> FamType(Some(Sp(SelfFamily(Prog, "A"))), "List")
-              ))
+          "List"-> AdtDefn(
+            "List", Eq, DefnBody(
+              Some(Map(
+                "Nil" -> RecType(Map()),
+                "Cons" -> RecType(Map(
+                  "x" -> NType,
+                  "tail" -> FamType(Some(Sp(SelfFamily(Prog, "A"))), "List")
+                ))
+              )),
+              None, None
             )
           )
         ),
@@ -331,19 +334,19 @@ class FamFunParserTesting extends AnyFunSuite {
 
     assertResult(
       "A" -> Linkage(
-        Sp(SelfFamily(Prog, "A")),
+        AbsoluteFamily(Sp(Prog), "A"),
         SelfFamily(Prog, "A"),
         None,
         Map(), Map(), Map(), Map(), Map(),
         Map(
           "C" -> Linkage(
-            Sp(SelfFamily(SelfFamily(Prog, "A"), "C")),
+            AbsoluteFamily(AbsoluteFamily(Sp(Prog), "A"), "C"),
             SelfFamily(SelfFamily(Prog, "A"), "C"),
             None,
             Map(), Map(), Map(), Map(), Map(),
             Map(
               "D" -> Linkage(
-                Sp(SelfFamily(SelfFamily(SelfFamily(Prog, "A"), "C"), "D")),
+                AbsoluteFamily(AbsoluteFamily(AbsoluteFamily(Sp(Prog), "A"), "C"), "D"),
                 SelfFamily(SelfFamily(SelfFamily(Prog, "A"), "C"), "D"),
                 None,
                 Map(), Map(), Map(), Map(), Map(), Map()
@@ -351,7 +354,7 @@ class FamFunParserTesting extends AnyFunSuite {
             )
           ),
           "E" -> Linkage(
-            Sp(SelfFamily(SelfFamily(Prog, "A"), "E")),
+            AbsoluteFamily(AbsoluteFamily(Sp(Prog), "A"), "E"),
             SelfFamily(SelfFamily(Prog, "A"), "E"),
             None,
             Map(), Map(), Map(), Map(), Map(), Map()
@@ -410,13 +413,15 @@ class FamFunParserTesting extends AnyFunSuite {
 
     assert(canParse(pFamDef(Prog), inp))
 
-    val resolvedLkg: Linkage = resolveParsedVars(parseSuccess(pFamDef(Prog), inp)._2)
+    val resolvedLkg: Linkage = resolveVarsAndValidateSelfPaths(parseSuccess(pFamDef(Prog), inp)._2).getOrElse(throw new Exception("?"))
 
     assertResult(
-      BodyDeclared(
-        Lam(Var("x"), B, Var("x"))
+      DefnBody(
+        Some(Lam(Var("x"), BType, Var("x"))),
+        None,
+        None
       )
-    ){resolvedLkg.funs("f").body}
+    ){resolvedLkg.funs("f").funBody}
   }
 
   test("Var resolution: free Var becomes FamFun") {
@@ -429,13 +434,16 @@ class FamFunParserTesting extends AnyFunSuite {
 
     assert(canParse(pFamDef(Prog), inp))
 
-    val resolvedLkg: Linkage = resolveParsedVars(parseSuccess(pFamDef(Prog), inp)._2)
+    val resolvedLkg: Linkage =
+      resolveVarsAndValidateSelfPaths(parseSuccess(pFamDef(Prog), inp)._2).getOrElse(throw new Exception("?"))
 
     assertResult(
-      BodyDeclared(
-        FamFun(Some(Sp(SelfFamily(Prog, "A"))), "y")
+      DefnBody(
+        Some(FamFun(None, "y")),
+        None,
+        None
       )
-    ){resolvedLkg.funs("f").body}
+    ){resolvedLkg.funs("f").funBody}
   }
 }
 

@@ -1,5 +1,7 @@
 import scala.util.parsing.combinator.*
-import famfun._
+import famfun.*
+
+import scala.annotation.tailrec
 
 /*
 Family A (extends P)? {
@@ -39,21 +41,25 @@ class FamParser extends RegexParsers with PackratParsers {
   val kwExtends: Parser[String] = "extends\\b".r
   val kwN: Parser[String] = "N\\b".r
   val kwB: Parser[String] = "B\\b".r
+  val kwString: Parser[String] = "String\\b".r
   val kwSelf: Parser[String] = "self\\b".r
   val kwCases: Parser[String] = "cases\\b".r
+  val kwIf: Parser[String] = "if\\b".r
+  val kwThen: Parser[String] = "then\\b".r
+  val kwElse: Parser[String] = "else\\b".r
 
   val reserved: Parser[String] = kwMatch | kwWith | kwTrue | kwFalse | kwLam  | kwType | kwVal | kwFamily
-    | kwExtends | kwN | kwB | kwSelf | kwCases
+    | kwExtends | kwN | kwB | kwString | kwSelf | kwCases | kwIf | kwThen | kwElse
 
   // NAMES
-  lazy val pVarName: Parser[String] = not(reserved) ~> """[a-z_]+""".r
-  lazy val pFamilyName: Parser[String] = not(reserved) ~> """([A-Z][a-z]*)+""".r
+  lazy val pVarName: Parser[String] = not(reserved) ~> """_|[a-z][a-zA-Z0-9_]*""".r
+  lazy val pFamilyName: Parser[String] = not(reserved) ~> """([A-Z][a-zA-Z0-9_]*)+""".r
   lazy val pTypeName: Parser[String] = not(reserved) ~> """([A-Z][a-z]*)+""".r
   lazy val pFunctionName: Parser[String] = not(reserved) ~> """[a-z][a-zA-Z_0-9]*""".r
   // field names can also be constructor names or underscores because of cases
   // is this a problem to allow this for all records?
-  lazy val pFieldName: Parser[String] = not(reserved) ~> """(([a-z0-9])+)|(([A-Z][a-z0-9]*)+)|_""".r
-  lazy val pConstructorName: Parser[String] = not(reserved) ~> """([A-Z][a-z0-9]*)+""".r
+  lazy val pFieldName: Parser[String] = not(reserved) ~> """(([a-z0-9])+)|(([A-Z][a-zA-Z0-9_]*)+)|_""".r
+  lazy val pConstructorName: Parser[String] = not(reserved) ~> """[A-Z][a-zA-Z0-9_]*""".r
 
   // FAMILY PATHS
   lazy val pPath: PackratParser[Path] =
@@ -98,8 +104,9 @@ class FamParser extends RegexParsers with PackratParsers {
     pPathExtra ^^ { case (p,t) => FamType(Some(p), t) }
     | pTypeName ^^ { t => FamType(None, t) }
 
-  lazy val pNType: PackratParser[Type] = kwN ^^^ N
-  lazy val pBType: PackratParser[Type] = kwB ^^^ B
+  lazy val pNType: PackratParser[Type] = kwN ^^^ NType
+  lazy val pBType: PackratParser[Type] = kwB ^^^ BType
+  lazy val pStringType: PackratParser[Type] = kwString ^^^ StringType
 
   // separate parser for record field definition with defaults
   lazy val pDefaultRecField: PackratParser[(String, (Type, Option[Expression]))] =
@@ -116,22 +123,63 @@ class FamParser extends RegexParsers with PackratParsers {
       }
   }
 
-  lazy val pType: PackratParser[Type] = pFunType | pRecType | pFamType | pNType | pBType | between("(", ")", pType)
+  lazy val pType: PackratParser[Type] = pFunType | pRecType | pNType | pBType | pStringType | pFamType | between("(", ")", pType)
 
   // ADTS
   lazy val pAdtConstructor: PackratParser[(String, RecType)] = pConstructorName ~ pRecType ^^ { case k ~ v => k -> v }
-  lazy val pAdt: PackratParser[ADT] =
+  lazy val pAdt: PackratParser[AdtDefn] =
     (kwType ~> pTypeName) ~ pMarker ~ repsep(pAdtConstructor, "|") ^^ {
       case n~m~cs =>
         if hasDuplicateName(cs) // disallow ADTs with duplicate constructors
         then throw new Exception("Parsing an ADT with duplicate constructors.")
-        else ADT(n, m, cs.toMap)
+        else AdtDefn(n, m, DefnBody(Some(cs.toMap), None, None))
     }
 
   // EXPRESSIONS
-  lazy val pExpBool: PackratParser[Bexp] = kwTrue ^^^ Bexp(true) | kwFalse ^^^ Bexp(false)
-  lazy val pExpNat: PackratParser[Nexp] = """(0|[1-9]\d*)""".r ^^ { n => Nexp(n.toInt) }
-  lazy val pExpVar: PackratParser[Var] = pVarName ^^ { id => Var(id)}
+  lazy val pExpBool: PackratParser[BConst] = kwTrue ^^^ BConst(true) | kwFalse ^^^ BConst(false)
+  lazy val pExpNat: PackratParser[NConst] = """(0|[1-9]\d*)""".r ^^ { n => NConst(n.toInt) }
+
+  lazy val pExpIfThenElse: PackratParser[IfThenElse] =
+    (kwIf ~> pExp) ~ (kwThen ~> pExp) ~ (kwElse ~> pExp) ^^ {
+      case condExpr~ifExpr~elseExpr => IfThenElse(condExpr, ifExpr, elseExpr)
+    }
+
+  lazy val pExpString: PackratParser[StringExp] =
+    between("\"", "\"", """[^"\\]*(\\.[^"\\]*)*""".r) ^^ StringLiteral.apply
+    | (for {
+        str <- "s" ~> between("\"", "\"", """[^"\\]*(\\.[^"\\]*)*""".r)
+        result <- processInterpolatedString(str) match {
+          case Right(interpolated) => success(StringInterpolated(interpolated))
+          case Left(errMsg) => err(errMsg)
+        }
+      } yield result)
+
+  def processInterpolatedString(s: String): Either[String, List[StringInterpolationComponent]] = {
+    @tailrec
+    def processInterpolatedCharList(l: List[Char], acc: List[StringInterpolationComponent])
+    : Either[String, List[StringInterpolationComponent]] =
+      l match {
+        case Nil => Right(acc.reverse)
+        case '$' :: '{' :: rest =>
+          val (expStr, rest2) = rest.span(_ != '}')
+          rest2 match {
+            case Nil => Left("TODO unclosed string interpolation")
+            case _ :: rest3 =>
+              parseAll(phrase(pExp), expStr.mkString) match {
+                case Success(result, _) => processInterpolatedCharList(rest3, InterpolatedComponent(result) :: acc)
+                case err => Left(s"$err")
+              }
+          }
+        case hd :: rest =>
+          val (litRest, rest2) = rest.span(_ != '$')
+          val curComponent = StringComponent((hd :: litRest).mkString)
+          processInterpolatedCharList(rest2, curComponent :: acc)
+      }
+
+    processInterpolatedCharList(s.toList, Nil)
+  }
+
+  lazy val pExpVar: PackratParser[Var] = pVarName ^^ { id => Var(id) }
   lazy val pExpLam: PackratParser[Lam] =
     kwLam ~> between("(", ")", pExpVar ~ (":" ~> pType)) ~ ("." ~> pExp) ^^ { case v~t~body => Lam(v, t, body) }
 
@@ -142,8 +190,8 @@ class FamParser extends RegexParsers with PackratParsers {
   lazy val pExpFamCases: PackratParser[FamCases] =
     between("<", ">", (pPath <~ ".").? ~ pFunctionName) ^^ { case p~n => FamCases(p, n) }
 
-  lazy val pExpApp: PackratParser[App] = pExp ~ pExp ^^ { case e~g => App(e, g) }
-  lazy val pExpProj: PackratParser[Proj] = pExp ~ "." ~ pFieldName ^^ {case e~_~n => Proj(e, n)}
+  lazy val pExpApp: PackratParser[App] = pPrimary ~ pPrimary ^^ { case e~g => App(e, g) }
+  lazy val pExpProj: PackratParser[Proj] = pPrimary ~ "." ~ pFieldName ^^ {case e~_~n => Proj(e, n)}
   lazy val pFieldVal: PackratParser[(String, Expression)] = pFieldName ~ "=" ~ pExp ^^ {case k~_~v => k -> v}
   lazy val pExpRec: PackratParser[Rec] = "{"~> repsep(pFieldVal, ",") <~"}" ^^ {
     lst =>
@@ -160,10 +208,38 @@ class FamParser extends RegexParsers with PackratParsers {
   lazy val pExpMatch: PackratParser[Match] =
     kwMatch ~> pExp ~ (kwWith ~> pExp) ^^ { case e~g => Match(e, g) }
 
-  lazy val pExp: PackratParser[Expression] =
-    pExpMatch | pExpProj | pExpInstAdt | pExpInst | pExpApp | pExpRec
+  lazy val pExp: PackratParser[Expression] = pCondAnd
+  lazy val pCondAnd: PackratParser[Expression] =
+    pCondAnd ~ ("&&" ~> pCondOr) ^^ { case e1~e2 => BBinExp(e1, BAnd, e2) }
+    | pCondOr
+  lazy val pCondOr: PackratParser[Expression] =
+    pCondOr ~ ("||" ~> pEquality) ^^ { case e1~e2 => BBinExp(e1, BOr, e2) }
+    | pEquality
+  lazy val pEquality: PackratParser[Expression] =
+    pEquality ~ ("==" ~> pComparison) ^^ { case e1~e2 => BBinExp(e1, BEq, e2) }
+    | pEquality ~ ("!=" ~> pComparison) ^^ { case e1~e2 => BBinExp(e1, BNeq, e2) }
+    | pComparison
+  lazy val pComparison: PackratParser[Expression] =
+    pComparison ~ ("<" ~> pTerm) ^^ { case e1~e2 => BBinExp(e1, BLt, e2) }
+    | pComparison ~ (">" ~> pTerm) ^^ { case e1~e2 => BBinExp(e1, BGt, e2) }
+    | pComparison ~ ("<=" ~> pTerm) ^^ { case e1~e2 => BBinExp(e1, BLeq, e2) }
+    | pComparison ~ (">=" ~> pTerm) ^^ { case e1~e2 => BBinExp(e1, BGeq, e2) }
+    | pTerm
+  lazy val pTerm: PackratParser[Expression] =
+    pTerm ~ ("+" ~> pFactor) ^^ { case a1~a2 => ABinExp(a1, AAdd, a2) }
+    | pTerm ~ ("-" ~> pFactor) ^^ { case a1~a2 => ABinExp(a1, ASub, a2) }
+    | pFactor
+  lazy val pFactor: PackratParser[Expression] =
+    pFactor ~ ("*" ~> pPrimary) ^^ { case a1~a2 => ABinExp(a1, AMul, a2) }
+    | pFactor ~ ("/" ~> pPrimary) ^^ { case a1~a2 => ABinExp(a1, ADiv, a2) }
+    | pUnary
+  lazy val pUnary: PackratParser[Expression] =
+    "!" ~> pUnary ^^ BNot.apply
+    | pPrimary
+  lazy val pPrimary: PackratParser[Expression] =
+    pExpProj | pExpMatch | pExpInstAdt | pExpInst | pExpApp | pExpRec
+    | pExpIfThenElse | pExpLam | pExpString | pExpBool | pExpNat
     | pExpFamFun | pExpFamCases
-    | pExpLam | pExpBool | pExpNat
     | pExpVar
     | between("(", ")", pExp)
 
@@ -174,19 +250,19 @@ class FamParser extends RegexParsers with PackratParsers {
   // DEFINITIONS
   lazy val pTypeDef: PackratParser[(String, (Marker, (RecType, Rec)))] =
     kwType ~> pTypeName ~ pMarker ~ pDefaultRecType ^^ { case n~m~rt => n -> (m -> rt) }
-  lazy val pAdtDef: PackratParser[(String, ADT)] =
+  lazy val pAdtDef: PackratParser[(String, AdtDefn)] =
     pAdt ^^ { a => a.name -> a }
 
   lazy val pFunDef: PackratParser[(String, FunDefn)] =
     kwVal ~> pFunctionName ~ (":" ~> optBetween("(", ")", pFunType)) ~ ("=" ~> pExp) ^^ {
-      case n~t~b => n -> FunDefn(n, t, BodyDeclared(b))
+      case n~t~b => n -> FunDefn(n, t, DefnBody(Some(b), None, None))
     }
 
   lazy val pMatchType: PackratParser[FamType] = between("<", ">", pFamType)
   // mt = match type, m = marker, ft = funtype, lam = body
   lazy val pCasesDef: PackratParser[(String, CasesDefn)] =
     kwCases ~> pFunctionName ~ pMatchType ~ (":" ~> optBetween("(", ")", pFunType)) ~ pMarker ~ pExp ^^ {
-      case n~mt~ft~m~b => n -> CasesDefn(n, mt, ft, m, BodyDeclared(b))
+      case n~mt~ft~m~b => n -> CasesDefn(n, mt, ft, m, DefnBody(Some(b), None, None))
     }
 
   // A family can extend another family. If it does not, the parent is None.
@@ -219,11 +295,11 @@ class FamParser extends RegexParsers with PackratParsers {
           // family does not extend another
           case None => ()
         }
-        val typedefs = typs.collect{case (s, (m, (rt, r))) => (s, (m, rt))}.toMap
-        val defaults = typs.collect{case (s, (m, (rt, r))) => (s, (m, r))}.toMap
+        val typedefs = typs.map { case (s, (m, (rt, r))) => s -> TypeDefn(s, m, DefnBody(Some(rt), None, None)) }.toMap
+        val defaults = typs.collect{ case (s, (m, (rt, r))) => s -> DefaultDefn(s, m, DefnBody(Some(r), None, None)) }.toMap
 
         fam -> Linkage(
-          Sp(curSelfPath),
+          concretizePath(Sp(curSelfPath)),
           curSelfPath,
           supFam,
           typedefs,
@@ -237,19 +313,29 @@ class FamParser extends RegexParsers with PackratParsers {
     }
   }
 
-  lazy val pProgram: PackratParser[Map[Path, Linkage]] =
+  lazy val pProgram: PackratParser[Linkage] =
     rep(pFamDef(Prog)) ^^ {
-      fams => Map(
-        Sp(Prog) -> Linkage(
-          Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
-          fams.toMap
-        )
+      fams => Linkage(
+        Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
+        fams.toMap
       )
     }
+
+  // Simple preprocessing to remove eol comments
+  def removeComments(s: String): String = {
+    @tailrec
+    def removeCommentsList(inp: List[Char], acc: List[Char]): List[Char] = inp match {
+      case Nil => acc
+      case '/' :: '/' :: restInp => removeCommentsList(restInp.dropWhile(_ != '\n'), acc)
+      case i :: is => removeCommentsList(is, i::acc)
+    }
+
+    removeCommentsList(s.toList, Nil).reverse.mkString
+  }
 }
 
 object TestFamParser extends FamParser {
-  def parse0[T](p: PackratParser[T], inp: String): ParseResult[T] = parseAll(phrase(p), inp)
+  def parse0[T](p: PackratParser[T], inp: String): ParseResult[T] = parseAll(phrase(p), removeComments(inp))
   def canParse[T](p: PackratParser[T], inp: String): Boolean = parse0(p, inp).successful
   def parseSuccess[T](p: PackratParser[T], inp: String): T = parse0(p, inp).get
 }
