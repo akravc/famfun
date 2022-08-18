@@ -1,15 +1,19 @@
 import scala.annotation.tailrec
 
 object famfun {
-  // Families & Paths
-  sealed trait Path
-  case class Sp(sp: SelfPath) extends Path
+  /* ======================== FAMILIES & PATHS ======================== */
+
+  // Path a := sp | a.A
+  sealed trait Path 
+  case class Sp(sp: SelfPath) extends Path // sp 
   case class AbsoluteFamily(pref: Path, fam: String) extends Path // a.A
 
+  // RelPath sp := prog | self(sp.A)
   sealed trait SelfPath
   case object Prog extends SelfPath // <prog>
   case class SelfFamily(pref: SelfPath, fam: String) extends SelfPath // self(sp.A)
   
+  // returns the last family name in the path (suffix)
   def pathName(p: Path): String = p match {
     case Sp(Prog) => throw new Exception("Should not try to get path name of <>")
     case Sp(SelfFamily(_, f)) => f
@@ -29,19 +33,22 @@ object famfun {
     case AbsoluteFamily(pref, fam) => SelfFamily(relativizePath(pref), fam)
   }
 
+  // transform path to list of family names
   @tailrec
   def pathToFamList(p: Path, acc: List[String] = Nil): List[String] = p match {
     case Sp(sp) => selfPathToFamList(sp, acc)
     case AbsoluteFamily(pref, fam) => pathToFamList(pref, fam :: acc)
   }
   
+  // transform self path to list of family names
   @tailrec
   def selfPathToFamList(sp: SelfPath, acc: List[String] = Nil): List[String] = sp match {
     case Prog => acc
     case SelfFamily(pref, fam) => selfPathToFamList(pref, fam :: acc)
   }
 
-  // Types
+  /* ======================== TYPES ======================== */
+  
   sealed trait Type
   case object NType extends Type // N
   case object BType extends Type // B
@@ -79,18 +86,8 @@ object famfun {
     subHelp(t)
   }
 
-  sealed trait Marker // either += or =
-  case object PlusEq extends Marker // type extension marker
-  case object Eq extends Marker // type definition marker
+  /* ======================== EXPRESSIONS  ======================== */
 
-  case class TypeDefn(name: String, marker: Marker, typeBody: DefnBody[RecType])
-  
-  case class DefaultDefn(name: String, marker: Marker, defaultBody: DefnBody[Rec])
-
-  // ADTs
-  case class AdtDefn(name: String, marker: Marker, adtBody: DefnBody[Map[String, RecType]])
-
-  // Expressions
   sealed trait Expression {
     var exprType: Option[Type] = None
   }
@@ -103,10 +100,12 @@ object famfun {
   case class Proj(e: Expression, name: String) extends Expression // e.f
   case class Inst(t: FamType, rec: Rec) extends Expression // a.R({(f = e)*})
   case class InstADT(t: FamType, cname: String, rec: Rec) extends Expression // a.R(C {(f = e)*})
+  //TODO: FIX MATCH STATEMENT
   case class Match(e: Expression, g: Expression) extends Expression // match e with g
   case class IfThenElse(condExpr: Expression, ifExpr: Expression, elseExpr: Expression) extends Expression
 
-  sealed trait AExp extends Expression // arithmetic expressions; how to parse?
+  // arithmetic expressions; how to parse?
+  sealed trait AExp extends Expression 
   case class NConst(n: Int) extends AExp
   case class ABinExp(a1: Expression, op: AOp, a2: Expression) extends AExp
   sealed trait AOp
@@ -121,6 +120,7 @@ object famfun {
     case ADiv => "/"
   }
 
+  // Boolean expressions
   sealed trait BExp extends Expression
   case class BConst(b: Boolean) extends BExp
   case class BBinExp(e1: Expression, op: BOp, e2: Expression) extends BExp
@@ -145,6 +145,7 @@ object famfun {
     case BGeq => ">="
   }
 
+  // String expressions
   sealed trait StringExp extends Expression
   case class StringLiteral(literal: String) extends StringExp
   case class StringInterpolated(interpolated: List[StringInterpolationComponent]) extends StringExp
@@ -152,8 +153,23 @@ object famfun {
   case class StringComponent(str: String) extends StringInterpolationComponent
   case class InterpolatedComponent(exp: Expression) extends StringInterpolationComponent
 
+  /* ======================== DEFINITIONS ======================== */
+
+  sealed trait Marker // either += or =
+  case object PlusEq extends Marker // type extension marker
+  case object Eq extends Marker // type definition marker
+
   // Things that could be defined or extended / further bound
   case class DefnBody[B](defn: Option[B], extendsFrom: Option[Path], furtherBindsFrom: Option[Path])
+
+  // types
+  case class TypeDefn(name: String, marker: Marker, typeBody: DefnBody[RecType])
+  
+  // defaults
+  case class DefaultDefn(name: String, marker: Marker, defaultBody: DefnBody[Rec])
+
+  // ADTs
+  case class AdtDefn(name: String, marker: Marker, adtBody: DefnBody[Map[String, RecType]])
 
   // Functions
   case class FunDefn(name: String, t: FunType, funBody: DefnBody[Expression])
@@ -161,7 +177,8 @@ object famfun {
   // Cases
   case class CasesDefn(name: String, matchType: FamType, t: Type, marker: Marker, casesBody: DefnBody[Expression])
 
-  // Linkages
+  /* ======================== LINKAGES ======================== */
+
   case class Linkage(path: Path,
                      self: SelfPath, // self
                      sup: Option[Path], // super
@@ -172,7 +189,6 @@ object famfun {
                      depot: Map[String, CasesDefn],
                      nested: Map[String, Linkage]
                     )
-
 
   /*====================================== VALUES ======================================*/
 
