@@ -13,6 +13,7 @@ object type_checking {
     K += Sp(Prog) -> progLkg
   }
 
+  // TODO: what is this "path" here? it's not self or super
   def resolvedImplicitPathFor[A](getDefns: Linkage => Map[String, A])(curLkg: Linkage, name: String): Either[String, Path] = curLkg.path match {
     case Sp(Prog) => Left(s"Unable to resolve implicit path for $name")
     case Sp(sp) => throw new Exception("path of Linkage should never be a self path")
@@ -180,8 +181,8 @@ object type_checking {
     case StringType => Right(true)
 
     // K |- a ~> L
-    // R in L.TYPES
-    // _________________ WF_Member
+    // R in L.TYPES \/ R in L.ADTS
+    // ____________________________ WF_Member
     // K |- WF(a.R)
     case FamType(Some(path), name) =>
       getCompleteLinkage(path).map { lkg =>

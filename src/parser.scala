@@ -102,7 +102,7 @@ class FamParser extends RegexParsers with PackratParsers {
   })
   lazy val pFamType: PackratParser[FamType] =
     pPathExtra ^^ { case (p,t) => FamType(Some(p), t) }
-    | pTypeName ^^ { t => FamType(None, t) }
+    | pTypeName ^^ { t => FamType(None, t) } // TODO: where do we fill these in later on? "None" needs to become selfpath
 
   lazy val pNType: PackratParser[Type] = kwN ^^^ NType
   lazy val pBType: PackratParser[Type] = kwB ^^^ BType
