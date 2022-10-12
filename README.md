@@ -2,7 +2,8 @@
 
 We include the following files:
 - `build.sbt`, with our sbt settings
-- `src/famfun.scala`, which contains the representation of our system, our typechecker, and linkage creation/concatenation engine
+- `src/famfun.scala`, which contains the representation of our system
+- `src/type_checking.scala`, which contains our typechecker and linkage creation/concatenation engine
 - `src/parser.scala`, which contains the parser for FamFun
 - `src/util.scala`, which contains pretty-printing capabilities for linkages
 - `src/main.scala`, which brings together the parts of our system
