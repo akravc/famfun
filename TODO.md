@@ -5,3 +5,6 @@
   Checking for duplicates is omitted for all the rules -- it's implicit.
   This relation is not definitions, not linkages. So how will we do it?
   The reason it's on the definitions, and not the linkage, is to avoid double checking.
+  
+- Uncomment old tests?
+
