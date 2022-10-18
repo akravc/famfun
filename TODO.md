@@ -8,3 +8,5 @@
   
 - Uncomment old tests?
 
+- TODO: think about not having a mutable K but passing it around like it used to be, in particular for `wf`
+
