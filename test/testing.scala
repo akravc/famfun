@@ -515,10 +515,13 @@ class FamFunTesting extends AnyFunSuite {
   // self(A).T is well formed
   test("wf: family type") {
     val self_a = SelfFamily(Prog, "A") // path self(A)
-    initK(Linkage(Sp(self_a), self_a, None,
-      Map("T"->(TypeDefn("T", Eq, DefnBody(Some(RecType(Map("f"->BType, "n"->NType))), None, None)))), Map(), Map(), Map(), Map(), Map()))
-    // TODO(now): this is failing
-    // assertResult(Right(true))(wf(FamType(Some(Sp(self_a)), "T")))
+    initK(Linkage(Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
+      Map("A" -> Linkage(
+        AbsoluteFamily(Sp(Prog), "A"),
+        self_a,
+        None,
+        Map("T"->(TypeDefn("T", Eq, DefnBody(Some(RecType(Map("f"->BType, "n"->NType))), None, None)))), Map(), Map(), Map(), Map(), Map()))))
+    assertResult(Right(true))(wf(FamType(Some(Sp(self_a)), "T")))
   }
 
   // List = Nil {} | Cons {x: N, tail: self(A).List}
