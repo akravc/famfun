@@ -637,28 +637,33 @@ class FamFunTesting extends AnyFunSuite {
       FunType(RecType(Map("f"->BType)),RecType(Map("g"->BType)))))
   }
 
-  /* TODO(now)
   test("subtype: famtype good") {
     val self_a = SelfFamily(Prog, "A")
-    assert(subtype(FamType(self_a, "T"), RecType(Map("f"->B)),
-      Map(self_a-> Linkage(self_a, null,
-        Map("T"->(Eq, RecType(Map("f"->B)))), Map(), Map(), Map(), Map()))))
+    initK(Linkage(Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
+      Map("A" -> Linkage(
+        AbsoluteFamily(Sp(Prog), "A"), self_a, None,
+        Map("T"->(TypeDefn("T", Eq, DefnBody(Some(RecType(Map("f"->BType))), None, None)))), Map(), Map(), Map(), Map(), Map()))))
+    assertResult(Right(true))(isSubtype(FamType(Some(Sp(self_a)), "T"), RecType(Map("f"->BType))))
   }
 
   test("subtype: famtype mismatch in linkage") {
     val self_a = SelfFamily(Prog, "A")
-    assert(!subtype(FamType(self_a, "T"), RecType(Map("g"->B)),
-      Map(self_a-> Linkage(self_a, null,
-        Map("T"->(Eq, RecType(Map("f"->B)))), Map(), Map(), Map(), Map()))))
+    initK(Linkage(Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
+      Map("A" -> Linkage(
+        AbsoluteFamily(Sp(Prog), "A"), self_a, None,
+        Map("T"->(TypeDefn("T", Eq, DefnBody(Some(RecType(Map("f"->BType))), None, None)))), Map(), Map(), Map(), Map(), Map()))))
+    assertResult(Right(false))(isSubtype(FamType(Some(Sp(self_a)), "T"), RecType(Map("g"->BType))))
   }
 
   test("subtype: famtype bad") {
     val self_a = SelfFamily(Prog, "A")
-    assert(!subtype(FamType(self_a, "T"), FunType(BType,NType),
-      Map(self_a-> Linkage(self_a, null,
-        Map("T"->(Eq, RecType(Map("f"->B)))), Map(), Map(), Map(), Map()))))
+    initK(Linkage(Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
+      Map("A" -> Linkage(
+        AbsoluteFamily(Sp(Prog), "A"), self_a, None,
+        Map("T"->(TypeDefn("T", Eq, DefnBody(Some(RecType(Map("f"->BType))), None, None)))), Map(), Map(), Map(), Map(), Map()))))
+    assertResult(Right(false))(isSubtype(FamType(Some(Sp(self_a)), "T"), FunType(BType,NType)))
   }
-   */
+
   test("subtype: two unrelated types") {
     assertResult(Right(false))(isSubtype(BType, FunType(BType,NType)))
   }
