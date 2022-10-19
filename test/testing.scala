@@ -600,44 +600,44 @@ class FamFunTesting extends AnyFunSuite {
     assertResult(Right(true))(isSubtype(NType, NType))
   }
 
-  /* TODO(now)
   test("subtype: the type itself 3") {
     val self_a = SelfFamily(Prog, "A") // path self(A)
-    assert(subtype(FamType(Some(Sp(self_a)), "G"), FamType(Some(Sp(self_a)), "G"), Map()))
+    assertResult(Right(true))(isSubtype(FamType(Some(Sp(self_a)), "G"), FamType(Some(Sp(self_a)), "G")))
   }
 
   // {f: B, p: N} <: {f: B}
   test("subtype: rectype width") {
-    assert(subtype(RecType(Map("f"->BType, "p"->NType)), RecType(Map("f"->B)), Map()))
+    assertResult(Right(true))(isSubtype(RecType(Map("f"->BType, "p"->NType)), RecType(Map("f"->BType))))
   }
 
   // {g: {f: B, p: N}} <: {g: {f: B}}
   test("subtype: rectype depth") {
-    assert(subtype(RecType(Map("g"->RecType(Map("f"->BType, "p"->NType)))),
-      RecType(Map("g"->RecType(Map("f"->B)))), Map()))
+    assertResult(Right(true))(isSubtype(RecType(Map("g"->RecType(Map("f"->BType, "p"->NType)))),
+      RecType(Map("g"->RecType(Map("f"->BType))))))
   }
 
   // {f: B, p: N} <: {f: B, g: N}
   test("subtype: rectype bad") {
-    assert(!subtype(RecType(Map("f"->BType, "p"->NType)), RecType(Map("f"->BType, "g"->NType)), Map()))
+    assertResult(Right(false))(isSubtype(RecType(Map("f"->BType, "p"->NType)), RecType(Map("f"->BType, "g"->NType))))
   }
 
   test("subtype: funtype eq") {
-    assert(subtype(FunType(BType,NType), FunType(BType,NType), Map()))
+    assertResult(Right(true))(isSubtype(FunType(BType,NType), FunType(BType,NType)))
   }
 
   // {f: B} <: {}, therefore:
   // {} -> {f: B} <: {f: B} -> {}
   test("subtype: funtype good") {
-    assert(subtype(FunType(RecType(Map()), RecType(Map("f"->B))),
-      FunType(RecType(Map("f"->B)),RecType(Map())), Map()))
+    assertResult(Right(true))(isSubtype(FunType(RecType(Map()), RecType(Map("f"->BType))),
+      FunType(RecType(Map("f"->BType)),RecType(Map()))))
   }
 
   test("subtype: funtype bad") {
-    assert(!subtype(FunType(RecType(Map()), RecType(Map("f"->B))),
-      FunType(RecType(Map("f"->B)),RecType(Map("g"->B))), Map()))
+    assertResult(Right(false))(isSubtype(FunType(RecType(Map()), RecType(Map("f"->BType))),
+      FunType(RecType(Map("f"->BType)),RecType(Map("g"->BType)))))
   }
 
+  /* TODO(now)
   test("subtype: famtype good") {
     val self_a = SelfFamily(Prog, "A")
     assert(subtype(FamType(self_a, "T"), RecType(Map("f"->B)),
@@ -658,12 +658,10 @@ class FamFunTesting extends AnyFunSuite {
       Map(self_a-> Linkage(self_a, null,
         Map("T"->(Eq, RecType(Map("f"->B)))), Map(), Map(), Map(), Map()))))
   }
-
-  test("subtype: two unrelated types") {
-    assert(!subtype(BType, FunType(BType,NType), Map()))
-  }
-
    */
+  test("subtype: two unrelated types") {
+    assertResult(Right(false))(isSubtype(BType, FunType(BType,NType)))
+  }
 
   // TESTING TYP_INF
 
