@@ -691,69 +691,72 @@ class FamFunTesting extends AnyFunSuite {
     assertResult(Left("Variable x unbound\nIn expression x")){typInf(Var("x"))}
   }
 
-  /* TODO(now)
   test("typinf: lam") {
-    assertResult(Some(FunType(BType, NType))){
-      typInf(Lam(Var("x"), BType, NConst(5)), Map(), Map())
+    assertResult(Right(FunType(BType, NType))){
+      typInf(Lam(Var("x"), BType, NConst(5)))
     }
   }
 
   test("typinf: lam identity") {
-    assertResult(Some(FunType(BType, B))){
-      typInf(Lam(Var("x"), BType, Var("x")), Map(), Map())
+    assertResult(Right(FunType(BType, BType))){
+      typInf(Lam(Var("x"), BType, Var("x")))
     }
   }
 
   test("typinf: app") {
-    assertResult(Some(NType)){
-      typInf(App(Lam(Var("x"), BType, NConst(5)), BConst(true)), Map(), Map())
+    assertResult(Right(NType)){
+      typInf(App(Lam(Var("x"), BType, NConst(5)), BConst(true)))
     }
   }
 
   test("typinf: app improper") {
-    assertResult(None){
-      typInf(App(Var("x"), BConst(true)), Map(), Map())
+    assertResult(Left("Variable x unbound\nIn expression x\nIn expression (x true)")){
+      typInf(App(Var("x"), BConst(true)))
     }
   }
 
   test("typinf: rec") {
-    assertResult(Some(RecType(Map("f"->BType, "p"->NType)))){
-      typInf(Rec(Map("f"->BConst(true), "p"->NConst(4))), Map(), Map())
+    assertResult(Right(RecType(Map("f"->BType, "p"->NType)))){
+      typInf(Rec(Map("f"->BConst(true), "p"->NConst(4))))
     }
+  }
+
+  def isLeft[A,B](x: Either[A,B]) = x match {
+    case Left(_) => true
+    case Right(_) => false
   }
 
   test("typinf: rec improper") {
-    assertResult(None){
-      typInf(Rec(Map("f"->BConst(true), "p"->App(NConst(4), BConst(true)))), Map(), Map())
-    }
+    assert(isLeft(
+      typInf(Rec(Map("f"->BConst(true), "p"->App(NConst(4), BConst(true)))))))
   }
 
   test("typinf: rec empty") {
-    assertResult(Some(RecType(Map()))){typInf(Rec(Map()), Map(), Map())}
+    assertResult(Right(RecType(Map()))){typInf(Rec(Map()))}
   }
 
-  test("typinf: null type") {
-    assertResult(None){typInf(null, Map(), Map())}
+  // TODO(now)
+  ignore("typinf: null type") {
+    assert(isLeft(typInf(null)))
   }
 
   test("typinf: proj") {
-    assertResult(Some(NType)){
-      typInf(Proj(Rec(Map("f"->BConst(true), "p"->NConst(4))), "p"), Map(), Map())
+    assertResult(Right(NType)){
+      typInf(Proj(Rec(Map("f"->BConst(true), "p"->NConst(4))), "p"))
     }
   }
 
   test("typinf: proj field absent") {
-    assertResult(None){
-      typInf(Proj(Rec(Map("f"->BConst(true), "p"->NConst(4))), "g"), Map(), Map())
-    }
+    assert(isLeft(
+      typInf(Proj(Rec(Map("f"->BConst(true), "p"->NConst(4))), "g"))))
   }
 
   test("typinf: proj from not record") {
-    assertResult(None){
-      typInf(Proj(Var("x"), "x"), Map(), Map())
-    }
+    assert(isLeft(
+      typInf(Proj(Var("x"), "x"))))
   }
 
+  /* TODO(now)
   // self(A).m : (B -> N) = lam (x: B). 5
   test("typinf: fam fun") {
     val self_a = SelfFamily(Prog, "A")
