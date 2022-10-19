@@ -11,5 +11,6 @@
 - TODO: think about not having a mutable K but passing it around like it used to be, in particular for `wf`.
 
 - TODO: Even/odd example shows a subtle bug with self path substitution: `Peano` becomes `Odd`!
+  It sounds like we're mixing the self of the type being matched against, which might be absolute in the current class.
   Run like this: `sbt:famfun> testOnly *FamFunTesting -- -z even`
 
