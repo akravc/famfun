@@ -6,7 +6,9 @@
   This relation is not definitions, not linkages. So how will we do it?
   The reason it's on the definitions, and not the linkage, is to avoid double checking.
   
-- Uncomment old tests?
+- Uncomment old tests? Search for `TODO(now)` in testing file.
 
-- TODO: think about not having a mutable K but passing it around like it used to be, in particular for `wf`
+- TODO: think about not having a mutable K but passing it around like it used to be, in particular for `wf`.
+
+- TODO: Even/odd example shows a subtle bug with self path substitution: `Peano` becomes `Odd`!
 
