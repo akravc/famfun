@@ -783,14 +783,14 @@ class FamFunTesting extends AnyFunSuite {
     }
   }
 
-  /* TODO(now)
   test("typinf: fam fun, absent linkage for self_a") {
     val self_a = SelfFamily(Prog, "A")
-    assertResult(None){
-      typInf(FamFun(self_a, "m"), Map(), Map())
-    }
+    assert(isLeft(
+      typInf(FamFun(Some(Sp(self_a)), "m"))
+    ))
   }
 
+  /* TODO(now)
   // self(A).R({f->true, n->5})
   test("typinf: instance of type") {
     val self_a = SelfFamily(Prog, "A")
