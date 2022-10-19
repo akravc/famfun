@@ -517,9 +517,7 @@ class FamFunTesting extends AnyFunSuite {
     val self_a = SelfFamily(Prog, "A") // path self(A)
     initK(Linkage(Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
       Map("A" -> Linkage(
-        AbsoluteFamily(Sp(Prog), "A"),
-        self_a,
-        None,
+        AbsoluteFamily(Sp(Prog), "A"), self_a, None,
         Map("T"->(TypeDefn("T", Eq, DefnBody(Some(RecType(Map("f"->BType, "n"->NType))), None, None)))), Map(), Map(), Map(), Map(), Map()))))
     assertResult(Right(true))(wf(FamType(Some(Sp(self_a)), "T")))
   }
@@ -530,9 +528,7 @@ class FamFunTesting extends AnyFunSuite {
     val self_a = SelfFamily(Prog, "A") // path self(A)
     initK(Linkage(Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
       Map("A" -> Linkage(
-        AbsoluteFamily(Sp(Prog), "A"),
-        self_a,
-        None,
+        AbsoluteFamily(Sp(Prog), "A"), self_a, None,
         Map(), Map(),
         Map("List"->
           (AdtDefn("List,", Eq, DefnBody(Some(Map(
@@ -546,14 +542,17 @@ class FamFunTesting extends AnyFunSuite {
     assertResult(Right(true))(wf(FunType(NType, BType)))
   }
 
-  /* TODO(now)
   // self(A).T -> N
   test("wf: function type 2") {
     val self_a = SelfFamily(Prog, "A") // path self(A)
-    assert(wf(FunType(FamType(Some(Sp(self_a)), "T"), NType), Map(self_a-> Linkage(self_a, null,
-      Map("T"->(Eq, RecType(Map("f"->BType, "n"->NType)))), Map(), Map(), Map(), Map()))))
+    initK(Linkage(Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
+      Map("A" -> Linkage(
+        AbsoluteFamily(Sp(Prog), "A"), self_a, None,
+        Map("T"->(TypeDefn("T", Eq, DefnBody(Some(RecType(Map("f"->BType, "n"->NType))), None, None)))), Map(), Map(), Map(), Map(), Map()))))
+    assertResult(Right(true))(wf(FunType(FamType(Some(Sp(self_a)), "T"), NType)))
   }
 
+  /* TODO(now)
   // self(A).T -> N
   test("wf: function type not in linkage") {
     val self_a = SelfFamily(Prog, "A") // path self(A)
