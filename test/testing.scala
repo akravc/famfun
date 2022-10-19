@@ -1247,35 +1247,34 @@ class FamFunTesting extends AnyFunSuite {
 
        }""";
     assertResult(Right(()))(typecheckProcess(prog))
-    // NOTE: must include parens around the first app (.plus x.n1), otherwise it parses apps right to left
+    // NOTE: must include parens around the first app (plus x.n1), otherwise it parses apps right to left
   }
 
   test("sums better example: the program typechecks") {
-    val prog : String =
-      ("Family Base { " +
+    val prog : String = """
+      Family Base {
 
-        "type T = C1 {n: N} | C2 {n1: N, n2: N}" +
+        type T = C1 {n: N} | C2 {n1: N, n2: N}
 
-        "val plus: (N -> N -> N) = lam (x: N). lam (y: N). 1" +
+        val plus: (N -> N -> N) = lam (x: N). lam (y: N). 1
 
-        "val sum: (.T -> N) = lam (t: .T). match t with <.sum_cases> {arg = t}" +
+        val sum: (T -> N) = lam (t: T). match t with <sum_cases> {arg = t}
 
-        "cases sum_cases <.T> : {arg: .T} -> {C1: {n: N} -> N, C2: {n1: N, n2: N} -> N} =" +
-        "lam (r: {arg: .T}). {C1 = lam (x: {n: N}). x.n, C2 = lam (x: {n1: N, n2: N}). ((.plus x.n1) x.n2)}" +
+        cases sum_cases <T> : {arg: T} -> {C1: {n: N} -> N, C2: {n1: N, n2: N} -> N} =
+          lam (r: {arg: T}). {C1 = lam (x: {n: N}). x.n, C2 = lam (x: {n1: N, n2: N}). ((plus x.n1) x.n2)}
 
-        "}" +
+      }
 
-        "Family Triple extends Base {" +
+      Family Triple extends Base {
 
-        "type T += C3 {n1: N, n2: N, n3: N}" +
+        type T += C3 {n1: N, n2: N, n3: N}
 
-        "cases sum_cases <.T> : {arg: .T} -> {C3: {n1: N, n2: N, n3: N} -> N} +=" +
-        "lam (r: {arg: .T}). {C3 = lam (x: {n1: N, n2: N, n3: N}). ((.plus (.sum T(C2 {n1 = x.n1, n2 = x.n2}))) x.n3)}\n" +
+        cases sum_cases <T> : {arg: T} -> {C3: {n1: N, n2: N, n3: N} -> N} +=
+          lam (r: {arg: T}). {C3 = lam (x: {n1: N, n2: N, n3: N}). ((plus (sum T(C2 {n1 = x.n1, n2 = x.n2}))) x.n3)}
 
-        "}");
-    // TODO(now)
-    //assertResult(Right(()))(typecheckProcess(prog))
-    // NOTE: must include parens around the first app (.plus x.n1), otherwise it parses apps right to left
+      }""";
+    assertResult(Right(()))(typecheckProcess(prog))
+    // NOTE: must include parens around the first app (plus x.n1), otherwise it parses apps right to left
   }
 
   test("wrap/unwrap example: the program typechecks") {
