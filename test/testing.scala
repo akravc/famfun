@@ -1300,31 +1300,29 @@ class FamFunTesting extends AnyFunSuite {
   }
 
   test("even / odd: the program typechecks") {
-    val prog : String =
-      ("Family Peano { "+
-        "type Nat = O {} | S {n: .Nat}"+ // should be able to have .Nat / self(Peano).Nat here
-        "}" +
+    val prog : String = """
+      Family Peano {
+        type Nat = O {} | S {n: Nat}
+      }
 
-      "Family Even {" +
-        "val even: Peano.Nat -> B = lam (n: Peano.Nat). match n with <.even_cases> {arg=n}" +
-        "cases even_cases <Peano.Nat> : {arg: Peano.Nat} -> {O: {} -> B, S: {n: Peano.Nat} -> B} = " +
-          "lam (_: {arg: Peano.Nat}). {O = lam (_:{}). true, S = lam (x: {n: Peano.Nat}). Odd.odd x.n}" +
+      Family Even {
+        val even: Peano.Nat -> B = lam (n: Peano.Nat). match n with <even_cases> {arg=n}
+        cases even_cases <Peano.Nat> : {arg: Peano.Nat} -> {O: {} -> B, S: {n: Peano.Nat} -> B} =
+          lam (_: {arg: Peano.Nat}). {O = lam (_:{}). true, S = lam (x: {n: Peano.Nat}). Odd.odd x.n}
 
-      "}" +
+      }
 
-      "Family Odd {" +
-        "val odd: Peano.Nat -> B = lam (n: Peano.Nat). match n with <.odd_cases> {arg=n}" +
-        "cases odd_cases <Peano.Nat>: {arg: Peano.Nat} -> {O: {} -> B, S: {n: Peano.Nat} -> B} = " +
-        "lam (_: {arg: Peano.Nat}). {O = lam (_:{}). false, S = lam (x: {n: Peano.Nat}). Even.even x.n}" +
-        "}"
-      );
+      Family Odd {
+        val odd: Peano.Nat -> B = lam (n: Peano.Nat). match n with <odd_cases> {arg=n}
+        cases odd_cases <Peano.Nat>: {arg: Peano.Nat} -> {O: {} -> B, S: {n: Peano.Nat} -> B} =
+          lam (_: {arg: Peano.Nat}). {O = lam (_:{}). false, S = lam (x: {n: Peano.Nat}). Even.even x.n}
+      }"""
     // TODO(now)
     //assertResult(Right(()))(typecheckProcess(prog))
   }
 
   test("can parse all relative paths without dots") {
-    val prog : String =
-      """
+    val prog : String = """
       Family A {
         type T = {n: N}
         type U = {t: T}
@@ -1332,7 +1330,6 @@ class FamFunTesting extends AnyFunSuite {
         val unwrap: U->N = lam (u: U). (u.t).n
         val moot: N->N = lam (k: N). k
       }"""
-    // TODO(now)
-    //assertResult(Right(()))(typecheckProcess(prog))
+    assertResult(Right(()))(typecheckProcess(prog))
   }
 }
