@@ -562,12 +562,12 @@ class FamFunTesting extends AnyFunSuite {
     assertResult(Right(false))(wf(FunType(FamType(Some(Sp(self_a)), "T"), NType)))
   }
 
-    /* TODO(now)
   // {f: B, p: N}
   test("wf: record type") {
-    assert(wf(RecType(Map("f"->BType, "p"->NType)), Map()))
+    assertResult(Right(true))(wf(RecType(Map("f"->BType, "p"->NType))))
   }
 
+  /* TODO(now)
   // {f: B, p: self(A).T}
   test("wf: record type 2") {
     val self_a = SelfFamily(Prog, "A") // path self(A)
