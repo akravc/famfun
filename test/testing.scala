@@ -735,7 +735,6 @@ class FamFunTesting extends AnyFunSuite {
     assertResult(Right(RecType(Map()))){typInf(Rec(Map()))}
   }
 
-  // TODO(now)
   ignore("typinf: null type") {
     assert(isLeft(typInf(null)))
   }
@@ -756,19 +755,21 @@ class FamFunTesting extends AnyFunSuite {
       typInf(Proj(Var("x"), "x"))))
   }
 
-  /* TODO(now)
   // self(A).m : (B -> N) = lam (x: B). 5
   test("typinf: fam fun") {
     val self_a = SelfFamily(Prog, "A")
-    assertResult(Some(FunType(BType, NType))){
-      typInf(FamFun(self_a, "m"), Map(),
-        Map(self_a-> Linkage(self_a, null,
-          Map(), Map(), Map(),
-          Map("m"->(FunType(BType, NType),Lam(Var("x"), BType, NConst(5)))),
-          Map())))
+    val k = Linkage(Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
+      Map("A" -> Linkage(AbsoluteFamily(Sp(Prog), "A"), self_a, None,
+        Map(), Map(), Map(),
+        Map("m"->(FunDefn("m", FunType(BType, NType), DefnBody(Some(Lam(Var("x"), BType, NConst(5))), None, None)))),
+        Map(), Map())))
+    initK(k)
+    assertResult(Right(FunType(BType, NType))){
+      typInf(FamFun(Some(Sp(self_a)), "m"))
     }
   }
 
+  /* TODO(now)
   // self(A).m does not exist, we have self(A).g instead
   test("typinf: fam fun not in linkage") {
     val self_a = SelfFamily(Prog, "A")
