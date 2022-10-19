@@ -1288,19 +1288,6 @@ class FamFunTesting extends AnyFunSuite {
     assertResult(Right(()))(typecheckProcess(prog))
   }
 
-  test("wrap/unwrap example with implied relative paths, typechecks") {
-    val prog : String =
-      ("Family A { " +
-        "type T = {n: N = 1}" +
-        "type U = {t: T = T({n=1})}" +
-        "val wrap: N->U = lam (k: N). U({t=T({n = k})})" +
-        "val unwrap: U->N = lam (u: U). (u.t).n" +
-        "}"
-      );
-    // TODO(now)
-    //assertResult(Right(()))(typecheckProcess(prog))
-  }
-
   // a program in which defaults are used (also use this to test translation to scala)
   test("wrap example with more defaults: the program typechecks") {
     val prog : String =
