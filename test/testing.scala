@@ -552,14 +552,17 @@ class FamFunTesting extends AnyFunSuite {
     assertResult(Right(true))(wf(FunType(FamType(Some(Sp(self_a)), "T"), NType)))
   }
 
-  /* TODO(now)
   // self(A).T -> N
   test("wf: function type not in linkage") {
     val self_a = SelfFamily(Prog, "A") // path self(A)
-    assert(!wf(FunType(FamType(Some(Sp(self_a)), "T"), NType), Map(self_a-> Linkage(self_a, null,
-      Map("G"->(Eq, RecType(Map("f"->BType, "n"->NType)))), Map(), Map(), Map(), Map()))))
+    initK(Linkage(Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
+      Map("A" -> Linkage(
+        AbsoluteFamily(Sp(Prog), "A"), self_a, None,
+        Map("G"->(TypeDefn("G", Eq, DefnBody(Some(RecType(Map("f"->BType, "n"->NType))), None, None)))), Map(), Map(), Map(), Map(), Map()))))
+    assertResult(Right(false))(wf(FunType(FamType(Some(Sp(self_a)), "T"), NType)))
   }
 
+    /* TODO(now)
   // {f: B, p: N}
   test("wf: record type") {
     assert(wf(RecType(Map("f"->BType, "p"->NType)), Map()))
