@@ -10,6 +10,17 @@ import java.io.PrintWriter
 import scala.io.Source
 
 object famfun_main {
+  def typecheckProcess(inp: String): Either[String, Unit] = {
+    val parsed = parse0(pProgram, inp)
+    parsed match {
+      case Success(result, _) =>
+        resolveVarsAndValidateSelfPaths(result).flatMap { progLkg =>
+          initK(progLkg)
+          typeCheckLinkage(progLkg)
+        }
+    }
+  }
+
   def main(args: Array[String]): Unit = {
     // Testing code for now
     val buf = Source.fromFile("res/pretty_example")

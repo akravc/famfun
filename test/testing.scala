@@ -1213,7 +1213,6 @@ class FamFunTesting extends AnyFunSuite {
 
   /* ==================================== TYPING EXAMPLE PROGRAMS ==================================== */
 
-  /* TODO(now)
   test("sums example: the program typechecks") {
     val prog : String =
       ("Family Base { " +
@@ -1237,7 +1236,7 @@ class FamFunTesting extends AnyFunSuite {
         "lam (r: {arg: .T}). {C3 = lam (x: {n1: N, n2: N, n3: N}). ((.plus ((.plus x.n1) x.n2)) x.n3)}" +
 
         "}");
-    assert(process(prog))
+    assertResult(Right(()))(typecheckProcess(prog))
     // NOTE: must include parens around the first app (.plus x.n1), otherwise it parses apps right to left
   }
 
@@ -1264,7 +1263,7 @@ class FamFunTesting extends AnyFunSuite {
         "lam (r: {arg: .T}). {C3 = lam (x: {n1: N, n2: N, n3: N}). ((.plus (.sum T(C2 {n1 = x.n1, n2 = x.n2}))) x.n3)}\n" +
 
         "}");
-    assert(process(prog))
+    assertResult(Right(()))(typecheckProcess(prog))
     // NOTE: must include parens around the first app (.plus x.n1), otherwise it parses apps right to left
   }
 
@@ -1277,7 +1276,7 @@ class FamFunTesting extends AnyFunSuite {
         "val unwrap: .U->N = lam (u: .U). (u.t).n" +
         "}"
         );
-    assert(process(prog))
+    assertResult(Right(()))(typecheckProcess(prog))
   }
 
   test("wrap/unwrap example with implied relative paths, typechecks") {
@@ -1289,7 +1288,7 @@ class FamFunTesting extends AnyFunSuite {
         "val unwrap: U->N = lam (u: U). (u.t).n" +
         "}"
         );
-    assert(process(prog))
+    assertResult(Right(()))(typecheckProcess(prog))
   }
 
   // a program in which defaults are used (also use this to test translation to scala)
@@ -1301,7 +1300,7 @@ class FamFunTesting extends AnyFunSuite {
         "val wrap2: N -> B -> .T = lam (k: N). lam (b: B). .T({n2 = k, b = b})" +
         "}"
         );
-    assert(process(prog))
+    assertResult(Right(()))(typecheckProcess(prog))
   }
 
   test("even / odd: the program typechecks") {
@@ -1323,7 +1322,7 @@ class FamFunTesting extends AnyFunSuite {
         "lam (_: {arg: Peano.Nat}). {O = lam (_:{}). false, S = lam (x: {n: Peano.Nat}). Even.even x.n}" +
         "}"
         );
-    assert(process(prog))
+    assertResult(Right(()))(typecheckProcess(prog))
   }
 
   test("can parse all relative paths without dots") {
@@ -1336,7 +1335,6 @@ class FamFunTesting extends AnyFunSuite {
         val unwrap: U->N = lam (u: U). (u.t).n
         val moot: N->N = lam (k: N). k
       }"""
-    assert(process(prog))
+    assertResult(Right(()))(typecheckProcess(prog))
   }
-  */
 }
