@@ -528,13 +528,17 @@ class FamFunTesting extends AnyFunSuite {
   // self(A).List is well formed
   test("wf: family ADT type") {
     val self_a = SelfFamily(Prog, "A") // path self(A)
-    initK(Linkage(Sp(self_a), self_a, null, Map(), Map(),
-      Map("List"->
-        (AdtDefn("List,", Eq, DefnBody(Some(Map(
-          "Nil"->RecType(Map()),
-          "Cons"->RecType(Map("x"->NType, "tail"->FamType(Some(Sp(SelfFamily(Prog, "A"))), "List"))))), None, None)))), Map(), Map(), Map()))
-    // TODO(now): this is failing
-    // assertResult(Right(true))(wf(FamType(Some(Sp(self_a)), "List")))
+    initK(Linkage(Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
+      Map("A" -> Linkage(
+        AbsoluteFamily(Sp(Prog), "A"),
+        self_a,
+        None,
+        Map(), Map(),
+        Map("List"->
+          (AdtDefn("List,", Eq, DefnBody(Some(Map(
+            "Nil"->RecType(Map()),
+            "Cons"->RecType(Map("x"->NType, "tail"->FamType(Some(Sp(SelfFamily(Prog, "A"))), "List"))))), None, None)))), Map(), Map(), Map()))))
+    assertResult(Right(true))(wf(FamType(Some(Sp(self_a)), "List")))
   }
 
   // N -> B
