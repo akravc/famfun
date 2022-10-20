@@ -323,9 +323,10 @@ object type_checking {
           .get(c.matchType.name)
           .fold(Left(s"No ADT ${c.matchType.name} in ${print_path(c.matchType.path.get)}"))(Right.apply)
       allCtors: Map[String, RecType] <- collectAllConstructors(matchAdtDefn)
-
       normCtorsHandled = caseHandlerTypesAsCtors.view.mapValues(subSelfInTypeAccordingTo(curLkg.path)).toMap
-      normAllCtors = allCtors.view.mapValues(subSelfInTypeAccordingTo(curLkg.path)).toMap
+      normAllCtors = allCtors.view.mapValues(subSelfByPathInType(matchTypeLkg.self, matchTypeLkg.path)).toMap
+      _ = println("ctorsHandled:"+normCtorsHandled)
+      _ = println("allCtors:"+normAllCtors)
       // Exhaustive check
       _ <-
         if normCtorsHandled == normAllCtors
@@ -783,6 +784,17 @@ object type_checking {
         resolveImplicitPathsInType(l)(matchType)
         resolveImplicitPathsInType(l)(t)
     }
+  }
+
+  // Recursively substitutes instancess of a self by a path in type
+  def subSelfByPathInType(oldSelf: SelfPath, newPath: Path)(t: Type): Type = t match {
+    case FamType(path, name) => path match {
+      case Some(Sp(sp)) if sp == oldSelf => FamType(Some(newPath), name)
+      case _ => t
+    }
+    case FunType(inType, outType) => FunType(subSelfByPathInType(oldSelf, newPath)(inType), subSelfByPathInType(oldSelf, newPath)(outType))
+    case RecType(fields) => RecType(fields.view.mapValues(subSelfByPathInType(oldSelf, newPath)).toMap)
+    case _ => t
   }
 
   // Recursively substitutes instances of `newSelf` for `oldSelf` in lkg

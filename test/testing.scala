@@ -1317,8 +1317,7 @@ class FamFunTesting extends AnyFunSuite {
         cases odd_cases <Peano.Nat>: {arg: Peano.Nat} -> {O: {} -> B, S: {n: Peano.Nat} -> B} =
           lam (_: {arg: Peano.Nat}). {O = lam (_:{}). false, S = lam (x: {n: Peano.Nat}). Even.even x.n}
       }"""
-    // TODO(now)
-    //assertResult(Right(()))(typecheckProcess(prog))
+    assertResult(Right(()))(typecheckProcess(prog))
   }
 
   test("can parse all relative paths without dots") {
