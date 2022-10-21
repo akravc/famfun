@@ -16,4 +16,4 @@
   This is now fixed.
 
 - It sounds like we could have some helper functions for all those substitution styles.
-
+  Did recType. Could do for other sorts.
