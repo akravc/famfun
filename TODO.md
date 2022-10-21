@@ -20,3 +20,5 @@
 
 - ignore("typinf: match on instance of ADT, wrong function type in match")
 - ignore("typinf: pattern match not exhaustive")
+
+- The generated code does not compile with Scala :(
