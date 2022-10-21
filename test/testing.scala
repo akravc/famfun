@@ -802,34 +802,40 @@ class FamFunTesting extends AnyFunSuite {
     }
   }
 
-    /* TODO(now)
   test("typinf: instance of type wrong field name") {
     val self_a = SelfFamily(Prog, "A")
-    assertResult(None){
-      typInf(Inst(FamType(self_a, "R"), Rec(Map("f"->BConst(true), "n"->NConst(5)))), Map(),
-        Map(self_a-> Linkage(self_a, null,
-          Map("R"->(Eq, RecType(Map("f"->BType, "p"->NType)))), Map(), Map(), Map(), Map())))
-    }
+    val k = Linkage(Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
+      Map("A" -> Linkage(AbsoluteFamily(Sp(Prog), "A"), self_a, None,
+        Map("R"->(TypeDefn("R", Eq, DefnBody(Some(RecType(Map("f"->BType, "p"->NType))), None, None)))), Map(), Map(), Map(), Map(), Map())))
+    initK(k)
+    assert(isLeft(
+      typInf(Inst(FamType(Some(Sp(self_a)), "R"), Rec(Map("f"->BConst(true), "n"->NConst(5)))))
+    ))
   }
 
   test("typinf: instance of type wrong field type") {
     val self_a = SelfFamily(Prog, "A")
-    assertResult(None){
-      typInf(Inst(FamType(self_a, "R"), Rec(Map("f"->BConst(true), "n"->NConst(5)))), Map(),
-        Map(self_a-> Linkage(self_a, null,
-          Map("R"->(Eq, RecType(Map("f"->BType, "n"->B)))), Map(), Map(), Map(), Map())))
-    }
+    val k = Linkage(Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
+      Map("A" -> Linkage(AbsoluteFamily(Sp(Prog), "A"), self_a, None,
+        Map("R"->(TypeDefn("R", Eq, DefnBody(Some(RecType(Map("f"->BType, "n"->BType))), None, None)))), Map(), Map(), Map(), Map(), Map())))
+    initK(k)
+    assert(isLeft(
+      typInf(Inst(FamType(Some(Sp(self_a)), "R"), Rec(Map("f"->BConst(true), "n"->NConst(5)))))
+    ))
   }
 
   test("typinf: instance of type wrong type name") {
     val self_a = SelfFamily(Prog, "A")
-    assertResult(None){
-      typInf(Inst(FamType(self_a, "K"), Rec(Map("f"->BConst(true), "n"->NConst(5)))), Map(),
-        Map(self_a-> Linkage(self_a, null,
-          Map("R"->(Eq, RecType(Map("f"->BType, "n"->NType)))), Map(), Map(), Map(), Map())))
-    }
+    val k = Linkage(Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
+      Map("A" -> Linkage(AbsoluteFamily(Sp(Prog), "A"), self_a, None,
+        Map("R"->(TypeDefn("R", Eq, DefnBody(Some(RecType(Map("f"->BType, "n"->NType))), None, None)))), Map(), Map(), Map(), Map(), Map())))
+    initK(k)
+    assert(isLeft(
+      typInf(Inst(FamType(Some(Sp(self_a)), "K"), Rec(Map("f"->BConst(true), "n"->NConst(5)))))
+    ))
   }
 
+  /* TODO(now)
   // self(A).R(C {f->true, n->5})
   test("typinf: instance of ADT") {
     val self_a = SelfFamily(Prog, "A")
