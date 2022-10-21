@@ -324,7 +324,7 @@ object code_generation {
                 .foldRight(s"matched@$lastCtorCode($ignoredFields)") { (c, r) => s"$c($r)" }
 
             val typeArgs: Set[String] = ctorFieldTypes.values.toSet.flatMap {
-              case FamType(Some(p@Sp(_)), name) if getCompleteLinkageUnsafe(p).adts.contains(name) =>
+              case FamType(Some(p), name) if getCompleteLinkageUnsafe(p).adts.contains(name) =>
                 Set(s"${pathIdentifier(p)}.$name")
               case _ => Set.empty
             }
