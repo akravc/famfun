@@ -1175,6 +1175,9 @@ Family A {
     }
   }
 
+   */
+
+  /* TODO(now)
   // assume .plus is defined and exists in the nat library
   // these are ADTs so they don't need defaults
   test("sums example: can parse base family and triple extension in sums program") {
@@ -1265,47 +1268,50 @@ Family A {
     assert(process(prog))
     // NOTE: must include parens around the first app (.plus x.n1), otherwise it parses apps right to left
   }
+   */
 
   /* ==================================== wildcard unfolding ==================================== */
 
-  test("wildcard unfolding: parent only") {
+  // TODO(now): it doesn't look like wildcard unfolding is implemented?
+  ignore("wildcard unfolding: parent only") {
     val prog : String =
       ("Family Base {" +
         "type T = C1 {} | C2 {n: N} | C3 {b: B}" +
-        "val f: .T -> B = lam (x: .T). match x with <.fcases> {}" +
-        "cases fcases <.T> : {} -> {C3: {b: B} -> B, _: {} -> B} = " +
+        "val f: T -> B = lam (x: T). match x with <fcases> {}" +
+        "cases fcases <T> : {} -> {C3: {b: B} -> B, _: {} -> B} = " +
           "lam (_: {}). {C3 = lam (r: {b: B}). r.b, _ = lam (_:{}). false}" +
         "}");
-    assert(process(prog))
+    assertResult(Right(()))(typecheckProcess(prog))
   }
 
-  test("wildcard unfolding: parent and child") {
+  // TODO(now): ditto?
+  ignore("wildcard unfolding: parent and child") {
     val prog : String =
       ("Family Base {" +
         "type T = C1 {} | C2 {n: N} | C3 {b: B}" +
-        "val f: .T -> B = lam (x: .T). match x with <.fcases> {}" +
-        "cases fcases <.T> : {} -> {C3: {b: B} -> B, _: {} -> B} = " +
+        "val f: T -> B = lam (x: T). match x with <fcases> {}" +
+        "cases fcases <T> : {} -> {C3: {b: B} -> B, _: {} -> B} = " +
         "lam (_: {}). {C3 = lam (r: {b: B}). r.b, _ = lam (_:{}). false}" +
         "}" +
         "Family Ext extends Base {" +
         "type T += C4 {} | C5 {b: B}" +
-        "cases fcases <.T> : {} -> {C5: {b: B} -> B, _: {} -> B} = " +
+        "cases fcases <T> : {} -> {C5: {b: B} -> B, _: {} -> B} = " +
         "lam (_: {}). {C5 = lam (r: {b: B}). r.b, _ = lam (_:{}). false}" +
         "}"
         );
-    assert(process(prog))
+    assertResult(Right(()))(typecheckProcess(prog))
   }
 
   test("wildcard unfolding: incomplete match") {
     val prog : String =
       ("Family Base {" +
         "type T = C1 {} | C2 {n: N} | C3 {b: B}" +
-        "val f: .T -> B = lam (x: .T). match x with <.fcases> {}" +
-        "cases fcases <.T> : {} -> {C3: {b: B} -> B} = " +
+        "val f: T -> B = lam (x: T). match x with <fcases> {}" +
+        "cases fcases <T> : {} -> {C3: {b: B} -> B} = " +
         "lam (_: {}). {C3 = lam (r: {b: B}). r.b}" +
         "}"
         );
-    assert(!process(prog))
+    assertResult(Left("Cases fcases in <>.Base is non-exhaustive."))(typecheckProcess(prog))
   }
 
   /* ==================================== default handling ==================================== */
@@ -1313,23 +1319,22 @@ Family A {
     val prog : String =
       ("Family Base {" +
         "type T = {x: N = 1, b: B = true}" +
-        "val f: N -> .T  = lam (k: N). .T({x=k})"+
+        "val f: N -> T  = lam (k: N). T({x=k})"+
         "}"
         );
-    assert(process(prog))
+    assertResult(Right(()))(typecheckProcess(prog))
   }
 
-  test("default handling: bad") {
+  // TODO(now)
+  ignore("default handling: bad") {
     val prog : String =
       ("Family Base {" +
         "type T = {x: N, b: B}" +
-        "val f: N -> .T  = lam (k: N). .T({x=k})"+
+        "val f: N -> T  = lam (k: N). T({x=k})"+
         "}"
         );
-    assertThrows[Exception](process(prog))
+    assertResult(Left(""))(typecheckProcess(prog))
   }
-
-   */
 
   /* ==================================== TYPING EXAMPLE PROGRAMS ==================================== */
 
