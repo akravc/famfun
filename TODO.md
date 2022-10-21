@@ -17,3 +17,5 @@
 
 - It sounds like we could have some helper functions for all those substitution styles.
   Did recType. Could do for other sorts.
+
+- ignore("typinf: match on instance of ADT, wrong function type in match")
