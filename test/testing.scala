@@ -972,13 +972,25 @@ class FamFunTesting extends AnyFunSuite {
      */
   }
 
-    /* TODO(now)
-
-  test("typinf: pattern match not exhaustive") {
+  // TODO(now)
+  ignore("typinf: pattern match not exhaustive") {
     val self_a = SelfFamily(Prog, "A")
     // self(A).R({f->true, n->5})
-    val exp = InstADT(FamType(self_a, "R"), "C", Rec(Map("f"->BConst(true), "n"->NConst(5))))
+    val exp = InstADT(FamType(Some(Sp(self_a)), "R"), "C", Rec(Map("f"->BConst(true), "n"->NConst(5))))
+    val k = Linkage(Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
+      Map("A" -> Linkage(AbsoluteFamily(Sp(Prog), "A"), self_a, None,
+        Map(), Map(),
+        Map("R"->(AdtDefn("R", Eq, DefnBody(Some(Map("C"->RecType(Map("f"->BType, "n"->NType)), "K"->RecType(Map()))), None, None)))),
+        Map(),
+        Map("cs"->(CasesDefn("cs", FamType(Some(Sp(self_a)), "R"), FunType(RecType(Map()), RecType(Map("C"->FunType(RecType(Map("f"->BType, "n"->NType)), NType)))), Eq,
+              DefnBody(Some(Lam(Var("x"), RecType(Map()), Rec(Map("C" -> Lam(Var("r"), RecType(Map("f"->BType, "n"->NType)), NConst(1)))))), None, None)))),
+        Map())))
+    initK(k)
+    assert(isLeft(
+      typInf(Match(exp, App(FamCases(Some(Sp(self_a)), "cs"), Rec(Map()))))
+    ))
 
+    /* // original test
     assertResult(None){
       typInf(Match(exp, App(FamCases(self_a, "cs"), Rec(Map()))), Map(),
         Map(self_a->
@@ -988,9 +1000,8 @@ class FamFunTesting extends AnyFunSuite {
             Map("cs"->(FamType(self_a, "R"), Eq, FunType(RecType(Map()), RecType(Map("C"->FunType(RecType(Map("f"->BType, "n"->NType)), NType)))),
               Lam(Var("x"), RecType(Map()), Rec(Map("C" -> Lam(Var("r"), RecType(Map("f"->BType, "n"->NType)), NConst(1))))))))))
     }
+     */
   }
-
-   */
 
   test("typinf: good match with one constructor") {
     val self_a = SelfFamily(Prog, "A")

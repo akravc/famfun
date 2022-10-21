@@ -19,3 +19,4 @@
   Did recType. Could do for other sorts.
 
 - ignore("typinf: match on instance of ADT, wrong function type in match")
+- ignore("typinf: pattern match not exhaustive")
