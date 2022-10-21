@@ -790,17 +790,19 @@ class FamFunTesting extends AnyFunSuite {
     ))
   }
 
-  /* TODO(now)
   // self(A).R({f->true, n->5})
   test("typinf: instance of type") {
     val self_a = SelfFamily(Prog, "A")
-    assertResult(Some(FamType(self_a, "R"))){
-      typInf(Inst(FamType(self_a, "R"), Rec(Map("f"->BConst(true), "n"->NConst(5)))), Map(),
-        Map(self_a-> Linkage(self_a, null,
-          Map("R"->(Eq, RecType(Map("f"->BType, "n"->NType)))), Map(), Map(), Map(), Map())))
+    val k = Linkage(Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
+      Map("A" -> Linkage(AbsoluteFamily(Sp(Prog), "A"), self_a, None,
+        Map("R"->(TypeDefn("R", Eq, DefnBody(Some(RecType(Map("f"->BType, "n"->NType))), None, None)))), Map(), Map(), Map(), Map(), Map())))
+    initK(k)
+    assertResult(Right(FamType(Some(Sp(self_a)), "R"))){
+      typInf(Inst(FamType(Some(Sp(self_a)), "R"), Rec(Map("f"->BConst(true), "n"->NConst(5)))))
     }
   }
 
+    /* TODO(now)
   test("typinf: instance of type wrong field name") {
     val self_a = SelfFamily(Prog, "A")
     assertResult(None){

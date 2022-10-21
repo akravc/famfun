@@ -620,6 +620,7 @@ object type_checking {
         // K, G |- a.R({(f_i = e_i)*}) : a.R
         case Inst(famType@FamType(Some(path), typeName), rec) => for {
           lkg <- getCompleteLinkage(path)
+          _ = println("lkg.types:"+lkg.types)
           typeDefn <- lkg.types.get(typeName).fold(Left(s"No type $typeName in $path"))(Right.apply)
           allTypeFields: Map[String, Type] <- collectAllNamedTypeFields(typeDefn)
           _ <- traverseWithKeyMap(rec.fields) { (f: String, e: Expression) => for {
