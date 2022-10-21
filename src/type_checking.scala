@@ -325,8 +325,6 @@ object type_checking {
       allCtors: Map[String, RecType] <- collectAllConstructors(matchAdtDefn)
       normCtorsHandled = caseHandlerTypesAsCtors.view.mapValues(subSelfInTypeAccordingTo(curLkg.path)).toMap
       normAllCtors = allCtors.view.mapValues(subSelfByPathInType(matchTypeLkg.self, matchTypeLkg.path)).toMap
-      _ = println("ctorsHandled:"+normCtorsHandled)
-      _ = println("allCtors:"+normAllCtors)
       // Exhaustive check
       _ <-
         if normCtorsHandled == normAllCtors
