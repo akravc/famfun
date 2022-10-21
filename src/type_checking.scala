@@ -785,15 +785,11 @@ object type_checking {
   }
 
   // Recursively substitutes instancess of a self by a path in type
-  def subSelfByPathInType(oldSelf: SelfPath, newPath: Path)(t: Type): Type = t match {
-    case FamType(path, name) => path match {
-      case Some(Sp(sp)) if sp == oldSelf => FamType(Some(newPath), name)
-      case _ => t
-    }
-    case FunType(inType, outType) => FunType(subSelfByPathInType(oldSelf, newPath)(inType), subSelfByPathInType(oldSelf, newPath)(outType))
-    case RecType(fields) => RecType(fields.view.mapValues(subSelfByPathInType(oldSelf, newPath)).toMap)
-    case _ => t
-  }
+  def subSelfByPathInType(oldSelf: SelfPath, newPath: Path)(t: Type): Type =
+    recType(path => path match {
+      case Sp(sp) if sp == oldSelf => newPath
+      case other => other
+    })(t)
 
   // Recursively substitutes instances of `newSelf` for `oldSelf` in lkg
   // lkg [newSelf / oldSelf]
@@ -856,12 +852,8 @@ object type_checking {
       .toMap,
     lkg.nested.view.mapValues(subSelf(newSelf, oldSelf)).toMap
   )
-  def subSelfInType(newSelf: SelfPath, oldSelf: SelfPath)(t: Type): Type = t match {
-    case FamType(path, name) => FamType(path.map(subSelfInPath(newSelf, oldSelf)), name)
-    case FunType(inType, outType) => FunType(subSelfInType(newSelf, oldSelf)(inType), subSelfInType(newSelf, oldSelf)(outType))
-    case RecType(fields) => RecType(fields.view.mapValues(subSelfInType(newSelf, oldSelf)).toMap)
-    case _ => t
-  }
+  def subSelfInType(newSelf: SelfPath, oldSelf: SelfPath)(t: Type): Type =
+    recType(subSelfInPath(newSelf, oldSelf))(t)
   def subSelfInExpression(newSelf: SelfPath, oldSelf: SelfPath)(e: Expression): Expression = e match {
     case Lam(v, t, body) => Lam(v, subSelfInType(newSelf, oldSelf)(t), subSelfInExpression(newSelf, oldSelf)(body))
     case FamFun(path, name) => FamFun(path.map(subSelfInPath(newSelf, oldSelf)), name)

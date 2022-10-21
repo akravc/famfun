@@ -57,33 +57,26 @@ object famfun {
   case class FunType(input: Type, output: Type) extends Type // T -> T'
   case class RecType(fields: Map[String, Type]) extends Type // {(f: T)*}
 
-  // Transforms self paths in types into absolute paths (except Prog)
-  def concretizeType(t: Type): Type = t match {
-    case FamType(path, name) => FamType(path.map(concretizePath), name)
-    case FunType(input, output) => FunType(concretizeType(input), concretizeType(output))
-    case RecType(fields) => RecType(fields.view.mapValues(concretizeType).toMap)
+  // Generic traversal to change the paths
+  def recType(f: Path => Path)(t: Type): Type = t match {
+    case FamType(path, name) => FamType(path.map(f), name)
+    case FunType(input, output) => FunType(recType(f)(input), recType(f)(output))
+    case RecType(fields) => RecType(fields.view.mapValues(recType(f)).toMap)
     case _ => t
   }
+
+  // Transforms self paths in types into absolute paths (except Prog)
+  def concretizeType(t: Type): Type = recType(concretizePath)(t)
 
   // Replaces all self paths `sp` in `t` with the prefix path of `p` (as a self path) of the same length as `sp`
   def subSelfInTypeAccordingTo(p: Path)(t: Type): Type = {
     val pFamList: List[String] = pathToFamList(p)
-    def subHelp(t: Type): Type = t match {
-      case FamType(path, name) => FamType(
-        path.map {
-          case Sp(sp) => Sp(
-            pFamList.take(selfPathToFamList(sp).length).foldLeft(Prog)(SelfFamily.apply)
-          )
-          case other => other
-        },
-        name
+    recType(path => path match {
+      case Sp(sp) => Sp(
+        pFamList.take(selfPathToFamList(sp).length).foldLeft(Prog)(SelfFamily.apply)
       )
-      case FunType(input, output) => FunType(subHelp(input), subHelp(output))
-      case RecType(fields) => RecType(fields.view.mapValues(subHelp).toMap)
-      case _ => t
-    }
-
-    subHelp(t)
+      case other => other
+    })(t)
   }
 
   /* ======================== EXPRESSIONS  ======================== */
