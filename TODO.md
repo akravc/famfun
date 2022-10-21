@@ -13,4 +13,7 @@
 - TODO: Even/odd example shows a subtle bug with self path substitution: `Peano` becomes `Odd`!
   It sounds like we're mixing the self of the type being matched against, which might be absolute in the current class.
   Run like this: `sbt:famfun> testOnly *FamFunTesting -- -z even`
+  This is now fixed.
+
+- It sounds like we could have some helper functions for all those substitution styles.
 
