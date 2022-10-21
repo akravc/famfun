@@ -993,23 +993,25 @@ class FamFunTesting extends AnyFunSuite {
     }
   }
 
-  /* TODO(now)
   test("typinf: type a cases construct") {
     val self_a = SelfFamily(Prog, "A")
     // self(A).R({f->true, n->5})
-    val exp = InstADT(FamType(self_a, "R"), "C", Rec(Map("f"->BConst(true), "n"->NConst(5))))
-
-    assertResult(Some(FunType(RecType(Map()), RecType(Map("C"->FunType(RecType(Map("f"->BType, "n"->NType)), NType)))))){
-      typInf(FamCases(self_a, "cs"), Map(),
-        Map(self_a->
-          Linkage(self_a, null, Map(), Map(),
-            // list of ADTs has R = C {f:B, n:N}
-            Map("R"->(Eq, ADT(Map("C"->RecType(Map("f"->BType, "n"->NType)))))), Map(),
-            Map("cs"->(FamType(self_a, "R"), Eq, FunType(RecType(Map()), RecType(Map("C"->FunType(RecType(Map("f"->BType, "n"->NType)), NType)))),
-              Lam(Var("x"), RecType(Map()), Rec(Map("C" -> Lam(Var("r"), RecType(Map("f"->BType, "n"->NType)), NConst(1))))))))))
+    val exp = InstADT(FamType(Some(Sp(self_a)), "R"), "C", Rec(Map("f"->BConst(true), "n"->NConst(5))))
+    val k = Linkage(Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
+      Map("A" -> Linkage(AbsoluteFamily(Sp(Prog), "A"), self_a, None,
+        Map(), Map(),
+        Map("R"->(AdtDefn("R", Eq, DefnBody(Some(Map("C"->RecType(Map("f"->BType, "n"->NType)))), None, None)))),
+        Map(),
+        Map("cs"->(CasesDefn("cs", FamType(Some(Sp(self_a)), "R"), FunType(RecType(Map()), RecType(Map("C"->FunType(RecType(Map("f"->BType, "n"->NType)), NType)))), Eq,
+              DefnBody(Some(Lam(Var("x"), RecType(Map()), Rec(Map("C" -> Lam(Var("r"), RecType(Map("f"->BType, "n"->NType)), NConst(1)))))), None, None)))),
+        Map())))
+    initK(k)
+    assertResult(Right(FunType(RecType(Map()), RecType(Map("C"->FunType(RecType(Map("f"->BType, "n"->NType)), NType)))))){
+      typInf(FamCases(Some(Sp(self_a)), "cs"))
     }
   }
 
+  /* TODO(now)
   test("typinf: type application of cases to a record") {
     val self_a = SelfFamily(Prog, "A")
     // self(A).R({f->true, n->5})
