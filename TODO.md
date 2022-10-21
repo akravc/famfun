@@ -21,4 +21,8 @@
 - ignore("typinf: match on instance of ADT, wrong function type in match")
 - ignore("typinf: pattern match not exhaustive")
 
-- The generated code for even_odd does not compile with Scala :(
+- The generated code for even_odd does not compile with Scala :( FIXED
+
+- The generated code for mixins does not compile with Scala
+
+- Also, we need to specify the self, e.g. `self(IfExt).Base` instead of it being inferred.
