@@ -322,9 +322,11 @@ object type_checking {
         matchTypeLkg.adts
           .get(c.matchType.name)
           .fold(Left(s"No ADT ${c.matchType.name} in ${print_path(c.matchType.path.get)}"))(Right.apply)
+
       allCtors: Map[String, RecType] <- collectAllConstructors(matchAdtDefn)
       normCtorsHandled = caseHandlerTypesAsCtors.view.mapValues(subSelfInTypeAccordingTo(curLkg.path)).toMap
-      normAllCtors = allCtors.view.mapValues(subSelfByPathInType(matchTypeLkg.self, matchTypeLkg.path)).toMap
+      normAllCtors = allCtors.view.mapValues(subSelfByPathInType(matchTypeLkg.self, matchTypePath)).mapValues(subSelfInTypeAccordingTo(curLkg.path)).toMap
+
       // Exhaustive check
       _ <-
         if normCtorsHandled == normAllCtors
