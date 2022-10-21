@@ -938,7 +938,21 @@ class FamFunTesting extends AnyFunSuite {
     ))
   }
 
-  // TODO(now)
+  test("process: pattern match, wrong function type") {
+    val prog = """
+Family A {
+  type R = C {f: B, n: N}
+
+  val x: {} -> N = lam (_: {}). match R(C {f = true, n = 5}) with <cs> {}
+
+  cases cs <R> : {} -> { C: {f: N, n: N} -> N } =
+    lam (_: {}). {C = lam (x: {f: N, n: N}). 1 }
+}
+    """
+    assertResult(Left("Cases cs in <>.A is non-exhaustive."))(typecheckProcess(prog))
+  }
+
+  // TODO(now): this seems OK because checked above?
   ignore("typinf: match on instance of ADT, wrong function type in match") {
     val self_a = SelfFamily(Prog, "A")
     // self(A).R({f->true, n->5})
@@ -972,7 +986,35 @@ class FamFunTesting extends AnyFunSuite {
      */
   }
 
-  // TODO(now)
+  test("process: pattern match") {
+    val prog = """
+Family A {
+  type R = C {f: B, n: N} | K {}
+
+  val x: {} -> N = lam (_: {}). match R(C {f = true, n = 5}) with <cs> {}
+
+  cases cs <R> : {} -> { C: {f: B, n: N} -> N, K: {} -> N } =
+    lam (_: {}). {C = lam (x: {f: B, n: N}). 1, K = lam (x: {}). 2}
+}
+    """
+    assertResult(Right(()))(typecheckProcess(prog))
+  }
+
+  test("process: pattern match not exhaustive") {
+    val prog = """
+Family A {
+  type R = C {f: B, n: N} | K {}
+
+  val x: {} -> N = lam (_: {}). match R(C {f = true, n = 5}) with <cs> {}
+
+  cases cs <R> : {} -> { C: {f: B, n: N} -> N } =
+    lam (_: {}). {C = lam (x: {f: B, n: N}). 1}
+}
+    """
+    assertResult(Left("Cases cs in <>.A is non-exhaustive."))(typecheckProcess(prog))
+  }
+
+  // TODO(now): this seems OK because checked above?
   ignore("typinf: pattern match not exhaustive") {
     val self_a = SelfFamily(Prog, "A")
     // self(A).R({f->true, n->5})
