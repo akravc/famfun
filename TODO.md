@@ -21,4 +21,4 @@
 - ignore("typinf: match on instance of ADT, wrong function type in match")
 - ignore("typinf: pattern match not exhaustive")
 
-- The generated code does not compile with Scala :(
+- The generated code for even_odd does not compile with Scala :(
