@@ -4,3 +4,7 @@
 null/
 project/
 target/
+*~undo-tree~
+*~
+\#*\#
+\.\#*
