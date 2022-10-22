@@ -26,3 +26,5 @@
 - The generated code for mixins does not compile with Scala
 
 - Also, we need to specify the self, e.g. `self(IfExt).Base` instead of it being inferred.
+
+- Should be able to run a "Main" with the code.
