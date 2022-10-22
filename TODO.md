@@ -28,3 +28,5 @@
 - Also, we need to specify the self, e.g. `self(IfExt).Base` instead of it being inferred.
 
 - Should be able to run a "Main" with the code.
+
+- Why is `subSelfInTypeAccordingTo` taking a prefix? Causes trouble for test5. But prefix is necessary for pretty_example.
