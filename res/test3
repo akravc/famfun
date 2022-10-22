@@ -1,0 +1,7 @@
+Family A {
+  Family Foo {}
+  Family AA {
+    Family AAA extends self(A).Foo {
+    }
+  }
+}
