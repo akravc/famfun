@@ -14,3 +14,12 @@
         cases odd_cases <Peano.Nat>: {arg: Peano.Nat} -> {O: {} -> B, S: {n: Peano.Nat} -> B} =
           lam (ignore: {arg: Peano.Nat}). {O = lam (ignore:{}). false, S = lam (x: {n: Peano.Nat}). Even.even x.n}
       }
+
+      Family PeanoMain {
+        val n0: {} -> Peano.Nat = lam (ignore: {}). Peano.Nat(O {})
+        val n1: {} -> Peano.Nat = lam (ignore: {}). Peano.Nat(S {n = n0({})})
+        val n2: {} -> Peano.Nat = lam (ignore: {}). Peano.Nat(S {n = n1({})})
+        val n3: {} -> Peano.Nat = lam (ignore: {}). Peano.Nat(S {n = n2({})})
+
+        val main: {} -> B = lam (ignore: {}). Even.even(n3({}))
+      }
