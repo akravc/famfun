@@ -17,12 +17,16 @@ object code_generation {
     case c => c.toString
   }
 
-  def linkageFileName(lkg: Linkage): String = s"${pathIdentifier(lkg.path)}.scala"
+  def linkageFileName(lkg: Linkage): String = s"${pathIdentifier(lkg.path)(lkg.path)}.scala"
 
-  def pathIdentifier(p: Path): String = {
+  def pathIdentifier(curPath: Path)(p: Path): String = {
     val famList = pathToFamList(p)
     p match {
-      case Sp(_) => s"self$$${famList.size}"
+      case Sp(_) => {
+        val n = famList.size
+        val curFamList = pathToFamList(curPath)
+        s"self$$${if (curFamList.size==n) "" else n}"
+      }
       case AbsoluteFamily(_, _) => famList.mkString("$")
     }
   }
@@ -32,10 +36,13 @@ object code_generation {
       .toList.reverse.tail
       .map { spFams => spFams.mkString("$") }
 
+  def generateSelfParts(p: Path): List[(String, String)] = {
+    val ps = selfPathsInScope(p)
+    val n = ps.size
+    ps.zipWithIndex.map { (selfParam, i) => (s"self$$${if ((i+1)==n) "" else (i+1)}", selfParam) }
+  }
   def generateSelfParams(p: Path): List[String] =
-    selfPathsInScope(p)
-      .zipWithIndex
-      .map { (selfParam, i) => s"self$$${i+1}: $selfParam.Interface"}
+    generateSelfParts(p).map { (self, p) => s"$self: $p.Interface" }
 
   def findPathAdt(curDefn: AdtDefn, curPath: Path)(check: (Map[String, RecType], Path) => Boolean): List[Path] = {
     def findNext(nextPath: Path): List[Path] = {
@@ -99,16 +106,16 @@ object code_generation {
       .map { lkg => linkageFileName(lkg) -> generateCodeLinkage(lkg) }
 
   def generateCodeLinkage(lkg: Linkage): String = {
-    val typesCode: String = lkg.types.values.map(generateCodeTypeDefn).mkString("\n")
+    val typesCode: String = lkg.types.values.map(generateCodeTypeDefn(lkg.path)).mkString("\n")
 
-    val adtsCode: String = lkg.adts.values.map(generateCodeAdtDefn).mkString("\n")
+    val adtsCode: String = lkg.adts.values.map(generateCodeAdtDefn(lkg.path)).mkString("\n")
 
     val interfaceCode: String = generateCodeInterface(lkg.path)(lkg.types.values, lkg.adts.values, lkg.funs.values, lkg.depot.values)
     val familyCode: String = generateCodeFamily(lkg.path)(lkg.types.values, lkg.adts.values, lkg.funs.values, lkg.depot.values)
 
     s"""import reflect.Selectable.reflectiveSelectable
        |
-       |object ${pathIdentifier(lkg.path)} {
+       |object ${pathIdentifier(lkg.path)(lkg.path)} {
        |  // Types
        |${indentBy(1)(typesCode)}
        |
@@ -125,16 +132,16 @@ object code_generation {
 
   def generateCodeInterface(curPath: Path)
                            (types: Iterable[TypeDefn], adts: Iterable[AdtDefn], funs: Iterable[FunDefn], cases: Iterable[CasesDefn]): String = {
-    val curPathId: String = pathIdentifier(curPath)
+    val curPathId: String = pathIdentifier(curPath)(curPath)
 
     val allBodies: Iterable[DefnBody[Expression]] = funs.map { _.funBody } ++ cases.map { _.casesBody }
 
     val interfaceExtension: String = (getCompleteLinkageUnsafe(curPath).sup, findFurtherBinds(curPath)) match {
       case (None, None) => ""
-      case (Some(extendsPath), None) => s"extends ${pathIdentifier(extendsPath)}.Interface"
-      case (None, Some(furtherBindsPath)) => s"extends ${pathIdentifier(furtherBindsPath)}.Interface"
+      case (Some(extendsPath), None) => s"extends ${pathIdentifier(curPath)(extendsPath)}.Interface"
+      case (None, Some(furtherBindsPath)) => s"extends ${pathIdentifier(curPath)(furtherBindsPath)}.Interface"
       case (Some(extendsPath), Some(furtherBindsPath)) =>
-        s"extends ${pathIdentifier(extendsPath)}.Interface with ${pathIdentifier(furtherBindsPath)}.Interface"
+        s"extends ${pathIdentifier(curPath)(extendsPath)}.Interface with ${pathIdentifier(curPath)(furtherBindsPath)}.Interface"
     }
 
     val selfFields: String = generateSelfParams(curPath).map { selfWithType =>
@@ -145,7 +152,7 @@ object code_generation {
 
     val selfAdtsSig: String = adts.map(adtDefn => s"type ${adtDefn.name}").mkString("\n")
 
-    val funsSig: String = funs.map(generateCodeFunSignature(None)).mkString("\n")
+    val funsSig: String = funs.map(generateCodeFunSignature(curPath)(None)).mkString("\n")
 
     val casesSig: String = cases.map(generateCodeCasesSignature(curPath)).mkString("\n")
 
@@ -177,20 +184,19 @@ object code_generation {
 
   def generateCodeFamily(curPath: Path)
                         (types: Iterable[TypeDefn], adts: Iterable[AdtDefn], funs: Iterable[FunDefn], cases: Iterable[CasesDefn]): String = {
-    val curPathId: String = pathIdentifier(curPath)
+    val curPathId: String = pathIdentifier(curPath)(curPath)
 
     val selfFields: String =
-      selfPathsInScope(curPath)
-        .zipWithIndex
-        .map { (p, i) => s"override val self$$${i+1}: $p.Interface = $p.Family"}
+      generateSelfParts(curPath)
+        .map { (self, p) => s"override val $self: $p.Interface = $p.Family"}
         .mkString("\n")
 
     val typesCode: String = types.map { typeDefn =>
-      s"override type ${typeDefn.name} = ${pathIdentifier(curPath)}.${typeDefn.name}"
+      s"override type ${typeDefn.name} = ${pathIdentifier(curPath)(curPath)}.${typeDefn.name}"
     }.mkString("\n")
 
     val adtsCode: String = adts.map { adtDefn =>
-      s"override type ${adtDefn.name} = ${pathIdentifier(curPath)}.${adtDefn.name}"
+      s"override type ${adtDefn.name} = ${pathIdentifier(curPath)(curPath)}.${adtDefn.name}"
     }.mkString("\n")
 
     val funsCode: String = funs.map(generateCodeFunDefn(curPath)).mkString("\n")
@@ -199,7 +205,7 @@ object code_generation {
 
     val translationsCode: String = adts.map(generateCodeTranslationFunction(curPath)).mkString("\n")
 
-    s"""object Family extends ${pathIdentifier(curPath)}.Interface {
+    s"""object Family extends ${pathIdentifier(curPath)(curPath)}.Interface {
        |  // Self field instantiation
        |${indentBy(1)(selfFields)}
        |
@@ -220,13 +226,13 @@ object code_generation {
        |}""".stripMargin
   }
 
-  def generateCodeTypeDefn(typeDefn: TypeDefn): String = {
+  def generateCodeTypeDefn(curPath: Path)(typeDefn: TypeDefn): String = {
     val allFields: Map[String, Type] = collectAllNamedTypeFields(typeDefn).getOrElse(throw new Exception("Shouldn't happen"))
 
-    s"type ${typeDefn.name} = ${generateCodeType(RecType(allFields))}"
+    s"type ${typeDefn.name} = ${generateCodeType(curPath)(RecType(allFields))}"
   }
 
-  def generateCodeAdtDefn(adtDefn: AdtDefn): String = {
+  def generateCodeAdtDefn(curPath: Path)(adtDefn: AdtDefn): String = {
     val adtName: String = adtDefn.name
 
     val definedCtors: List[String] = adtDefn.adtBody.defn match {
@@ -240,10 +246,10 @@ object code_generation {
                 .map { (fieldName, fieldType) =>
                   val fieldTypeCode = fieldType match {
                     case FamType(Some(p@Sp(_)), name) if getCompleteLinkageUnsafe(p).adts.contains(name) =>
-                      val famTypeCode = s"${pathIdentifier(p)}$$$$$name"
+                      val famTypeCode = s"${pathIdentifier(curPath)(p)}$$$$$name"
                       typeParams += famTypeCode
                       famTypeCode
-                    case _ => generateCodeType(fieldType)
+                    case _ => generateCodeType(curPath)(fieldType)
                   }
                   s"$fieldName: $fieldTypeCode"
                 }
@@ -255,7 +261,7 @@ object code_generation {
     val inheritCtors: List[String] =
       List(adtDefn.adtBody.extendsFrom, adtDefn.adtBody.furtherBindsFrom)
         .collect { case Some(inheritPath) =>
-          val inheritPathCode = pathIdentifier(inheritPath)
+          val inheritPathCode = pathIdentifier(curPath)(inheritPath)
           s"""case class $inheritPathCode$$$$$adtName(inherited: $inheritPathCode.$adtName) extends $adtName {
              |  override def toString(): String = inherited.toString()
              |}""".stripMargin
@@ -269,41 +275,45 @@ object code_generation {
        |""".stripMargin
   }
 
+  def generateSelfArgs(curPath: Path): String = {
+    val n = pathToFamList(curPath).size
+    (1 to n).map { i => s"self$$${if (i==n) "" else i}" }.mkString(", ")
+  }
   def generateCodeFunDefn(curPath: Path)(funDefn: FunDefn): String = {
-    val selfArgs: String = (1 to pathToFamList(curPath).size).map { n => s"self$$$n" }.mkString(", ")
+    val selfArgs: String = generateSelfArgs(curPath)
 
     val implBody: String = funDefn.funBody match {
       case DefnBody(None, _, Some(furtherBindsPath)) =>
-        s"${pathIdentifier(furtherBindsPath)}.Family.${funDefn.name}$$Impl($selfArgs)"
+        s"${pathIdentifier(curPath)(furtherBindsPath)}.Family.${funDefn.name}$$Impl($selfArgs)"
       case DefnBody(None, Some(extendsPath), None) =>
-        s"${pathIdentifier(extendsPath)}.Family.${funDefn.name}$$Impl($selfArgs)"
+        s"${pathIdentifier(curPath)(extendsPath)}.Family.${funDefn.name}$$Impl($selfArgs)"
       case DefnBody(Some(expr), _, _) =>
         generateCodeExpression(curPath)(expr)
     }
 
-    s"""override ${generateCodeFunSignature(None)(funDefn)} = ${funDefn.name}$$Impl($selfArgs)
-       |${generateCodeFunSignature(Some(curPath))(funDefn)} =
+    s"""override ${generateCodeFunSignature(curPath)(None)(funDefn)} = ${funDefn.name}$$Impl($selfArgs)
+       |${generateCodeFunSignature(curPath)(Some(curPath))(funDefn)} =
        |${indentBy(1)(implBody)}""".stripMargin
   }
 
   // When optSelf is Some(_), generates the signature for the $Impl function
-  def generateCodeFunSignature(optPath: Option[Path])(funDefn: FunDefn): String = optPath match {
-    case None => s"val ${funDefn.name}: ${generateCodeType(funDefn.t)}"
+  def generateCodeFunSignature(curPath: Path)(optPath: Option[Path])(funDefn: FunDefn): String = optPath match {
+    case None => s"val ${funDefn.name}: ${generateCodeType(curPath)(funDefn.t)}"
     case Some(curPath) =>
       val selfParamsCode: String = generateSelfParams(curPath).mkString(", ")
-      s"def ${funDefn.name}$$Impl($selfParamsCode): ${generateCodeType(funDefn.t)}"
+      s"def ${funDefn.name}$$Impl($selfParamsCode): ${generateCodeType(curPath)(funDefn.t)}"
   }
 
   def generateCodeCasesDefn(curPath: Path)(casesDefn: CasesDefn): String = {
-    val selfArgs: String = (1 to pathToFamList(curPath).size).map { n => s"self$$$n" }.mkString(", ")
+    val selfArgs: String = generateSelfArgs(curPath)
 
     val matchType: FamType = casesDefn.matchType
-    val concreteMatchTypeCode: String = generateCodeType(concretizeType(matchType))
+    val concreteMatchTypeCode: String = generateCodeType(curPath)(concretizeType(matchType))
     val matchTypePath: Path = concretizePath(
       matchType.path
         .getOrElse(throw new Exception("Should not have None paths after name resolution"))
     )
-    val matchTypePathId: String = pathIdentifier(matchTypePath)
+    val matchTypePathId: String = pathIdentifier(curPath)(matchTypePath)
     val matchTypePathLkg: Linkage = getCompleteLinkageUnsafe(matchTypePath)
     val matchTypeAdtDefn: AdtDefn =
       matchTypePathLkg.adts.getOrElse(matchType.name, throw new Exception("Should be defined after type-checking"))
@@ -317,15 +327,15 @@ object code_generation {
         val clauses = caseHandlers.toList.map {
           case (ctorName, Lam(Var(instName), RecType(ctorFieldTypes), handlerExp)) =>
             val pathToCtor: List[Path] = findPathToConstructor(matchTypeAdtDefn, matchTypePath, ctorName)
-            val lastCtorCode: String = s"${pathIdentifier(pathToCtor.last)}.$ctorName"
+            val lastCtorCode: String = s"${pathIdentifier(curPath)(pathToCtor.last)}.$ctorName"
             val ignoredFields = List.fill(ctorFieldTypes.size)("_").mkString(", ")
             val caseMatched: String =
-              ctorCallListFromPathList(pathToCtor, matchType.name)
+              ctorCallListFromPathList(curPath)(pathToCtor, matchType.name)
                 .foldRight(s"matched@$lastCtorCode($ignoredFields)") { (c, r) => s"$c($r)" }
 
             val typeArgs: Set[String] = ctorFieldTypes.values.toSet.flatMap {
               case FamType(Some(p), name) if getCompleteLinkageUnsafe(p).adts.contains(name) =>
-                Set(s"${pathIdentifier(p)}.$name")
+                Set(s"${pathIdentifier(curPath)(p)}.$name")
               case _ => Set.empty
             }
             val typeArgsCode: String = if typeArgs.isEmpty then "" else s"[${typeArgs.mkString(", ")}]"
@@ -344,7 +354,7 @@ object code_generation {
     val inheritedClauses: List[String] =
       List(casesDefn.casesBody.extendsFrom, casesDefn.casesBody.furtherBindsFrom)
         .collect { case Some(inheritPath) =>
-          val inheritPathCode = pathIdentifier(inheritPath)
+          val inheritPathCode = pathIdentifier(curPath)(inheritPath)
           s"""case $matchTypePathId.$inheritPathCode$$$$${matchType.name}(inherited) =>
              |  $inheritPathCode.Family.${casesDefn.name}$$Impl($selfArgs)(inherited)($envParamName)""".stripMargin
         }
@@ -352,7 +362,7 @@ object code_generation {
     val caseClauses: List[String] = definedClauses ++ inheritedClauses
 
     s"""${generateCodeCasesSignature(curPath)(casesDefn)} = ${casesDefn.name}$$Impl($selfArgs)(matched.asInstanceOf[$concreteMatchTypeCode])
-       |${generateCodeCasesImplSignature(curPath)(casesDefn)} = ($envParamName: ${generateCodeType(envParamType)}) => matched match {
+       |${generateCodeCasesImplSignature(curPath)(casesDefn)} = ($envParamName: ${generateCodeType(curPath)(envParamType)}) => matched match {
        |${indentBy(1)(caseClauses.mkString("\n"))}
        |}""".stripMargin
   }
@@ -372,7 +382,7 @@ object code_generation {
     } yield outT).getOrElse(throw new Exception("Should not happen after type-checking"))
     val casesDefnType: Type = FunType(envType, outType)
 
-    s"def ${casesDefn.name}(matched: ${generateCodeType(casesDefn.matchType)}): ${generateCodeType(casesDefnType)}"
+    s"def ${casesDefn.name}(matched: ${generateCodeType(curPath)(casesDefn.matchType)}): ${generateCodeType(curPath)(casesDefnType)}"
   }
   def generateCodeCasesImplSignature(curPath: Path)(casesDefn: CasesDefn): String = {
     val envType: Type = casesDefn.t match {
@@ -391,16 +401,16 @@ object code_generation {
 
     val concreteMatchType = concretizeType(casesDefn.matchType)
     val selfParamsCode: String = generateSelfParams(curPath).mkString(", ")
-    s"def ${casesDefn.name}$$Impl($selfParamsCode)(matched: ${generateCodeType(concreteMatchType)}): ${generateCodeType(casesDefnType)}"
+    s"def ${casesDefn.name}$$Impl($selfParamsCode)(matched: ${generateCodeType(curPath)(concreteMatchType)}): ${generateCodeType(curPath)(casesDefnType)}"
   }
 
-  def ctorCallListFromPathList(pathList: List[Path], adtName: String): List[String] = pathList match {
-    case p1 :: p2 :: ps => s"${pathIdentifier(p1)}.${pathIdentifier(p2)}$$$$$adtName" :: ctorCallListFromPathList(p2 :: ps, adtName)
+  def ctorCallListFromPathList(curPath: Path)(pathList: List[Path], adtName: String): List[String] = pathList match {
+    case p1 :: p2 :: ps => s"${pathIdentifier(curPath)(p1)}.${pathIdentifier(curPath)(p2)}$$$$$adtName" :: ctorCallListFromPathList(curPath)(p2 :: ps, adtName)
     case _ => Nil
   }
 
   def generateCodeTranslationFunction(curPath: Path)(adtDefn: AdtDefn): String = {
-    val curPathId: String = pathIdentifier(curPath)
+    val curPathId: String = pathIdentifier(curPath)(curPath)
 
     // Collect all paths from which this adt extends a definition
     val (inheritedPaths, _) = collectAllDefns(adtDefn)(_.adtBody) { lkg =>
@@ -411,9 +421,9 @@ object code_generation {
     val allPaths = curPath :: inheritedPaths.toList
 
     allPaths.map { targetPath =>
-      val targetPathId: String = pathIdentifier(targetPath)
+      val targetPathId: String = pathIdentifier(curPath)(targetPath)
       // TODO: find target paths and generate translation terms at once to be more efficient
-      val ctorCalls = ctorCallListFromPathList(findPathToPath(adtDefn, curPath, targetPath), adtDefn.name)
+      val ctorCalls = ctorCallListFromPathList(curPath)(findPathToPath(adtDefn, curPath, targetPath), adtDefn.name)
       val translationTerm: String = ctorCalls.foldRight("from") { (c, r) =>
         s"$c($r)"
       }
@@ -421,19 +431,19 @@ object code_generation {
     }.mkString("\n")
   }
 
-  def generateCodeType(t: Type): String = t match {
+  def generateCodeType(curPath: Path)(t: Type): String = t match {
     case NType => "Int"
     case BType => "Boolean"
     case StringType => "String"
-    case FamType(Some(p), name) => s"${pathIdentifier(p)}.$name"
+    case FamType(Some(p), name) => s"${pathIdentifier(curPath)(p)}.$name"
     case FamType(None, name) => throw new Exception("Should not have None paths after name resolution")
-    case FunType(input, output) => s"${generateCodeType(input)} => ${generateCodeType(output)}"
+    case FunType(input, output) => s"${generateCodeType(curPath)(input)} => ${generateCodeType(curPath)(output)}"
     case RecType(fields) =>
       if fields.isEmpty then "Unit"
       else {
         val fieldsCode =
           fields
-            .map { (fieldName, fieldType) => s"val $fieldName: ${generateCodeType(fieldType)}" }
+            .map { (fieldName, fieldType) => s"val $fieldName: ${generateCodeType(curPath)(fieldType)}" }
             .mkString("; ")
 
         s"{$fieldsCode}"
@@ -444,25 +454,25 @@ object code_generation {
     case Var(id) => s"$id"
 
     case Lam(Var(v), t, body) =>
-      s"""($v: ${generateCodeType(t)}) => {
+      s"""($v: ${generateCodeType(curPath)(t)}) => {
          |${indentBy(1)(generateCodeExpression(curPath)(body))}
          |}""".stripMargin
 
     case FamFun(Some(path), name) => path match {
       case AbsoluteFamily(_, _) =>
         val selfArgs: String = selfPathsInScope(path).map(_ ++ ".Family").mkString(", ")
-        s"${pathIdentifier(path)}.Family.$name$$Impl($selfArgs)"
+        s"${pathIdentifier(curPath)(path)}.Family.$name$$Impl($selfArgs)"
       case Sp(_) =>
         // TODO: only cast if needed (fType contains relative types)
         val Some(fType) = e.exprType
-        s"${pathIdentifier(path)}.$name.asInstanceOf[${generateCodeType(fType)}]"
+        s"${pathIdentifier(curPath)(path)}.$name.asInstanceOf[${generateCodeType(curPath)(fType)}]"
     }
     case FamFun(None, _) => throw new Exception("Should not have None paths after name resolution")
 
     case FamCases(Some(path), name) => path match {
       case AbsoluteFamily(_, _) =>
         val selfArgs: String = selfPathsInScope(path).map(_ ++ ".Family").mkString(", ")
-        s"${pathIdentifier(path)}.Family.$name$$Impl($selfArgs)"
+        s"${pathIdentifier(curPath)(path)}.Family.$name$$Impl($selfArgs)"
       case Sp(_) =>
         val lkg: Linkage = getCompleteLinkageUnsafe(path)
         val casesDefn: CasesDefn = lkg.depot.getOrElse(name, throw new Exception("Should exist after type checking"))
@@ -481,7 +491,7 @@ object code_generation {
         val casesDefnType: Type = FunType(envType, outType)
 
         val cType: Type = FunType(casesDefn.matchType, FunType(envType, outType))
-        s"${pathIdentifier(path)}.$name.asInstanceOf[${generateCodeType(cType)}]"
+        s"${pathIdentifier(curPath)(path)}.$name.asInstanceOf[${generateCodeType(curPath)(cType)}]"
     }
     case FamCases(None, _) => throw new Exception("Should not have None paths after name resolution")
 
@@ -510,7 +520,7 @@ object code_generation {
     case Proj(e, name) =>
       val projCast: String = e.exprType match {
         case Some(famType@FamType(Some(path), name)) if getCompleteLinkageUnsafe(path).types.contains(name) =>
-          s".asInstanceOf[${generateCodeType(concretizeType(famType))}]"
+          s".asInstanceOf[${generateCodeType(curPath)(concretizeType(famType))}]"
         case _ => ""
       }
       s"${generateCodeExpression(curPath)(e)}$projCast.$name"
@@ -523,14 +533,14 @@ object code_generation {
         case Some(defaultDefn) => collectAllDefaults(defaultDefn).getOrElse(throw new Exception("Should not happen"))
       }
       val instCast: String = path match {
-        case Sp(_) => s".asInstanceOf[${generateCodeType(famType)}]"
+        case Sp(_) => s".asInstanceOf[${generateCodeType(curPath)(famType)}]"
         case _ => ""
       }
       s"${generateCodeExpression(curPath)(Rec(defaultFields ++ fields))}$instCast"
     case Inst(FamType(None, _), _) => throw new Exception("Should not have None paths after name resolution")
 
     case InstADT(FamType(Some(path), name), ctorName, Rec(fields)) =>
-      val translationFnPathCode: String = pathIdentifier(path) + (path match {
+      val translationFnPathCode: String = pathIdentifier(curPath)(path) + (path match {
         case Sp(_) => ""
         case _ => ".Family"
       })
@@ -539,7 +549,7 @@ object code_generation {
         lkg.adts.getOrElse(name, throw new Exception("Should be defined after type-checking"))
       // TODO: can be done more efficiently if searched directly
       val ctorPath: Path = concretizePath(findPathToConstructor(adtDefn, path, ctorName).last)
-      val ctorPathCode: String = pathIdentifier(ctorPath)
+      val ctorPathCode: String = pathIdentifier(curPath)(ctorPath)
       val ctorArgs: String =
         fields
           .map { (argName, argExp) => s"$argName = ${generateCodeExpression(curPath)(argExp)}" }
