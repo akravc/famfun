@@ -109,6 +109,9 @@ object type_checking {
     collectAllDefnsHelp(defnContainer).map(r => (visitedPaths, r))
   }
 
+  def collectAllConstructors0(adtDefn: AdtDefn): Either[String, Map[String, RecType]] =
+    Right(adtDefn.adtBody.allDefns.flatten.toMap)
+
   def collectAllConstructors(adtDefn: AdtDefn): Either[String, Map[String, RecType]] = for {
     collected <- collectAllDefns(adtDefn)(_.adtBody) { lkg =>
       lkg.adts
@@ -331,14 +334,12 @@ object type_checking {
           .get(c.matchType.name)
           .fold(Left(s"No ADT ${c.matchType.name} in ${print_path(c.matchType.path.get)}"))(Right.apply)
 
-      allCtors: Map[String, RecType] <- collectAllConstructors(matchAdtDefn)
-      normCtorsHandled = caseHandlerTypesAsCtors.view.mapValues(subSelfInTypeAccordingTo(curLkg.path)).toMap
-      normAllCtors = allCtors.view.mapValues(subSelfInTypeAccordingTo(curLkg.path)).toMap
+      allCtors: Map[String, RecType] <- collectAllConstructors0(matchAdtDefn)
+      normCtorsHandled = caseHandlerTypesAsCtors//.view.mapValues(subSelfInTypeAccordingTo(curLkg.path)).toMap
+      normAllCtors = allCtors//.view.mapValues(subSelfInTypeAccordingTo(curLkg.path)).toMap
 
       // Exhaustive check
       _ <-
-        if allCtors != caseHandlerTypesAsCtors
-        then println(s"compare for ${curLkg.path}: $allCtors vs $caseHandlerTypesAsCtors")
         if normCtorsHandled == normAllCtors
         then Right(())
         else Left(s"Cases ${c.name} in ${print_path(curLkg.path)} is non-exhaustive.")
@@ -780,12 +781,17 @@ object type_checking {
     }
 
     l.adts.values.foreach {
-      case AdtDefn(name, marker, adtBody) => adtBody match {
-        case DefnBody(Some(ctors), extendsFrom, furtherBindsFrom, _) =>
-          ctors.values.foreach {
-            _.fields.values.foreach(resolveImplicitPathsInType(l))
-          }
-        case _ => ()
+      case AdtDefn(name, marker, adtBody) => {
+        adtBody match {
+          case DefnBody(Some(ctors), extendsFrom, furtherBindsFrom, _) =>
+            ctors.values.foreach {
+              _.fields.values.foreach(resolveImplicitPathsInType(l))
+            }
+          case _ => ()
+        }
+        adtBody.allDefns.foreach(_.values.foreach {
+          _.fields.values.foreach(resolveImplicitPathsInType(l))
+        })
       }
     }
 
@@ -929,7 +935,7 @@ object type_checking {
     case _ => e
   }
   def subSelfInDefnBody[B](body: DefnBody[B])(subB: B => B): DefnBody[B] = {
-    body.copy(defn = body.defn.map(subB))
+    body.copy(defn = body.defn.map(subB), allDefns = body.allDefns.map(subB))
   }
   def subSelfInPath(newSelf: SelfPath, oldSelf: SelfPath)(p: Path): Path = p match {
     case Sp(sp) => Sp(subSelfInSelfPath(newSelf, oldSelf)(sp))

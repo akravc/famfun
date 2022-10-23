@@ -95,7 +95,7 @@ object name_resolution {
     resolvedMatchType <- resolveType(curSelf)(c.matchType).asInstanceOf[Either[String, FamType]]
     resolvedT <- resolveType(curSelf)(c.t)
     resolvedCasesBody <- resolveDefnBody(resolveExpression(curSelf, boundVars))(c.casesBody)
-  } yield c.copy(matchType = resolvedMatchType, t = resolvedT, casesBody = resolvedCasesBody)
+  } yield c.copy(matchType = resolvedMatchType, t = resolvedT, ts = c.ts.map{x => throwLeft(resolveType(curSelf)(x))}, casesBody = resolvedCasesBody)
 
   def throwLeft[A,B](e: Either[A,B]): B = e match {
     case Left(x) => throw new Exception(s"failed $x")
