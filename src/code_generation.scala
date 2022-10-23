@@ -191,7 +191,7 @@ object code_generation {
       var s = parts
         .map { (self, p) => s"override val $self: $p.Interface = $p.Family"}
         .mkString("\n")
-
+      // TODO(now): this is a hack!
       supPath.foreach{ supPath =>
         val n = parts.size
         val supParts = selfPathsInScope(supPath)
