@@ -32,4 +32,4 @@
 
 - [ ] Eliminate dead code.
 
-- [ ] Get rid of `throwLeft`.
+- [x] Get rid of `throwLeft`.

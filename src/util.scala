@@ -167,3 +167,10 @@ object OptionOps {
     case Some(_) => opt2
   }
 }
+
+object ListOps {
+  def eitherFromList[A, B](s: List[Either[A, B]]): Either[A, List[B]] =
+    s.foldRight(Right(Nil): Either[A, List[B]]) {
+      (e, acc) => for (xs <- acc; x <- e) yield x :: xs
+    }
+}
