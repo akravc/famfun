@@ -811,6 +811,7 @@ object type_checking {
         subSelfLinkageFuns(f)(lkg.funs),
         subSelfLinkageDepot(f)(lkg.depot),
         lkg.nested.view.mapValues(subExact(p)).toMap)
+      lkg // TODO: disabled for now
     }
   }
 
