@@ -28,4 +28,8 @@
 
 - [ ] Should be able to run a "Main" with the code.
 
-- [ ] Why is `subSelfInTypeAccordingTo` taking a prefix? Causes trouble for test5. But prefix is necessary for pretty_example.
+- [x] Why is `subSelfInTypeAccordingTo` taking a prefix? Causes trouble for test5. But prefix is necessary for pretty_example.
+
+- [ ] Eliminate dead code.
+
+- [ ] Get rid of `throwLeft`.
