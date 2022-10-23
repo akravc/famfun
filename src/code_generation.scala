@@ -486,7 +486,7 @@ object code_generation {
             case FunType(_, outType) => outType
             case _ => throw new Exception("Should not happen after type-checking")
           }.toList
-          outT <- unifyTypes(caseHandlerOutTypes.map(subSelfInTypeAccordingTo(curPath)))
+          outT <- unifyTypes(caseHandlerOutTypes/*.map(subSelfInTypeAccordingTo(curPath))*/)
         } yield outT).getOrElse(throw new Exception("Should not happen after type-checking"))
         val casesDefnType: Type = FunType(envType, outType)
 
