@@ -348,7 +348,7 @@ object type_checking {
         case t => Left(s"Invalid type ${print_type(t)} for case handler for cases ${c.name} in ${print_path(curLkg.path)}")
       }.map(_.values.toList)
       // Consistent result type check
-      _ <- unifyTypes(caseHandlerOutTypes.map(subSelfInTypeAccordingTo(curLkg.path))).left.map { unifyErrMsg =>
+      _ <- unifyTypes(caseHandlerOutTypes/*.map(subSelfInTypeAccordingTo(curLkg.path))*/).left.map { unifyErrMsg =>
         s"""Inconsistent output types for case handlers for cases ${c.name} in ${print_path(curLkg.path)}:
             |$unifyErrMsg
             |""".stripMargin
