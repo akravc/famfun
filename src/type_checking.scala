@@ -109,10 +109,10 @@ object type_checking {
     collectAllDefnsHelp(defnContainer).map(r => (visitedPaths, r))
   }
 
-  def collectAllConstructors0(adtDefn: AdtDefn): Either[String, Map[String, RecType]] =
+  def collectAllConstructors(adtDefn: AdtDefn): Either[String, Map[String, RecType]] =
     Right(adtDefn.adtBody.allDefns.flatten.toMap)
 
-  def collectAllConstructors(adtDefn: AdtDefn): Either[String, Map[String, RecType]] = for {
+  def collectAllConstructors0(adtDefn: AdtDefn): Either[String, Map[String, RecType]] = for {
     collected <- collectAllDefns(adtDefn)(_.adtBody) { lkg =>
       lkg.adts
         .getOrElse(adtDefn.name, throw new Exception(s"${lkg.self} should contain an ADT definition for ${adtDefn.name} by construction"))
@@ -334,7 +334,7 @@ object type_checking {
           .get(c.matchType.name)
           .fold(Left(s"No ADT ${c.matchType.name} in ${print_path(c.matchType.path.get)}"))(Right.apply)
 
-      allCtors: Map[String, RecType] <- collectAllConstructors0(matchAdtDefn)
+      allCtors: Map[String, RecType] <- collectAllConstructors(matchAdtDefn)
       normCtorsHandled = caseHandlerTypesAsCtors//.view.mapValues(subSelfInTypeAccordingTo(curLkg.path)).toMap
       normAllCtors = allCtors//.view.mapValues(subSelfInTypeAccordingTo(curLkg.path)).toMap
 
@@ -773,10 +773,14 @@ object type_checking {
     val curPath: Path = l.path
     // Resolve paths in type fields
     l.types.values.foreach {
-      case TypeDefn(name, marker, typeBody) => typeBody match {
-        case DefnBody(Some(RecType(fields)), extendsFrom, furtherBindsFrom, _) =>
-          fields.values.foreach(resolveImplicitPathsInType(l))
-        case _ => ()
+      case TypeDefn(name, marker, typeBody) => {
+        typeBody match {
+          case DefnBody(Some(RecType(fields)), extendsFrom, furtherBindsFrom, _) =>
+            fields.values.foreach(resolveImplicitPathsInType(l))
+          case _ => ()
+        }
+        typeBody.allDefns.foreach{case RecType(fields) =>
+          fields.values.foreach(resolveImplicitPathsInType(l))}
       }
     }
 
