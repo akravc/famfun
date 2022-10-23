@@ -273,8 +273,8 @@ object type_checking {
   } yield ()
 
   def typeCheckDefaultDefns(curLkg: Linkage, assocType: TypeDefn)(d: DefaultDefn): Either[String, Unit] = (assocType.typeBody, d.defaultBody) match {
-    case (DefnBody(None, _, _), DefnBody(None, _, _)) => Right(())
-    case (DefnBody(Some(fieldTypes), _, _), DefnBody(Some(defn), _, _)) =>
+    case (DefnBody(None, _, _, _), DefnBody(None, _, _, _)) => Right(())
+    case (DefnBody(Some(fieldTypes), _, _, _), DefnBody(Some(defn), _, _, _)) =>
       traverseWithKeyMap(defn.fields) { (fieldName, expr) =>
         for {
           eType <- typeOfExpression(curLkg, Map.empty)(expr)
@@ -294,8 +294,8 @@ object type_checking {
   }
 
   def typeCheckFunDefns(curLkg: Linkage)(f: FunDefn): Either[String, Unit] = f.funBody match {
-    case DefnBody(None, _, _) => Right(())
-    case DefnBody(Some(defn), _, _) => for {
+    case DefnBody(None, _, _, _) => Right(())
+    case DefnBody(Some(defn), _, _, _) => for {
       defnType <- typeOfExpression(curLkg, Map.empty)(defn)
       isSub <- isSubtype(defnType, f.t)
       result <-
@@ -677,7 +677,7 @@ object type_checking {
               lkg <- getCompleteLinkage(path)
               adtDefn <- lkg.adts.get(tName).fold(Left(s"No ADT $tName in ${print_path(path)}"))(Right.apply)
               result <- adtDefn match {
-                case AdtDefn(name, marker, DefnBody(Some(ctors), _, _)) => for {
+                case AdtDefn(name, marker, DefnBody(Some(ctors), _, _, _)) => for {
                   // Checking shape of g
                   casesDefn <- g match {
                     case App(FamCases(Some(casesPath), casesName), Rec(_)) => for {
@@ -762,7 +762,7 @@ object type_checking {
     // Resolve paths in type fields
     l.types.values.foreach {
       case TypeDefn(name, marker, typeBody) => typeBody match {
-        case DefnBody(Some(RecType(fields)), extendsFrom, furtherBindsFrom) =>
+        case DefnBody(Some(RecType(fields)), extendsFrom, furtherBindsFrom, _) =>
           fields.values.foreach(resolveImplicitPathsInType(l))
         case _ => ()
       }
@@ -770,7 +770,7 @@ object type_checking {
 
     l.adts.values.foreach {
       case AdtDefn(name, marker, adtBody) => adtBody match {
-        case DefnBody(Some(ctors), extendsFrom, furtherBindsFrom) =>
+        case DefnBody(Some(ctors), extendsFrom, furtherBindsFrom, _) =>
           ctors.values.foreach {
             _.fields.values.foreach(resolveImplicitPathsInType(l))
           }

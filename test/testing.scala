@@ -420,7 +420,8 @@ class FamFunParserTesting extends AnyFunSuite {
       DefnBody(
         Some(Lam(Var("x"), BType, Var("x"))),
         None,
-        None
+        None,
+        List(Lam(Var("x"), BType, Var("x")))
       )
     ){resolvedLkg.funs("f").funBody}
   }
@@ -442,7 +443,8 @@ class FamFunParserTesting extends AnyFunSuite {
       DefnBody(
         Some(FamFun(None, "y")),
         None,
-        None
+        None,
+        List(FamFun(None, "y"))
       )
     ){resolvedLkg.funs("f").funBody}
   }

@@ -58,11 +58,11 @@ object code_generation {
     }
 
     curDefn.adtBody match {
-      case DefnBody(Some(curCtors), _, _) if check(curCtors, curPath) => List(curPath)
-      case DefnBody(_, None, None) => Nil
-      case DefnBody(_, None, Some(furtherBindsFrom)) => resultIfNonNil(findNext(furtherBindsFrom))
-      case DefnBody(_, Some(extendsFrom), None) => resultIfNonNil(findNext(extendsFrom))
-      case DefnBody(_, Some(extendsFrom), Some(furtherBindsFrom)) => resultIfNonNil(findNext(furtherBindsFrom)) match {
+      case DefnBody(Some(curCtors), _, _, _) if check(curCtors, curPath) => List(curPath)
+      case DefnBody(_, None, None, _) => Nil
+      case DefnBody(_, None, Some(furtherBindsFrom), _) => resultIfNonNil(findNext(furtherBindsFrom))
+      case DefnBody(_, Some(extendsFrom), None, _) => resultIfNonNil(findNext(extendsFrom))
+      case DefnBody(_, Some(extendsFrom), Some(furtherBindsFrom), _) => resultIfNonNil(findNext(furtherBindsFrom)) match {
         case Nil => resultIfNonNil(findNext(extendsFrom))
         case result => result
       }
@@ -283,11 +283,11 @@ object code_generation {
     val selfArgs: String = generateSelfArgs(curPath)
 
     val implBody: String = funDefn.funBody match {
-      case DefnBody(None, _, Some(furtherBindsPath)) =>
+      case DefnBody(None, _, Some(furtherBindsPath), _) =>
         s"${pathIdentifier(curPath)(furtherBindsPath)}.Family.${funDefn.name}$$Impl($selfArgs)"
-      case DefnBody(None, Some(extendsPath), None) =>
+      case DefnBody(None, Some(extendsPath), None, _) =>
         s"${pathIdentifier(curPath)(extendsPath)}.Family.${funDefn.name}$$Impl($selfArgs)"
-      case DefnBody(Some(expr), _, _) =>
+      case DefnBody(Some(expr), _, _, _) =>
         generateCodeExpression(curPath)(expr)
     }
 

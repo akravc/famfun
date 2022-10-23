@@ -156,7 +156,14 @@ object famfun {
   case object Eq extends Marker // type definition marker
 
   // Things that could be defined or extended / further bound
-  case class DefnBody[B](defn: Option[B], extendsFrom: Option[Path], furtherBindsFrom: Option[Path])
+  case class DefnBody[B](defn: Option[B], extendsFrom: Option[Path], furtherBindsFrom: Option[Path], allDefns: List[B])
+  def DefnBody[B](defn: Option[B], extendsFrom: Option[Path], furtherBindsFrom: Option[Path]): DefnBody[B] = {
+    val allDefns: List[B] = defn match {
+      case None => List()
+      case Some(x) => List(x)
+    }
+    DefnBody[B](defn, extendsFrom, furtherBindsFrom, allDefns)
+  }
 
   // types
   case class TypeDefn(name: String, marker: Marker, typeBody: DefnBody[RecType])

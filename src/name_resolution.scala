@@ -97,9 +97,14 @@ object name_resolution {
     resolvedCasesBody <- resolveDefnBody(resolveExpression(curSelf, boundVars))(c.casesBody)
   } yield c.copy(matchType = resolvedMatchType, t = resolvedT, casesBody = resolvedCasesBody)
 
+  def throwLeft[A,B](e: Either[A,B]): B = e match {
+    case Left(x) => throw new Exception(s"failed $x")
+    case Right(x) => x
+  }
+
   def resolveDefnBody[B](resolveInB: B => Either[String, B])(b: DefnBody[B]): Either[String, DefnBody[B]] = b.defn match {
     case None => Right(b)
-    case Some(defn) => resolveInB(defn).map { resolvedDefn => b.copy(defn = Some(resolvedDefn)) }
+    case Some(defn) => resolveInB(defn).map { resolvedDefn => b.copy(defn = Some(resolvedDefn), allDefns = b.allDefns.map{x => throwLeft(resolveInB(x))}) }
   }
 
   def resolveExpression(curSelf: SelfPath, boundVars: Set[String])(e: Expression): Either[String, Expression] = e match {
