@@ -261,7 +261,7 @@ object type_checking {
   }
 
   def typeCheckLinkage(l: Linkage): Either[String, Unit] = for {
-    completeL <- getCompleteLinkage(l.path)
+    completeL <- getCompleteLinkage(Sp(l.self))
     curPath = concretizePath(completeL.path)
     _ <- traverseMap(completeL.defaults) { d =>
       val assocType = completeL.types.getOrElse(d.name, throw new Exception("Should not happen by construction"))
@@ -720,7 +720,7 @@ object type_checking {
     // K |- sp.A ~> L
     // ______________________ L-Self
     // K |- self(sp.A) ~> L
-    val pathResolved: Path = concretizePath0(p)
+    val pathResolved: Path = concretizePath(p)
 
     cache.get(pathResolved) match {
       case Some(lkg) => Right(lkg)
@@ -811,7 +811,6 @@ object type_checking {
         subSelfLinkageFuns(f)(lkg.funs),
         subSelfLinkageDepot(f)(lkg.depot),
         lkg.nested.view.mapValues(subExact(p)).toMap)
-      lkg // TODO: disabled for now
     }
   }
 
