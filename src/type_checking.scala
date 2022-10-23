@@ -659,7 +659,7 @@ object type_checking {
             ctorFields = ctorRecType.fields
 
             instFieldsType = RecType(instFields)
-            ctorFieldsType0 = subSelfInTypeAccordingTo(path)(RecType(ctorFields))
+            ctorFieldsType0 = /*subSelfInTypeAccordingTo(path)(*/RecType(ctorFields)//)
             ctorFieldsType = path match {
               case AbsoluteFamily(_, _) => concretizeType(ctorFieldsType0)
               case _ => ctorFieldsType0
