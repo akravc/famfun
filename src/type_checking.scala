@@ -709,7 +709,7 @@ object type_checking {
           result
       }
 
-  def getCompleteLinkage(p: Path): Either[String, Linkage] = {
+  def getInexactCompleteLinkage(p: Path): Either[String, Linkage] = {
     // Handles
     //
     // ____________________ L-Prog
@@ -720,15 +720,18 @@ object type_checking {
     // K |- sp.A ~> L
     // ______________________ L-Self
     // K |- self(sp.A) ~> L
-    val pathResolved: Path = concretizePath(p)
+    val pathResolved: Path = concretizePath0(p)
 
-    (cache.get(pathResolved) match {
+    cache.get(pathResolved) match {
       case Some(lkg) => Right(lkg)
       case None => for {
-        computedLkg <- computeCompleteLinkage(pathResolved)
+        computedLkg <- computeInexactCompleteLinkage(pathResolved)
       } yield { cache += pathResolved -> computedLkg; computedLkg }
-    }).map(subExact(p))
+    }
   }
+
+  def getCompleteLinkage(p: Path): Either[String, Linkage] =
+    getInexactCompleteLinkage(p).map(subExact(p))
 
   // K |- a ~> L
   // I = L.A
@@ -737,7 +740,7 @@ object type_checking {
   // L' + I = L"
   // _________________________________ L-Nest
   // K |- a.A ~> L"
-  def computeCompleteLinkage(path: Path): Either[String, Linkage] = path match {
+  def computeInexactCompleteLinkage(path: Path): Either[String, Linkage] = path match {
     case Sp(_) => throw new Exception("computeCompleteLinkage should only be called on Absolute paths")
     case AbsoluteFamily(pref, fam) => for {
       // L
@@ -748,7 +751,7 @@ object type_checking {
       // L'
       optSupLkg <- incompleteCurLkg.sup match {
         case None => Right(None)
-        case Some(supP) => getCompleteLinkage(supP).map(Some.apply)
+        case Some(supP) => getInexactCompleteLinkage(supP).map(Some.apply)
       }
 
       result <- concatLinkages(Extends)(optSupLkg, incompleteCurLkg)
@@ -798,13 +801,16 @@ object type_checking {
     case Sp(sp) => lkg
     case p@AbsoluteFamily(pref, name) => {
       val f = subSelfByPathInPath(SelfFamily(pref, name), p)
-      /*
       Linkage(
-        lkg.path,
+        f(lkg.path),
         lkg.self,
-       lkg.sup)
-       */
-      lkg
+        lkg.sup.map(f),
+        subSelfLinkageTypes(f)(lkg.types),
+        subSelfLinkageDefaults(f)(lkg.defaults),
+        subSelfLinkageAdts(f)(lkg.adts),
+        subSelfLinkageFuns(f)(lkg.funs),
+        subSelfLinkageDepot(f)(lkg.depot),
+        lkg.nested.view.mapValues(subExact(p)).toMap)
     }
   }
 

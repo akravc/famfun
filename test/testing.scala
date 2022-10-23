@@ -1338,6 +1338,32 @@ Family A {
 
   /* ==================================== TYPING EXAMPLE PROGRAMS ==================================== */
 
+  test("sums example: without implicit resolution, the program typechecks") {
+    val prog : String = """
+      Family Base {
+
+        type T = C1 {n: N} | C2 {n1: N, n2: N}
+
+        val plus: (N -> N -> N) = lam (x: N). lam (y: N). 1
+
+        val sum: (T -> N) = lam (t: self(Base).T). match t with <sum_cases> {arg = t}
+
+        cases sum_cases <T> : {arg: self(Base).T} -> {C1: {n: N} -> N, C2: {n1: N, n2: N} -> N} =
+          lam (r: {arg: self(Base).T}). {C1 = lam (x: {n: N}). x.n, C2 = lam (x: {n1: N, n2: N}). ((plus x.n1) x.n2)}
+
+      }
+
+      Family Triple extends Base {
+
+        type T += C3 {n1: N, n2: N, n3: N}
+
+        cases sum_cases <T> : {arg: self(Triple).T} -> {C3: {n1: N, n2: N, n3: N} -> N} +=
+          lam (r: {arg: self(Triple).T}). {C3 = lam (x: {n1: N, n2: N, n3: N}). ((plus ((plus x.n1) x.n2)) x.n3)}
+
+       }""";
+    assertResult(Right(()))(typecheckProcess(prog))
+  }
+
   test("sums example: the program typechecks") {
     val prog : String = """
       Family Base {

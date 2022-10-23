@@ -27,6 +27,11 @@ object famfun {
     case AbsoluteFamily(pref, fam) => AbsoluteFamily(concretizePath(pref), fam)
   }
 
+  def concretizePath0(p: Path): Path = p match {
+    case Sp(SelfFamily(pref, fam)) => AbsoluteFamily(pref, fam)
+    case other => other
+  }
+
   // Transforms all absolute paths into self paths
   def relativizePath(p: Path): SelfPath = p match {
     case Sp(sp) => sp
