@@ -133,7 +133,15 @@ object type_checking {
     result = collected._2
   } yield result
 
-  def collectAllCaseHandlerTypes(casesDefn: CasesDefn): Either[String, Map[String, Type]] = for {
+  def collectAllCaseHandlerTypes(casesDefn: CasesDefn): Either[String, Map[String, Type]] = {
+    Right(casesDefn.ts.map { t => t match {
+      case RecType (cfTypes) => cfTypes
+      case FunType (RecType (_), RecType (cfTypes)) => cfTypes
+      case _ => throw new Exception(s"Invalid shape for cases type: ${print_type(t)}")
+    }}.flatten.toMap)
+  }
+
+  def collectAllCaseHandlerTypes0(casesDefn: CasesDefn): Either[String, Map[String, Type]] = for {
     collected <- collectAllDefns(casesDefn)(_.casesBody) { lkg =>
       lkg.depot
         .getOrElse(casesDefn.name, throw new Exception(s"${lkg.self} should contain a cases definition for ${casesDefn.name} by construction"))
@@ -329,6 +337,8 @@ object type_checking {
 
       // Exhaustive check
       _ <-
+        if allCtors != caseHandlerTypesAsCtors
+        then println(s"compare for ${curLkg.path}: $allCtors vs $caseHandlerTypesAsCtors")
         if normCtorsHandled == normAllCtors
         then Right(())
         else Left(s"Cases ${c.name} in ${print_path(curLkg.path)} is non-exhaustive.")
@@ -783,9 +793,10 @@ object type_checking {
     }
 
     l.depot.values.foreach {
-      case CasesDefn(name, matchType, t, _, _) =>
+      case CasesDefn(name, matchType, t, ts, _, _) =>
         resolveImplicitPathsInType(l)(matchType)
         resolveImplicitPathsInType(l)(t)
+        ts.map(resolveImplicitPathsInType(l))
     }
   }
 
@@ -870,10 +881,11 @@ object type_checking {
   def subSelfLinkageDepot(f: Path => Path)(depot: Map[String, CasesDefn]): Map[String, CasesDefn] =
     depot.view
       .mapValues {
-        case CasesDefn(name, matchType, t, marker, body) => CasesDefn(
+        case CasesDefn(name, matchType, t, ts, marker, body) => CasesDefn(
           name,
           recType(f)(matchType).asInstanceOf[FamType],
           recType(f)(t).asInstanceOf[FunType],
+          ts.map(recType(f)),
           marker,
           subSelfInDefnBody(body)(subSelfInExpression(f))
         )
@@ -936,7 +948,8 @@ object type_checking {
     DefnBody(
       curDefnBody.defn,
       lastSome(inheritedDefnBody.extendsFrom, curDefnBody.extendsFrom),
-      lastSome(inheritedDefnBody.furtherBindsFrom, curDefnBody.furtherBindsFrom)
+      lastSome(inheritedDefnBody.furtherBindsFrom, curDefnBody.furtherBindsFrom),
+      inheritedDefnBody.allDefns ++ curDefnBody.allDefns
     )
   }
 
@@ -1096,8 +1109,8 @@ object type_checking {
   // L'.CASES + I.CASES = L".CASES
   def concatCases(depot1: Map[String, CasesDefn], depot2: Map[String, CasesDefn]): Either[String, Map[String, CasesDefn]] =
     unionWithM(depot1, depot2) {
-      case ( CasesDefn(casesName, prevMatchType, prevT, _, prevCasesDefn)
-           , CasesDefn(_casesName, curMatchType, curT, PlusEq, curCasesDefn)
+      case ( CasesDefn(casesName, prevMatchType, prevT, prevTs, _, prevCasesDefn)
+           , CasesDefn(_casesName, curMatchType, curT, curTs, PlusEq, curCasesDefn)
            ) if concretizeType(prevMatchType) == concretizeType(curMatchType) => for {
         resultT <- (prevT, curT) match {
           case (RecType(_), RecType(_)) => Right(curT)
@@ -1109,7 +1122,7 @@ object type_checking {
         // For implementation purposes, we do not absorb inherited cases directly.
         // The result `DefnBody` is instead marked with information about where it inherits from,
         // which is used to look up those other cases recursively
-      } yield CasesDefn(casesName, curMatchType, resultT, PlusEq, mergeDefnBody(prevCasesDefn, curCasesDefn))
+      } yield CasesDefn(casesName, curMatchType, resultT, prevTs ++ curTs, PlusEq, mergeDefnBody(prevCasesDefn, curCasesDefn))
       case _ => Left("TODO invalid cases definition")
     }
 

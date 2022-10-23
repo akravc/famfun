@@ -178,7 +178,9 @@ object famfun {
   case class FunDefn(name: String, t: FunType, funBody: DefnBody[Expression])
 
   // Cases
-  case class CasesDefn(name: String, matchType: FamType, t: Type, marker: Marker, casesBody: DefnBody[Expression])
+  case class CasesDefn(name: String, matchType: FamType, t: Type, ts: List[Type], marker: Marker, casesBody: DefnBody[Expression])
+  def CasesDefn(name: String, matchType: FamType, t: Type, marker: Marker, casesBody: DefnBody[Expression]): CasesDefn =
+    CasesDefn(name, matchType, t, List(t), marker, casesBody)
 
   /* ======================== LINKAGES ======================== */
 

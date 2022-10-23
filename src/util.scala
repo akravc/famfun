@@ -122,7 +122,7 @@ object PrettyPrint {
 
     print("CASES:\n")
     val casemap = lkg.depot.values.map {
-      case CasesDefn(s, mt, ft, m, body) =>
+      case CasesDefn(s, mt, ft, _, m, body) =>
         "cases " + s + "<" + print_type(mt) + ">" + ": " + print_type(ft) + print_marker(m) + print_body(body)(print_exp) + "\n"
     }
     print(casemap.mkString)
