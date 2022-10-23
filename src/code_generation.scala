@@ -111,7 +111,7 @@ object code_generation {
     val adtsCode: String = lkg.adts.values.map(generateCodeAdtDefn(lkg.path)).mkString("\n")
 
     val interfaceCode: String = generateCodeInterface(lkg.path)(lkg.types.values, lkg.adts.values, lkg.funs.values, lkg.depot.values)
-    val familyCode: String = generateCodeFamily(lkg.path)(lkg.types.values, lkg.adts.values, lkg.funs.values, lkg.depot.values)
+    val familyCode: String = generateCodeFamily(lkg.path, lkg.sup)(lkg.types.values, lkg.adts.values, lkg.funs.values, lkg.depot.values)
 
     s"""import reflect.Selectable.reflectiveSelectable
        |
@@ -182,14 +182,27 @@ object code_generation {
        |}""".stripMargin
   }
 
-  def generateCodeFamily(curPath: Path)
+  def generateCodeFamily(curPath: Path, supPath: Option[Path])
                         (types: Iterable[TypeDefn], adts: Iterable[AdtDefn], funs: Iterable[FunDefn], cases: Iterable[CasesDefn]): String = {
     val curPathId: String = pathIdentifier(curPath)(curPath)
 
-    val selfFields: String =
-      generateSelfParts(curPath)
+    val selfFields: String = {
+      val parts = generateSelfParts(curPath)
+      var s = parts
         .map { (self, p) => s"override val $self: $p.Interface = $p.Family"}
         .mkString("\n")
+
+      supPath.foreach{ supPath =>
+        val n = parts.size
+        val supParts = selfPathsInScope(supPath)
+        val sn = supParts.size
+        if (n < sn) {
+          s = s + "\n" + supParts.drop(n-1).take(sn-n).zipWithIndex.map{ (p, i) => s"override val self$$${i+n}: $p.Interface = $p.Family" }.mkString("\n")
+        }
+      }
+      s
+    }
+
 
     val typesCode: String = types.map { typeDefn =>
       s"override type ${typeDefn.name} = ${pathIdentifier(curPath)(curPath)}.${typeDefn.name}"
@@ -277,7 +290,6 @@ object code_generation {
 
   def generateSelfArgs(curPath: Path)(parentPath: Path): String = {
     val n = pathToFamList(parentPath).size
-    assert(n <= pathToFamList(curPath).size, "TODO: not implemented yet")
     (1 to n).map { i => s"self$$${if (i==n) "" else i}" }.mkString(", ")
   }
 
