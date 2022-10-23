@@ -437,12 +437,7 @@ object code_generation {
       val translationTerm: String = ctorCalls.foldRight("from") { (c, r) =>
         s"$c($r)"
       }
-      var r = s"def $targetPathId$$$$${adtDefn.name}(from: $targetPathId.${adtDefn.name}): ${adtDefn.name} = $translationTerm"
-      // TODO(now): commented out because these don't compile, and they don't seem part of the interface?
-      if (curPath != targetPath && translationTerm == "from") {
-        r = "//"+r
-      }
-      r
+      s"def $targetPathId$$$$${adtDefn.name}(from: $targetPathId.${adtDefn.name}): ${adtDefn.name} = $translationTerm"
     }.mkString("\n")
   }
 
