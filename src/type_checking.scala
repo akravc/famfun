@@ -730,12 +730,13 @@ object type_checking {
     // K |- sp.A ~> L
     // ______________________ L-Self
     // K |- self(sp.A) ~> L
+    val pathResolved0: Path = concretizePath0(p)
     val pathResolved: Path = concretizePath(p)
 
     cache.get(pathResolved) match {
       case Some(lkg) => Right(lkg)
       case None => for {
-        computedLkg <- computeInexactCompleteLinkage(pathResolved)
+        computedLkg <- computeInexactCompleteLinkage(pathResolved0)
       } yield { cache += pathResolved -> computedLkg; computedLkg }
     }
   }
@@ -751,7 +752,7 @@ object type_checking {
   // _________________________________ L-Nest
   // K |- a.A ~> L"
   def computeInexactCompleteLinkage(path: Path): Either[String, Linkage] = path match {
-    case Sp(_) => throw new Exception("computeCompleteLinkage should only be called on Absolute paths")
+    case Sp(_) => throw new Exception("should only be called on Absolute paths")
     case AbsoluteFamily(pref, fam) => for {
       // L
       enclosingLkg <- getCompleteLinkage(pref)
