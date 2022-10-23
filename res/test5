@@ -1,3 +1,4 @@
+// OK
 Family A {
   Family Foo {
     type Exp = EBase {}
