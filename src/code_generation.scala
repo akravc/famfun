@@ -275,23 +275,23 @@ object code_generation {
        |""".stripMargin
   }
 
-  def generateSelfArgs(curPath: Path): String = {
-    val n = pathToFamList(curPath).size
+  def generateSelfArgs(curPath: Path)(parentPath: Path): String = {
+    val n = pathToFamList(parentPath).size
+    assert(n <= pathToFamList(curPath).size, "TODO: not implemented yet")
     (1 to n).map { i => s"self$$${if (i==n) "" else i}" }.mkString(", ")
   }
-  def generateCodeFunDefn(curPath: Path)(funDefn: FunDefn): String = {
-    val selfArgs: String = generateSelfArgs(curPath)
 
+  def generateCodeFunDefn(curPath: Path)(funDefn: FunDefn): String = {
     val implBody: String = funDefn.funBody match {
       case DefnBody(None, _, Some(furtherBindsPath), _) =>
-        s"${pathIdentifier(curPath)(furtherBindsPath)}.Family.${funDefn.name}$$Impl($selfArgs)"
+        s"${pathIdentifier(curPath)(furtherBindsPath)}.Family.${funDefn.name}$$Impl(${generateSelfArgs(curPath)(furtherBindsPath)})"
       case DefnBody(None, Some(extendsPath), None, _) =>
-        s"${pathIdentifier(curPath)(extendsPath)}.Family.${funDefn.name}$$Impl($selfArgs)"
+        s"${pathIdentifier(curPath)(extendsPath)}.Family.${funDefn.name}$$Impl(${generateSelfArgs(curPath)(extendsPath)})"
       case DefnBody(Some(expr), _, _, _) =>
         generateCodeExpression(curPath)(expr)
     }
 
-    s"""override ${generateCodeFunSignature(curPath)(None)(funDefn)} = ${funDefn.name}$$Impl($selfArgs)
+    s"""override ${generateCodeFunSignature(curPath)(None)(funDefn)} = ${funDefn.name}$$Impl(${generateSelfArgs(curPath)(curPath)})
        |${generateCodeFunSignature(curPath)(Some(curPath))(funDefn)} =
        |${indentBy(1)(implBody)}""".stripMargin
   }
@@ -305,8 +305,6 @@ object code_generation {
   }
 
   def generateCodeCasesDefn(curPath: Path)(casesDefn: CasesDefn): String = {
-    val selfArgs: String = generateSelfArgs(curPath)
-
     val matchType: FamType = casesDefn.matchType
     val concreteMatchTypeCode: String = generateCodeType(curPath)(concretizeType(matchType))
     val matchTypePath: Path = concretizePath(
@@ -356,12 +354,12 @@ object code_generation {
         .collect { case Some(inheritPath) =>
           val inheritPathCode = pathIdentifier(curPath)(inheritPath)
           s"""case $matchTypePathId.$inheritPathCode$$$$${matchType.name}(inherited) =>
-             |  $inheritPathCode.Family.${casesDefn.name}$$Impl($selfArgs)(inherited)($envParamName)""".stripMargin
+             |  $inheritPathCode.Family.${casesDefn.name}$$Impl(${generateSelfArgs(curPath)(inheritPath)})(inherited)($envParamName)""".stripMargin
         }
 
     val caseClauses: List[String] = definedClauses ++ inheritedClauses
 
-    s"""${generateCodeCasesSignature(curPath)(casesDefn)} = ${casesDefn.name}$$Impl($selfArgs)(matched.asInstanceOf[$concreteMatchTypeCode])
+    s"""${generateCodeCasesSignature(curPath)(casesDefn)} = ${casesDefn.name}$$Impl(${generateSelfArgs(curPath)(curPath)})(matched.asInstanceOf[$concreteMatchTypeCode])
        |${generateCodeCasesImplSignature(curPath)(casesDefn)} = ($envParamName: ${generateCodeType(curPath)(envParamType)}) => matched match {
        |${indentBy(1)(caseClauses.mkString("\n"))}
        |}""".stripMargin
