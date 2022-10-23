@@ -6,11 +6,11 @@ import OptionOps.lastSome
 import scala.annotation.tailrec
 
 object type_checking {
-  val K: scala.collection.mutable.Map[Path, Linkage] = scala.collection.mutable.Map.empty
+  val cache: scala.collection.mutable.Map[Path, Linkage] = scala.collection.mutable.Map.empty
 
-  def initK(progLkg: Linkage): Unit = {
-    K.clear()
-    K += Sp(Prog) -> progLkg
+  def init(progLkg: Linkage): Unit = {
+    cache.clear()
+    cache += Sp(Prog) -> progLkg
   }
 
   // TODO: what is this "path" here? it's not self or super
@@ -722,11 +722,11 @@ object type_checking {
     // K |- self(sp.A) ~> L
     val pathResolved: Path = concretizePath(p)
 
-    K.get(pathResolved) match {
+    cache.get(pathResolved) match {
       case Some(lkg) => Right(lkg)
       case None => for {
         computedLkg <- computeCompleteLinkage(pathResolved)
-      } yield { K += pathResolved -> computedLkg; computedLkg }
+      } yield { cache += pathResolved -> computedLkg; computedLkg }
     }
   }
 

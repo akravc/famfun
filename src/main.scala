@@ -15,7 +15,7 @@ object famfun_main {
     parsed match {
       case Success(result, _) =>
         resolveVarsAndValidateSelfPaths(result).flatMap { progLkg =>
-          initK(progLkg)
+          init(progLkg)
           typeCheckLinkage(progLkg)
         }
     }
@@ -31,13 +31,13 @@ object famfun_main {
       case Success(result, _) =>
         //println(result)
         resolveVarsAndValidateSelfPaths(result).flatMap { progLkg =>
-          initK(progLkg)
+          init(progLkg)
           typeCheckLinkage(progLkg)
         } match {
           case Left(msg) => println(msg)
           case Right(_) =>
             println("Type-checking succeeded")
-            generateCode(K.values).foreach { (fileName, contents) =>
+            generateCode(cache.values).foreach { (fileName, contents) =>
               val file = new File(s"test/gen/$fileName")
               file.createNewFile()
               val writer = new PrintWriter(file)

@@ -515,7 +515,7 @@ class FamFunTesting extends AnyFunSuite {
   // self(A).T is well formed
   test("wf: family type") {
     val self_a = SelfFamily(Prog, "A") // path self(A)
-    initK(Linkage(Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
+    init(Linkage(Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
       Map("A" -> Linkage(
         AbsoluteFamily(Sp(Prog), "A"), self_a, None,
         Map("T"->(TypeDefn("T", Eq, DefnBody(Some(RecType(Map("f"->BType, "n"->NType))), None, None)))), Map(), Map(), Map(), Map(), Map()))))
@@ -526,7 +526,7 @@ class FamFunTesting extends AnyFunSuite {
   // self(A).List is well formed
   test("wf: family ADT type") {
     val self_a = SelfFamily(Prog, "A") // path self(A)
-    initK(Linkage(Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
+    init(Linkage(Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
       Map("A" -> Linkage(
         AbsoluteFamily(Sp(Prog), "A"), self_a, None,
         Map(), Map(),
@@ -545,7 +545,7 @@ class FamFunTesting extends AnyFunSuite {
   // self(A).T -> N
   test("wf: function type 2") {
     val self_a = SelfFamily(Prog, "A") // path self(A)
-    initK(Linkage(Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
+    init(Linkage(Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
       Map("A" -> Linkage(
         AbsoluteFamily(Sp(Prog), "A"), self_a, None,
         Map("T"->(TypeDefn("T", Eq, DefnBody(Some(RecType(Map("f"->BType, "n"->NType))), None, None)))), Map(), Map(), Map(), Map(), Map()))))
@@ -555,7 +555,7 @@ class FamFunTesting extends AnyFunSuite {
   // self(A).T -> N
   test("wf: function type not in linkage") {
     val self_a = SelfFamily(Prog, "A") // path self(A)
-    initK(Linkage(Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
+    init(Linkage(Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
       Map("A" -> Linkage(
         AbsoluteFamily(Sp(Prog), "A"), self_a, None,
         Map("G"->(TypeDefn("G", Eq, DefnBody(Some(RecType(Map("f"->BType, "n"->NType))), None, None)))), Map(), Map(), Map(), Map(), Map()))))
@@ -570,7 +570,7 @@ class FamFunTesting extends AnyFunSuite {
   // {f: B, p: self(A).T}
   test("wf: record type 2") {
     val self_a = SelfFamily(Prog, "A") // path self(A)
-    initK(Linkage(Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
+    init(Linkage(Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
       Map("A" -> Linkage(
         AbsoluteFamily(Sp(Prog), "A"), self_a, None,
         Map("T"->(TypeDefn("T", Eq, DefnBody(Some(RecType(Map("f"->BType, "n"->NType))), None, None)))), Map(), Map(), Map(), Map(), Map()))))
@@ -579,7 +579,7 @@ class FamFunTesting extends AnyFunSuite {
 
   test("wf: record type not in linkage") {
     val self_a = SelfFamily(Prog, "A") // path self(A)
-    initK(Linkage(Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
+    init(Linkage(Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
       Map("A" -> Linkage(
         AbsoluteFamily(Sp(Prog), "A"), self_a, None,
         Map("T"->(TypeDefn("T", Eq, DefnBody(Some(RecType(Map("f"->BType, "n"->NType))), None, None)))), Map(), Map(), Map(), Map(), Map()))))
@@ -639,7 +639,7 @@ class FamFunTesting extends AnyFunSuite {
 
   test("subtype: famtype good") {
     val self_a = SelfFamily(Prog, "A")
-    initK(Linkage(Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
+    init(Linkage(Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
       Map("A" -> Linkage(
         AbsoluteFamily(Sp(Prog), "A"), self_a, None,
         Map("T"->(TypeDefn("T", Eq, DefnBody(Some(RecType(Map("f"->BType))), None, None)))), Map(), Map(), Map(), Map(), Map()))))
@@ -648,7 +648,7 @@ class FamFunTesting extends AnyFunSuite {
 
   test("subtype: famtype mismatch in linkage") {
     val self_a = SelfFamily(Prog, "A")
-    initK(Linkage(Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
+    init(Linkage(Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
       Map("A" -> Linkage(
         AbsoluteFamily(Sp(Prog), "A"), self_a, None,
         Map("T"->(TypeDefn("T", Eq, DefnBody(Some(RecType(Map("f"->BType))), None, None)))), Map(), Map(), Map(), Map(), Map()))))
@@ -657,7 +657,7 @@ class FamFunTesting extends AnyFunSuite {
 
   test("subtype: famtype bad") {
     val self_a = SelfFamily(Prog, "A")
-    initK(Linkage(Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
+    init(Linkage(Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
       Map("A" -> Linkage(
         AbsoluteFamily(Sp(Prog), "A"), self_a, None,
         Map("T"->(TypeDefn("T", Eq, DefnBody(Some(RecType(Map("f"->BType))), None, None)))), Map(), Map(), Map(), Map(), Map()))))
@@ -763,7 +763,7 @@ class FamFunTesting extends AnyFunSuite {
         Map(), Map(), Map(),
         Map("m"->(FunDefn("m", FunType(BType, NType), DefnBody(Some(Lam(Var("x"), BType, NConst(5))), None, None)))),
         Map(), Map())))
-    initK(k)
+    init(k)
     assertResult(Right(FunType(BType, NType))){
       typInf(FamFun(Some(Sp(self_a)), "m"))
     }
@@ -777,7 +777,7 @@ class FamFunTesting extends AnyFunSuite {
         Map(), Map(), Map(),
         Map("g"->(FunDefn("g", FunType(BType, NType), DefnBody(Some(Lam(Var("x"), BType, NConst(5))), None, None)))),
         Map(), Map())))
-    initK(k)
+    init(k)
     assertResult(Left("No such function m\nIn expression self(<>.A).m")){
       typInf(FamFun(Some(Sp(self_a)), "m"))
     }
@@ -796,7 +796,7 @@ class FamFunTesting extends AnyFunSuite {
     val k = Linkage(Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
       Map("A" -> Linkage(AbsoluteFamily(Sp(Prog), "A"), self_a, None,
         Map("R"->(TypeDefn("R", Eq, DefnBody(Some(RecType(Map("f"->BType, "n"->NType))), None, None)))), Map(), Map(), Map(), Map(), Map())))
-    initK(k)
+    init(k)
     assertResult(Right(FamType(Some(Sp(self_a)), "R"))){
       typInf(Inst(FamType(Some(Sp(self_a)), "R"), Rec(Map("f"->BConst(true), "n"->NConst(5)))))
     }
@@ -807,7 +807,7 @@ class FamFunTesting extends AnyFunSuite {
     val k = Linkage(Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
       Map("A" -> Linkage(AbsoluteFamily(Sp(Prog), "A"), self_a, None,
         Map("R"->(TypeDefn("R", Eq, DefnBody(Some(RecType(Map("f"->BType, "p"->NType))), None, None)))), Map(), Map(), Map(), Map(), Map())))
-    initK(k)
+    init(k)
     assert(isLeft(
       typInf(Inst(FamType(Some(Sp(self_a)), "R"), Rec(Map("f"->BConst(true), "n"->NConst(5)))))
     ))
@@ -818,7 +818,7 @@ class FamFunTesting extends AnyFunSuite {
     val k = Linkage(Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
       Map("A" -> Linkage(AbsoluteFamily(Sp(Prog), "A"), self_a, None,
         Map("R"->(TypeDefn("R", Eq, DefnBody(Some(RecType(Map("f"->BType, "n"->BType))), None, None)))), Map(), Map(), Map(), Map(), Map())))
-    initK(k)
+    init(k)
     assert(isLeft(
       typInf(Inst(FamType(Some(Sp(self_a)), "R"), Rec(Map("f"->BConst(true), "n"->NConst(5)))))
     ))
@@ -829,7 +829,7 @@ class FamFunTesting extends AnyFunSuite {
     val k = Linkage(Sp(Prog), Prog, None, Map(), Map(), Map(), Map(), Map(),
       Map("A" -> Linkage(AbsoluteFamily(Sp(Prog), "A"), self_a, None,
         Map("R"->(TypeDefn("R", Eq, DefnBody(Some(RecType(Map("f"->BType, "n"->NType))), None, None)))), Map(), Map(), Map(), Map(), Map())))
-    initK(k)
+    init(k)
     assert(isLeft(
       typInf(Inst(FamType(Some(Sp(self_a)), "K"), Rec(Map("f"->BConst(true), "n"->NConst(5)))))
     ))
@@ -843,7 +843,7 @@ class FamFunTesting extends AnyFunSuite {
         Map(), Map(),
         Map("R"->(AdtDefn("R", Eq, DefnBody(Some(Map("C"->RecType(Map("f"->BType, "n"->NType)))), None, None)))),
         Map(), Map(), Map())))
-    initK(k)
+    init(k)
     assertResult(Right(FamType(Some(Sp(self_a)), "R"))){
       typInf(InstADT(FamType(Some(Sp(self_a)), "R"), "C", Rec(Map("f"->BConst(true), "n"->NConst(5)))))
     }
@@ -856,7 +856,7 @@ class FamFunTesting extends AnyFunSuite {
         Map(), Map(),
         Map("R"->(AdtDefn("R", Eq, DefnBody(Some(Map("C"->RecType(Map("f"->BType, "n"->NType)))), None, None)))),
         Map(), Map(), Map())))
-    initK(k)
+    init(k)
     assert(isLeft(
       typInf(InstADT(FamType(Some(Sp(self_a)), "R"), "C", Rec(Map("f"->BConst(true), "p"->NConst(5)))))
     ))
@@ -869,7 +869,7 @@ class FamFunTesting extends AnyFunSuite {
         Map(), Map(),
         Map("R"->(AdtDefn("R", Eq, DefnBody(Some(Map("C"->RecType(Map("f"->BType, "n"->BType)))), None, None)))),
         Map(), Map(), Map())))
-    initK(k)
+    init(k)
     assert(isLeft(
       typInf(InstADT(FamType(Some(Sp(self_a)), "R"), "C", Rec(Map("f"->BConst(true), "n"->NConst(5)))))
     ))
@@ -882,7 +882,7 @@ class FamFunTesting extends AnyFunSuite {
         Map(), Map(),
         Map("R"->(AdtDefn("R", Eq, DefnBody(Some(Map("C"->RecType(Map("f"->BType, "n"->NType)))), None, None)))),
         Map(), Map(), Map())))
-    initK(k)
+    init(k)
     assert(isLeft(
       typInf(InstADT(FamType(Some(Sp(self_a)), "R"), "K", Rec(Map("f"->BConst(true), "n"->NConst(5)))))
     ))
@@ -895,7 +895,7 @@ class FamFunTesting extends AnyFunSuite {
         Map(), Map(),
         Map("R"->(AdtDefn("R", Eq, DefnBody(Some(Map("C"->RecType(Map("f"->BType, "n"->NType)))), None, None)))),
         Map(), Map(), Map())))
-    initK(k)
+    init(k)
     assert(isLeft(
       typInf(InstADT(FamType(Some(Sp(self_a)), "K"), "C", Rec(Map("f"->BConst(true), "n"->NConst(5)))))
     ))
@@ -908,7 +908,7 @@ class FamFunTesting extends AnyFunSuite {
         Map(), Map(),
         Map(),
         Map(), Map(), Map())))
-    initK(k)
+    init(k)
     assert(isLeft(
       typInf(InstADT(FamType(Some(Sp(self_a)), "R"), "C", Rec(Map("f"->BConst(true), "n"->NConst(5)))))
     ))
@@ -965,7 +965,7 @@ Family A {
         Map("cs"->(CasesDefn("cs", FamType(Some(Sp(self_a)), "R"), FunType(RecType(Map()), RecType(Map("C"->FunType(RecType(Map("f"->NType, "n"->NType)), NType)))), Eq,
               DefnBody(Some(Lam(Var("x"), RecType(Map()), Rec(Map("C" -> Lam(Var("r"), RecType(Map("f"->NType, "n"->NType)), NConst(1)))))), None, None)))),
         Map())))
-    initK(k)
+    init(k)
     assert(isLeft(
       typInf(Match(exp, App(FamCases(Some(Sp(self_a)), "cs"), Rec(Map()))))
     ))
@@ -1027,7 +1027,7 @@ Family A {
         Map("cs"->(CasesDefn("cs", FamType(Some(Sp(self_a)), "R"), FunType(RecType(Map()), RecType(Map("C"->FunType(RecType(Map("f"->BType, "n"->NType)), NType)))), Eq,
               DefnBody(Some(Lam(Var("x"), RecType(Map()), Rec(Map("C" -> Lam(Var("r"), RecType(Map("f"->BType, "n"->NType)), NConst(1)))))), None, None)))),
         Map())))
-    initK(k)
+    init(k)
     assert(isLeft(
       typInf(Match(exp, App(FamCases(Some(Sp(self_a)), "cs"), Rec(Map()))))
     ))
@@ -1057,7 +1057,7 @@ Family A {
         Map("cs"->(CasesDefn("cs", FamType(Some(Sp(self_a)), "R"), FunType(RecType(Map()), RecType(Map("C"->FunType(RecType(Map("f"->BType, "n"->NType)), NType)))), Eq,
               DefnBody(Some(Lam(Var("x"), RecType(Map()), Rec(Map("C" -> Lam(Var("r"), RecType(Map("f"->BType, "n"->NType)), NConst(1)))))), None, None)))),
         Map())))
-    initK(k)
+    init(k)
     assertResult(Right(NType)){
       typInf(Match(exp, App(FamCases(Some(Sp(self_a)), "cs"), Rec(Map()))))
     }
@@ -1075,7 +1075,7 @@ Family A {
         Map("cs"->(CasesDefn("cs", FamType(Some(Sp(self_a)), "R"), FunType(RecType(Map()), RecType(Map("C"->FunType(RecType(Map("f"->BType, "n"->NType)), NType)))), Eq,
               DefnBody(Some(Lam(Var("x"), RecType(Map()), Rec(Map("C" -> Lam(Var("r"), RecType(Map("f"->BType, "n"->NType)), NConst(1)))))), None, None)))),
         Map())))
-    initK(k)
+    init(k)
     assertResult(Right(FunType(RecType(Map()), RecType(Map("C"->FunType(RecType(Map("f"->BType, "n"->NType)), NType)))))){
       typInf(FamCases(Some(Sp(self_a)), "cs"))
     }
@@ -1093,7 +1093,7 @@ Family A {
         Map("cs"->(CasesDefn("cs", FamType(Some(Sp(self_a)), "R"), FunType(RecType(Map()), RecType(Map("C"->FunType(RecType(Map("f"->BType, "n"->NType)), NType)))), Eq,
               DefnBody(Some(Lam(Var("x"), RecType(Map()), Rec(Map("C" -> Lam(Var("r"), RecType(Map("f"->BType, "n"->NType)), NConst(1)))))), None, None)))),
         Map())))
-    initK(k)
+    init(k)
     assertResult(Right(RecType(Map("C"->FunType(RecType(Map("f"->BType, "n"->NType)), NType))))){
       typInf(App(FamCases(Some(Sp(self_a)), "cs"), Rec(Map())))
     }
