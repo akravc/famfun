@@ -702,7 +702,7 @@ object type_checking {
                     case FunType(_, outType) => Right(outType)
                     case t => Left(s"Invalid type ${print_type(t)} for case handler for cases ${casesDefn.name}")
                   }.map(_.values.toList)
-                  outType <- unifyTypes(caseHandlerOutTypes.map(subSelfInTypeAccordingTo(path)))
+                  outType <- unifyTypes(caseHandlerOutTypes/*.map(subSelfInTypeAccordingTo(path))*/)
                 } yield outType
                 case _ => Left("TODO cannot have cases in family that does not extend adt")
               }
