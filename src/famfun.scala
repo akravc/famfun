@@ -46,10 +46,9 @@ object famfun {
   }
   
   // transform self path to list of family names
-  @tailrec
   def selfPathToFamList(sp: SelfPath, acc: List[String] = Nil): List[String] = sp match {
     case Prog => acc
-    case SelfFamily(Sp(pref), fam) => selfPathToFamList(pref, fam :: acc)
+    case SelfFamily(pref, fam) => pathToFamList(pref, fam :: acc)
   }
 
   /* ======================== TYPES ======================== */

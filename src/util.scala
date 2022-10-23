@@ -3,7 +3,7 @@ import famfun._
 object PrettyPrint {
   def print_selfPath(sp: SelfPath): String = sp match {
     case Prog => "<>"
-    case SelfFamily(Sp(p), f) => "self(" + print_selfPath(p) + "." + f + ")"
+    case SelfFamily(p, f) => "self(" + print_path(p) + "." + f + ")"
   }
   def print_path(p: Path) : String = {
     p match {

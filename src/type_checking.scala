@@ -792,8 +792,11 @@ object type_checking {
   // Recursively substitutes instancess of a self by a path in type
   def subSelfByPathInPath(oldSelf: SelfPath, newPath: Path)(p: Path): Path = p match {
     case Sp(sp) if sp == oldSelf => newPath
-    case other => other
+    case Sp(Prog) => Sp(Prog)
+    case Sp(SelfFamily(pref, name)) => Sp(SelfFamily(subSelfByPathInPath(oldSelf, newPath)(pref), name))
+    case AbsoluteFamily(pref, name) => AbsoluteFamily(subSelfByPathInPath(oldSelf, newPath)(pref), name)
   }
+
   def subSelfByPathInType(oldSelf: SelfPath, newPath: Path)(t: Type): Type =
     recType(subSelfByPathInPath(oldSelf, newPath))(t)
 
@@ -923,7 +926,7 @@ object type_checking {
     if sp == oldSelf then newSelf
     else sp match {
       case Prog => Prog
-      case SelfFamily(Sp(pref), fam) => SelfFamily(Sp(subSelfInSelfPath(newSelf, oldSelf)(pref)), fam)
+      case SelfFamily(pref, fam) => SelfFamily(subSelfInPath(newSelf, oldSelf)(pref), fam)
     }
   }
 
