@@ -8,10 +8,10 @@ object famfun {
   case class Sp(sp: SelfPath) extends Path // sp 
   case class AbsoluteFamily(pref: Path, fam: String) extends Path // a.A
 
-  // RelPath sp := prog | self(sp.A)
+  // RelPath sp := prog | self(a.A)
   sealed trait SelfPath
   case object Prog extends SelfPath // <prog>
-  case class SelfFamily(pref: SelfPath, fam: String) extends SelfPath // self(sp.A)
+  case class SelfFamily(pref: Path, fam: String) extends SelfPath // self(a.A)
   
   // returns the last family name in the path (suffix)
   def pathName(p: Path): String = p match {
@@ -23,14 +23,14 @@ object famfun {
   // Transforms all self paths into absolute paths (except Prog)
   def concretizePath(p: Path): Path = p match {
     case Sp(Prog) => p
-    case Sp(SelfFamily(pref, fam)) => AbsoluteFamily(concretizePath(Sp(pref)), fam)
+    case Sp(SelfFamily(pref, fam)) => AbsoluteFamily(concretizePath(pref), fam)
     case AbsoluteFamily(pref, fam) => AbsoluteFamily(concretizePath(pref), fam)
   }
 
   // Transforms all absolute paths into self paths
   def relativizePath(p: Path): SelfPath = p match {
     case Sp(sp) => sp
-    case AbsoluteFamily(pref, fam) => SelfFamily(relativizePath(pref), fam)
+    case AbsoluteFamily(pref, fam) => SelfFamily(Sp(relativizePath(pref)), fam)
   }
 
   // transform path to list of family names
@@ -44,7 +44,7 @@ object famfun {
   @tailrec
   def selfPathToFamList(sp: SelfPath, acc: List[String] = Nil): List[String] = sp match {
     case Prog => acc
-    case SelfFamily(pref, fam) => selfPathToFamList(pref, fam :: acc)
+    case SelfFamily(Sp(pref), fam) => selfPathToFamList(pref, fam :: acc)
   }
 
   /* ======================== TYPES ======================== */
@@ -72,9 +72,8 @@ object famfun {
   def subSelfInTypeAccordingTo(p: Path)(t: Type): Type = {
     val pFamList: List[String] = pathToFamList(p)
     recType(path => path match {
-      case Sp(sp) => Sp(
-        pFamList.take(selfPathToFamList(sp).length).foldLeft(Prog)(SelfFamily.apply)
-      )
+      case Sp(sp) =>
+        pFamList.take(selfPathToFamList(sp).length).foldLeft(Sp(Prog))({case (sp, name) => Sp(SelfFamily(sp, name))})
       case other => other
     })(t)
   }

@@ -887,7 +887,7 @@ object type_checking {
     if sp == oldSelf then newSelf
     else sp match {
       case Prog => Prog
-      case SelfFamily(pref, fam) => SelfFamily(subSelfInSelfPath(newSelf, oldSelf)(pref), fam)
+      case SelfFamily(Sp(pref), fam) => SelfFamily(Sp(subSelfInSelfPath(newSelf, oldSelf)(pref)), fam)
     }
   }
 

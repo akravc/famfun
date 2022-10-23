@@ -69,8 +69,8 @@ class FamParser extends RegexParsers with PackratParsers {
 
   lazy val pSelfPath: PackratParser[SelfPath] =
     kwSelf ~> between("(", ")",
-      pSelfPath ~ ("." ~> pFamilyName) ^^ { case p~f => SelfFamily(p, f) }
-      | pFamilyName ^^ { f => SelfFamily(Prog, f) }
+      pSelfPath ~ ("." ~> pFamilyName) ^^ { case p~f => SelfFamily(Sp(p), f) }
+      | pFamilyName ^^ { f => SelfFamily(Sp(Prog), f) }
     )
 
   // This is needed for things of the form `path.(family/type)name`,
@@ -269,7 +269,7 @@ class FamParser extends RegexParsers with PackratParsers {
   def pFamDef(selfPrefix: SelfPath): PackratParser[(String, Linkage)] = {
     for {
       fam <- kwFamily ~> pFamilyName
-      curSelfPath = SelfFamily(selfPrefix, fam)
+      curSelfPath = SelfFamily(Sp(selfPrefix), fam)
       supFam <- (kwExtends ~> pPath).?
       typs~adts~funs~cases~nested <- between("{", "}",
         rep(pTypeDef) ~ rep(pAdtDef) ~ rep(pFunDef) ~ rep(pCasesDef) ~ rep(pFamDef(curSelfPath))
