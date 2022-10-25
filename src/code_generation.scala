@@ -210,6 +210,8 @@ object code_generation {
       case (Some(extendsPath), Some(furtherBindsPath)) => List(extendsPath, furtherBindsPath)
     }
 
+    extensionPaths.foreach(ensureLinkage)
+
     val interfaceExtension: String = extensionPaths.map{p => s"${pathIdentifier(curPath)(p)}.Interface"} match {
       case Nil => ""
       case List(a) => s"extends $a"

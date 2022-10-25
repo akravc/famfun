@@ -918,7 +918,7 @@ object type_checking {
 
   def subSelfInType(newSelf: SelfPath, oldSelf: SelfPath)(t: Type): Type =
     recType(subSelfInPath(newSelf, oldSelf))(t)
-  def subSelfInExpression(f: Path => Path)(e: Expression): Expression = e match {
+  def subSelfInExpression(f: Path => Path)(e: Expression): Expression = { val ep = e match {
     case Lam(v, t, body) => Lam(v, recType(f)(t), subSelfInExpression(f)(body))
     case FamFun(path, name) => FamFun(path.map(f), name)
     case FamCases(path, name) => FamCases(path.map(f), name)
@@ -936,6 +936,9 @@ object type_checking {
     )
     case Match(e, g) => Match(subSelfInExpression(f)(e), subSelfInExpression(f)(g))
     case _ => e
+  }
+    ep.exprType = e.exprType.map(recType(f))
+    ep
   }
   def subSelfInDefnBody[B](body: DefnBody[B])(subB: B => B): DefnBody[B] = {
     body.copy(defn = body.defn.map(subB), allDefns = body.allDefns.map(subB))
