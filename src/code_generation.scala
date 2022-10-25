@@ -5,6 +5,7 @@ import type_checking.{collectAllCaseHandlerTypes, collectAllDefaults, collectAll
 import reflect.Selectable.reflectiveSelectable
 
 object code_generation {
+  val codeCache: scala.collection.mutable.Map[String, String] = scala.collection.mutable.Map.empty
 
   // Every getCompleteLinkage call should be a Right for the paths we use after type-checking
   def getCompleteLinkageUnsafe(p: Path): Linkage =
@@ -98,12 +99,77 @@ object code_generation {
     }
   }
 
+  def sentinelPathIdentifier(p: Path): String = p match {
+    case Sp(sp) => sentinelSelfPathIdentifier(sp)
+    case AbsoluteFamily(Sp(Prog), fam) => fam
+    case AbsoluteFamily(Sp(pref), fam) => sentinelSelfPathIdentifier(pref) + "$$" + fam
+    case AbsoluteFamily(pref, fam) => sentinelPathIdentifier(pref) + "$" + fam
+  }
+
+  def sentinelSelfPathIdentifier(sp: SelfPath): String = sp match {
+    case Prog => ""
+    case SelfFamily(Sp(Prog), fam) => fam
+    case SelfFamily(Sp(pref), fam) => sentinelSelfPathIdentifier(pref) + "$$" + fam
+    case SelfFamily(pref, fam) => sentinelPathIdentifier(pref) + "$" + fam
+  }
+
+  def isSentinelPath(p: Path): Boolean = p match {
+    case Sp(sp) => isSentinelSelfPath(sp)
+    case AbsoluteFamily(Sp(Prog), fam) => false
+    case AbsoluteFamily(Sp(pref), fam) => true
+    case AbsoluteFamily(pref, fam) => isSentinelPath(pref)
+  }
+
+  def isSentinelSelfPath(sp: SelfPath): Boolean = sp match {
+    case Prog => false
+    case SelfFamily(Sp(Prog), fam) => false
+    case SelfFamily(Sp(pref), fam) => true
+    case SelfFamily(pref, fam) => isSentinelPath(pref)
+  }
+
+  def prefixPaths(p: Path, acc: List[Path]): List[Path] = p match {
+    case Sp(sp) => prefixSelfPaths(sp, acc)
+    case AbsoluteFamily(pref, fam) => prefixPaths(pref, p::acc)
+  }
+
+  def prefixSelfPaths(p: SelfPath, acc: List[Path]): List[Path] = p match {
+    case Prog => acc
+    case SelfFamily(pref, fam) => prefixPaths(pref, Sp(p)::acc)
+  }
+
+  def ensureLinkage(p: Path): Unit = {
+    val fn = sentinelPathIdentifier(p)+".scala"
+    codeCache.get(fn) match {
+      case None => {
+        codeCacheLinkage(fn, generateCodeLinkage(getCompleteLinkageUnsafe(p)))
+        prefixPaths(p, Nil).filter{_ != p}.foreach(ensureLinkage)
+      }
+      case Some(_) =>
+    }
+  }
+
+  def codeCacheLinkage(fn: String, gen: => String): Unit = {
+    codeCache.get(fn) match {
+      case Some(_) =>
+      case None => {
+        codeCache(fn) = "// TODO"
+        println(s"generating $fn...")
+        codeCache(fn) = gen
+      }
+    }
+  }
+
   // Produces a list of pairs of desired file names with the code they contain
   // generated from the complete linkages given
-  def generateCode(completeLinkages: Iterable[Linkage]): Iterable[(String, String)] =
+  def generateCode(completeLinkages: Iterable[Linkage]): Iterable[(String, String)] = {
+    codeCache.clear()
     completeLinkages
       .filter { _.self != Prog }
-      .map { lkg => linkageFileName(lkg) -> generateCodeLinkage(lkg) }
+      .foreach { lkg =>
+        codeCacheLinkage(linkageFileName(lkg), generateCodeLinkage(lkg))
+      }
+    codeCache
+  }
 
   def generateCodeLinkage(lkg: Linkage): String = {
     val typesCode: String = lkg.types.values.map(generateCodeTypeDefn(lkg.path)).mkString("\n")
