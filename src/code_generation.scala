@@ -32,10 +32,11 @@ object code_generation {
     }
   }
 
-  def selfPathsInScope(p: Path): List[String] =
+  def selfPathsInScope(p: Path): List[String] = {
     pathToFamList(p).inits
       .toList.reverse.tail
       .map { spFams => spFams.mkString("$") }
+  }
 
   def generateSelfParts(p: Path): List[(String, String)] = {
     val ps = selfPathsInScope(p)
@@ -202,12 +203,17 @@ object code_generation {
 
     val allBodies: Iterable[DefnBody[Expression]] = funs.map { _.funBody } ++ cases.map { _.casesBody }
 
-    val interfaceExtension: String = (getCompleteLinkageUnsafe(curPath).sup, findFurtherBinds(curPath)) match {
-      case (None, None) => ""
-      case (Some(extendsPath), None) => s"extends ${pathIdentifier(curPath)(extendsPath)}.Interface"
-      case (None, Some(furtherBindsPath)) => s"extends ${pathIdentifier(curPath)(furtherBindsPath)}.Interface"
-      case (Some(extendsPath), Some(furtherBindsPath)) =>
-        s"extends ${pathIdentifier(curPath)(extendsPath)}.Interface with ${pathIdentifier(curPath)(furtherBindsPath)}.Interface"
+    val extensionPaths: List[Path] = (getCompleteLinkageUnsafe(curPath).sup, findFurtherBinds(curPath)) match {
+      case (None, None) => List()
+      case (Some(extendsPath), None) => List(extendsPath)
+      case (None, Some(furtherBindsPath)) => List(furtherBindsPath)
+      case (Some(extendsPath), Some(furtherBindsPath)) => List(extendsPath, furtherBindsPath)
+    }
+
+    val interfaceExtension: String = extensionPaths.map{p => s"${pathIdentifier(curPath)(p)}.Interface"} match {
+      case Nil => ""
+      case List(a) => s"extends $a"
+      case List(a, b) => s"extends $a with $b"
     }
 
     val selfFields: String = generateSelfParams(curPath).map { selfWithType =>
