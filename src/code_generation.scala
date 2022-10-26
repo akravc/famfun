@@ -173,7 +173,7 @@ object code_generation {
       val fn = pId+".scala"
       codeCache.get(fn) match {
         case None => {
-          codeCacheLinkage(fn, generateCodeLinkage(true, getCompleteLinkageUnsafe(p)))
+          codeCacheLinkage(fn, generateCodeLinkage(true, p, getCompleteLinkageUnsafe(p)))
         }
         case Some(_) =>
       }
@@ -199,24 +199,24 @@ object code_generation {
     completeLinkages
       .filter { _.self != Prog }
       .foreach { lkg =>
-        codeCacheLinkage(linkageFileName(lkg), generateCodeLinkage(false, lkg))
+        codeCacheLinkage(linkageFileName(lkg), generateCodeLinkage(false, lkg.path, lkg))
       }
     codeCache
   }
 
   def pId(sentinel: Boolean, p: Path): String = if (sentinel) sentinelPathIdentifier(p) else relativePathIdentifier(p)
 
-  def generateCodeLinkage(sentinel: Boolean, lkg: Linkage): String = {
-    val typesCode: String = lkg.types.values.map(generateCodeTypeDefn(sentinel, lkg.path)).mkString("\n")
+  def generateCodeLinkage(sentinel: Boolean, curPath: Path, lkg: Linkage): String = {
+    val typesCode: String = lkg.types.values.map(generateCodeTypeDefn(sentinel, curPath)).mkString("\n")
 
-    val adtsCode: String = lkg.adts.values.map(generateCodeAdtDefn(sentinel, lkg.path)).mkString("\n")
+    val adtsCode: String = lkg.adts.values.map(generateCodeAdtDefn(sentinel, curPath)).mkString("\n")
 
-    val interfaceCode: String = generateCodeInterface(sentinel, lkg.path)(lkg.types.values, lkg.adts.values, lkg.funs.values, lkg.depot.values)
-    val familyCode: String = generateCodeFamily(sentinel, lkg.path, lkg.sup)(lkg.types.values, lkg.adts.values, lkg.funs.values, lkg.depot.values)
+    val interfaceCode: String = generateCodeInterface(sentinel, curPath)(lkg.types.values, lkg.adts.values, lkg.funs.values, lkg.depot.values)
+    val familyCode: String = generateCodeFamily(sentinel, curPath, lkg.sup)(lkg.types.values, lkg.adts.values, lkg.funs.values, lkg.depot.values)
 
     s"""import reflect.Selectable.reflectiveSelectable
        |
-       |object ${pathIdentifier(lkg.path)(lkg.path)} {
+       |object ${pId(sentinel, curPath)} {
        |  // Types
        |${indentBy(1)(typesCode)}
        |
