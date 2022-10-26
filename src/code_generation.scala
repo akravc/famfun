@@ -141,6 +141,10 @@ object code_generation {
 
   def conflictPaths(p: Path): List[Path] =
     prefixPaths(Sp(relativizePath(p)), Nil).reverse.tail.reverse
+  /*
+    prefixPaths(p, Nil)
+      .filter{ p2 => (p2 match { case Sp(_) => true; case _ => false }) }
+   */
 
   def hasConflictingSelfs(curPath: Path, supPath: Path): Boolean =
     !conflictPaths(curPath)
@@ -148,16 +152,19 @@ object code_generation {
       .map{_ == _}
       .forall{(b: Boolean) => b}
 
-  def ensureLinkage(curPath: Path)(p: Path): Unit = {
+  def ensureLinkage(curPath: Path)(p: Path): String = {
     if (hasConflictingSelfs(curPath, p)) {
-      val fn = sentinelPathIdentifier(p)+".scala"
+      println(s"conflict between ${PrettyPrint.print_path(curPath)} vs ${PrettyPrint.print_path(p)}")
+      val pId = sentinelPathIdentifier(p)
+      val fn = pId+".scala"
       codeCache.get(fn) match {
         case None => {
           codeCacheLinkage(fn, generateSentinelCode(p))
         }
         case Some(_) =>
       }
-     }
+      pId
+    } else pathIdentifier(curPath)(p)
   }
 
   def codeCacheLinkage(fn: String, gen: => String): Unit = {
@@ -254,9 +261,8 @@ object code_generation {
       case (Some(extendsPath), Some(furtherBindsPath)) => List(extendsPath, furtherBindsPath)
     }
 
-    extensionPaths.foreach(ensureLinkage(curPath))
-
-    val interfaceExtension: String = extensionPaths.map{p => s"${pathIdentifier(curPath)(p)}.Interface"} match {
+    val interfaceExtension: String = extensionPaths
+      .map(ensureLinkage(curPath)).map{pId => s"$pId.Interface"} match {
       case Nil => ""
       case List(a) => s"extends $a"
       case List(a, b) => s"extends $a with $b"
