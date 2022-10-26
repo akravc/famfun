@@ -104,15 +104,15 @@ object code_generation {
   def sentinelPathIdentifier(p: Path): String = p match {
     case Sp(sp) => sentinelSelfPathIdentifier(sp)
     case AbsoluteFamily(Sp(Prog), fam) => fam
-    case AbsoluteFamily(Sp(pref), fam) => sentinelSelfPathIdentifier(pref) + "$$" + fam
-    case AbsoluteFamily(pref, fam) => sentinelPathIdentifier(pref) + "$" + fam
+    case AbsoluteFamily(Sp(pref), fam) => sentinelSelfPathIdentifier(pref) + "$" + fam
+    case AbsoluteFamily(pref, fam) => sentinelPathIdentifier(pref) + "$$" + fam
   }
 
   def sentinelSelfPathIdentifier(sp: SelfPath): String = sp match {
     case Prog => ""
     case SelfFamily(Sp(Prog), fam) => fam
-    case SelfFamily(Sp(pref), fam) => sentinelSelfPathIdentifier(pref) + "$$" + fam
-    case SelfFamily(pref, fam) => sentinelPathIdentifier(pref) + "$" + fam
+    case SelfFamily(Sp(pref), fam) => sentinelSelfPathIdentifier(pref) + "$" + fam
+    case SelfFamily(pref, fam) => sentinelPathIdentifier(pref) + "$$" + fam
   }
 
   def isSentinelPath(p: Path): Boolean = p match {
@@ -139,7 +139,14 @@ object code_generation {
     case SelfFamily(pref, fam) => prefixPaths(pref, Sp(p)::acc)
   }
 
-  def hasConflictingSelfs(curPath: Path, supPath: Path): Boolean = false // TODO
+  def conflictPaths(p: Path): List[Path] =
+    prefixPaths(Sp(relativizePath(p)), Nil).reverse.tail.reverse
+
+  def hasConflictingSelfs(curPath: Path, supPath: Path): Boolean =
+    !conflictPaths(curPath)
+      .zip(conflictPaths(supPath))
+      .map{_ == _}
+      .forall{(b: Boolean) => b}
 
   def ensureLinkage(curPath: Path)(p: Path): Unit = {
     if (hasConflictingSelfs(curPath, p)) {
