@@ -21,14 +21,14 @@ object code_generation {
   def linkageFileName(lkg: Linkage): String = s"${pathIdentifier(lkg.path)(lkg.path)}.scala"
 
   def pathIdentifier(curPath: Path)(p: Path): String = {
+    val famList = pathToFamList(p)
     p match {
       case Sp(_) => {
-        val famList = pathToFamList(p)
         val n = famList.size
         val curFamList = pathToFamList(curPath)
         s"self$$${if (curFamList.size==n) "" else n}"
       }
-      case AbsoluteFamily(_, _) => sentinelPathIdentifier(p)//famList.mkString("$")
+      case AbsoluteFamily(_, _) => if (isSentinelPath(p)) sentinelPathIdentifier(p) else famList.mkString("$")
     }
   }
 
@@ -114,18 +114,29 @@ object code_generation {
     case SelfFamily(pref, fam) => sentinelPathIdentifier(pref) + "$" + fam
   }
 
-  def isSentinelPath(p: Path): Boolean = p match {
-    case Sp(sp) => isSentinelSelfPath(sp)
-    case AbsoluteFamily(Sp(Prog), fam) => false
-    case AbsoluteFamily(Sp(pref), fam) => true
-    case AbsoluteFamily(pref, fam) => isSentinelPath(pref)
+  def isSentinelPath(p: Path): Boolean = isSentinelPathRec(p) && !(p match {
+    case AbsoluteFamily(Sp(pref), name) => isAllSelfs(pref)
+    case _ => false
+  })
+
+  def isAllSelfs(p: SelfPath): Boolean = p match {
+    case Prog => true
+    case SelfFamily(Sp(pref), _) => isAllSelfs(pref)
+    case SelfFamily(_, _) => false
   }
 
-  def isSentinelSelfPath(sp: SelfPath): Boolean = sp match {
+  def isSentinelPathRec(p: Path): Boolean = p match {
+    case Sp(sp) => isSentinelSelfPathRec(sp)
+    case AbsoluteFamily(Sp(Prog), fam) => false
+    case AbsoluteFamily(Sp(pref), fam) => true
+    case AbsoluteFamily(pref, fam) => isSentinelPathRec(pref)
+  }
+
+  def isSentinelSelfPathRec(sp: SelfPath): Boolean = sp match {
     case Prog => false
     case SelfFamily(Sp(Prog), fam) => false
     case SelfFamily(Sp(pref), fam) => true
-    case SelfFamily(pref, fam) => isSentinelPath(pref)
+    case SelfFamily(pref, fam) => isSentinelPathRec(pref)
   }
 
   def prefixPaths(p: Path, acc: List[Path]): List[Path] = p match {
@@ -140,6 +151,7 @@ object code_generation {
 
   def ensureLinkage(p: Path): Unit = {
     if (isSentinelPath(p)) {
+      println(s"sentinal path $p (${PrettyPrint.print_path(p)})")
       val fn = sentinelPathIdentifier(p)+".scala"
       codeCache.get(fn) match {
         case None => {
