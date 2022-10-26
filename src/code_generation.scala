@@ -28,12 +28,12 @@ object code_generation {
         val curFamList = pathToFamList(curPath)
         s"self$$${if (curFamList.size==n) "" else n}"
       }
-      case AbsoluteFamily(_, _) => absolutePathIdentifier(p)
+      case AbsoluteFamily(_, _) => relativePathIdentifier(p)
     }
   }
 
-  def absolutePathIdentifier(p: Path) =
-    pathToFamList(p).mkString("$")
+  def relativePathIdentifier(p: Path) =
+    sentinelPathIdentifier(Sp(relativizePath(p)))
 
   def selfPathsInScope(sentinel: Boolean, p: Path): List[String] = {
     val ps = prefixPaths(p, Nil)
