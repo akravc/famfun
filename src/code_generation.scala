@@ -405,7 +405,8 @@ object code_generation {
   }
 
   def generateCodeFunDefn(sentinel: Boolean, curPath: Path)(funDefn: FunDefn): String = {
-    val implBody: String = funDefn.funBody match {
+    val body: String = if (sentinel) "???/*TODO:generatedCodeFunDefn.body*/" else s"${funDefn.name}$$Impl(${generateSelfArgs(curPath)(curPath)})"
+    val implBody: String = if (sentinel) "???/*TODO:generateCodeFunDefn.implBody*/" else funDefn.funBody match {
       case DefnBody(None, _, Some(furtherBindsPath), _) =>
         s"${pathIdentifier(curPath)(furtherBindsPath)}.Family.${funDefn.name}$$Impl(${generateSelfArgs(curPath)(furtherBindsPath)})"
       case DefnBody(None, Some(extendsPath), None, _) =>
@@ -414,7 +415,7 @@ object code_generation {
         generateCodeExpression(curPath)(expr)
     }
 
-    s"""override ${generateCodeFunSignature(curPath)(None)(funDefn)} = ${funDefn.name}$$Impl(${generateSelfArgs(curPath)(curPath)})
+    s"""override ${generateCodeFunSignature(curPath)(None)(funDefn)} = $body
        |${generateCodeFunSignature(curPath)(Some(curPath))(funDefn)} =
        |${indentBy(1)(implBody)}""".stripMargin
   }
