@@ -20,13 +20,24 @@ object code_generation {
 
   def linkageFileName(lkg: Linkage): String = s"${pathIdentifier(lkg.path)(lkg.path)}.scala"
 
+  var relativeMode: Boolean = false
+  def withRelativeMode[A](newMode: Boolean)(res: => A): A = {
+    val oldMode = relativeMode
+    relativeMode = newMode
+    try {
+      res
+    } finally {
+      relativeMode = oldMode
+    }
+  }
   def pathIdentifier(curPath: Path)(p: Path): String = {
     p match {
       case Sp(_) => {
         val famList = pathToFamList(p)
         val n = famList.size
         val curFamList = pathToFamList(curPath)
-        s"self$$${if (curFamList.size==n) "" else n}"
+        if (relativeMode) s"self$$${if (curFamList.size==n) "" else n}"
+        else if (curFamList.size==n) "self$" else s"${relativePathIdentifier(p)}.Family"
       }
       case AbsoluteFamily(_, _) => relativePathIdentifier(p)
     }
@@ -370,7 +381,7 @@ object code_generation {
                 .map { (fieldName, fieldType) =>
                   val fieldTypeCode = fieldType match {
                     case FamType(Some(p@Sp(_)), name) if getCompleteLinkageUnsafe(p).adts.contains(name) =>
-                      val famTypeCode = s"${pathIdentifier(curPath)(p)}$$$$$name"
+                      val famTypeCode = s"${withRelativeMode(true)(pathIdentifier(curPath)(p))}$$$$$name"
                       typeParams += famTypeCode
                       famTypeCode
                     case _ => generateCodeType(curPath)(fieldType)
@@ -406,14 +417,14 @@ object code_generation {
 
   def generateCodeFunDefn(sentinel: Boolean, curPath: Path)(funDefn: FunDefn): String = {
     val body: String = if (sentinel) "???/*TODO:generatedCodeFunDefn.body*/" else s"${funDefn.name}$$Impl(${generateSelfArgs(curPath)(curPath)})"
-    val implBody: String = if (sentinel) "???/*TODO:generateCodeFunDefn.implBody*/" else funDefn.funBody match {
+    val implBody: String = if (sentinel) "???/*TODO:generateCodeFunDefn.implBody*/" else withRelativeMode(true)(funDefn.funBody match {
       case DefnBody(None, _, Some(furtherBindsPath), _) =>
         s"${pathIdentifier(curPath)(furtherBindsPath)}.Family.${funDefn.name}$$Impl(${generateSelfArgs(curPath)(furtherBindsPath)})"
       case DefnBody(None, Some(extendsPath), None, _) =>
         s"${pathIdentifier(curPath)(extendsPath)}.Family.${funDefn.name}$$Impl(${generateSelfArgs(curPath)(extendsPath)})"
       case DefnBody(Some(expr), _, _, _) =>
         generateCodeExpression(curPath)(expr)
-    }
+    })
 
     s"""override ${generateCodeFunSignature(curPath)(None)(funDefn)} = $body
        |${generateCodeFunSignature(curPath)(Some(curPath))(funDefn)} =
@@ -440,7 +451,7 @@ object code_generation {
     val matchTypeAdtDefn: AdtDefn =
       matchTypePathLkg.adts.getOrElse(matchType.name, throw new Exception("Should be defined after type-checking"))
 
-    val (envParamName, envParamType, definedClauses): (String, Type, List[String]) = casesDefn.casesBody.defn match {
+    val (envParamName, envParamType, definedClauses): (String, Type, List[String]) = withRelativeMode(true)(casesDefn.casesBody.defn match {
       case None => casesDefn.t match {
         case FunType(envType, _) => ("env", envType, Nil)
         case _ => throw new Exception("Other types for cases definitions not handled")
@@ -471,15 +482,15 @@ object code_generation {
         }
         (if v == "_" then "unused$" else v, t, clauses)
       case _ => throw new Exception("Other shapes for cases definitions not handled")
-    }
+    })
 
-    val inheritedClauses: List[String] =
+    val inheritedClauses: List[String] = withRelativeMode(true)(
       List(casesDefn.casesBody.extendsFrom, casesDefn.casesBody.furtherBindsFrom)
         .collect { case Some(inheritPath) =>
           val inheritPathCode = pathIdentifier(curPath)(inheritPath)
           s"""case $matchTypePathId.$inheritPathCode$$$$${matchType.name}(inherited) =>
              |  $inheritPathCode.Family.${casesDefn.name}$$Impl(${generateSelfArgs(curPath)(inheritPath)})(inherited)($envParamName)""".stripMargin
-        }
+        })
 
     val caseClauses: List[String] = definedClauses ++ inheritedClauses
 
