@@ -266,7 +266,7 @@ object code_generation {
 
     val selfFields: String = generateSelfParams(sentinel, curPath).map { selfWithType =>
       s"val $selfWithType"
-    }.mkString("\n")
+    }.reverse.head
 
     val selfTypesSig: String = types.map(typeDefn => s"type ${typeDefn.name}").mkString("\n")
 
@@ -307,6 +307,8 @@ object code_generation {
     val curPathId: String = pathIdentifier(curPath)(curPath)
 
     val selfFields: String = {
+      generateSelfParts(sentinel, curPath).map{ (self, p) => s"override val $self: $p.Interface = $p.Family"}.reverse.head
+      /*
       val parts = generateSelfParts(sentinel, curPath)
       var s = parts
         .map { (self, p) => s"override val $self: $p.Interface = $p.Family"}
@@ -322,7 +324,8 @@ object code_generation {
           }
         }
       }
-      s
+       s
+       */
     }
 
 
@@ -415,8 +418,14 @@ object code_generation {
     (1 to n).map { i => s"self$$${if (i==n) "" else i}" }.mkString(", ")
   }
 
+  def generateAbsoluteSelfArgs(curPath: Path)(parentPath: Path): String = {
+    val ps = selfPathsInScope(false, parentPath).map(_ ++ ".Family")
+    val ps0 = ps.reverse.tail.reverse
+    (ps0 ++ List("self$")).mkString(", ")
+  }
+
   def generateCodeFunDefn(sentinel: Boolean, curPath: Path)(funDefn: FunDefn): String = {
-    val body: String = if (sentinel) "???/*TODO:generatedCodeFunDefn.body*/" else s"${funDefn.name}$$Impl(${generateSelfArgs(curPath)(curPath)})"
+    val body: String = if (sentinel) "???/*TODO:generatedCodeFunDefn.body*/" else s"${funDefn.name}$$Impl(${generateAbsoluteSelfArgs(curPath)(curPath)})"
     val implBody: String = if (sentinel) "???/*TODO:generateCodeFunDefn.implBody*/" else withRelativeMode(true)(funDefn.funBody match {
       case DefnBody(None, _, Some(furtherBindsPath), _) =>
         s"${pathIdentifier(curPath)(furtherBindsPath)}.Family.${funDefn.name}$$Impl(${generateSelfArgs(curPath)(furtherBindsPath)})"
@@ -499,7 +508,7 @@ object code_generation {
        |${generateCodeCasesImplSignature(curPath)(casesDefn)} = ???/*TODO:generatedCasesDefn.implBody*/
        |""".stripMargin
     else
-    s"""${generateCodeCasesSignature(curPath)(casesDefn)} = ${casesDefn.name}$$Impl(${generateSelfArgs(curPath)(curPath)})(matched.asInstanceOf[$concreteMatchTypeCode])
+    s"""${generateCodeCasesSignature(curPath)(casesDefn)} = ${casesDefn.name}$$Impl(${generateAbsoluteSelfArgs(curPath)(curPath)})(matched.asInstanceOf[$concreteMatchTypeCode])
        |${generateCodeCasesImplSignature(curPath)(casesDefn)} = ($envParamName: ${generateCodeType(curPath)(envParamType)}) => matched match {
        |${indentBy(1)(caseClauses.mkString("\n"))}
        |}""".stripMargin
