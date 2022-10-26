@@ -159,6 +159,26 @@ object code_generation {
       extending(concretizePath(sup), p2)}.getOrElse(false)
   }
 
+  def generateConflictingSelfArgs(curPath: Path)(parentPath: Path): String =
+    generateConflictingSelfArgsRec(Sp(Prog), Sp(Prog), pathToFamList(curPath), pathToFamList(parentPath), Nil).mkString(", ")
+
+  def generateConflictingSelfArgsRec(p1: Path, p2: Path, fams1: List[String], fams2: List[String], acc: List[String]): List[String] = {
+    (fams1, fams2) match {
+      case (_, fam2::Nil) => (("self$")::acc).reverse
+      case (Nil, fam2::fams2) => {
+        val q2 = AbsoluteFamily(p2, fam2)
+        val id = s"${relativePathIdentifier(q2)}.Family"
+        generateConflictingSelfArgsRec(p1, q2, fams1, fams2, id::acc)
+      }
+      case (fam1::fams1, fam2::fams2) =>
+        val q1 = AbsoluteFamily(p1, fam1)
+        val q2 = AbsoluteFamily(p2, fam2)
+        val compatible = fam1==fam2 || extending(q1, q2)
+        val id = if (compatible) "self$"+(acc.size+1) else s"${relativePathIdentifier(q2)}.Family"
+        generateConflictingSelfArgsRec(q1, q2, fams1, fams2, id :: acc)
+    }
+  }
+
   def noConflictingSelfs(p1: Path, p2: Path, fams1: List[String], fams2: List[String]): Boolean = {
     (fams1, fams2) match {
       case (Nil, _) => true
@@ -498,8 +518,8 @@ object code_generation {
         .collect { case Some(inheritPath) =>
           val inheritPathCode = pathIdentifier(curPath)(inheritPath)
           s"""case $matchTypePathId.$inheritPathCode$$$$${matchType.name}(inherited) =>
-             |  $inheritPathCode.Family.${casesDefn.name}$$Impl(${generateAbsoluteSelfArgs(curPath)(inheritPath)})(inherited)($envParamName)""".stripMargin
-        }) // TODO(now2): fix self args in case of conflicts
+             |  $inheritPathCode.Family.${casesDefn.name}$$Impl(${generateConflictingSelfArgs(curPath)(inheritPath)})(inherited)($envParamName)""".stripMargin
+        })
 
     val caseClauses: List[String] = definedClauses ++ inheritedClauses
 
