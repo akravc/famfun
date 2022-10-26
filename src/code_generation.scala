@@ -28,15 +28,16 @@ object code_generation {
         val curFamList = pathToFamList(curPath)
         s"self$$${if (curFamList.size==n) "" else n}"
       }
-      case AbsoluteFamily(_, _) => sentinelPathIdentifier(p)//famList.mkString("$")
+      case AbsoluteFamily(_, _) => absolutePathIdentifier(p)
     }
   }
 
-  def selfPathsInScope(p: Path): List[String] = {
-    val ps = prefixPaths(p, Nil)
-    val fs = if (isSentinelPath(p)) ps.filter{ p2 => p2==p || (p2 match { case Sp(_) => true; case _ => false }) } else ps
-    fs.map(sentinelPathIdentifier)
-  }
+  def absolutePathIdentifier(p: Path) =
+    pathToFamList(p).mkString("$")
+
+  def selfPathsInScope(p: Path): List[String] =
+    prefixPaths(p, Nil)
+      .map(absolutePathIdentifier)
 
   def generateSelfParts(p: Path): List[(String, String)] = {
     val ps = selfPathsInScope(p)
@@ -139,6 +140,7 @@ object code_generation {
   }
 
   def ensureLinkage(p: Path): Unit = {
+    /*
     if (isSentinelPath(p)) {
       val fn = sentinelPathIdentifier(p)+".scala"
       codeCache.get(fn) match {
@@ -148,7 +150,8 @@ object code_generation {
         }
         case Some(_) =>
       }
-    }
+     }
+     */
   }
 
   def codeCacheLinkage(fn: String, gen: => String): Unit = {
