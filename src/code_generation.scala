@@ -152,7 +152,7 @@ object code_generation {
       case (_, Nil) => true
       case (fam1::fams1, fam2::fams2) =>
         val q1 = AbsoluteFamily(p1, fam1)
-        val q2 = AbsoluteFamily(p1, fam1)
+        val q2 = AbsoluteFamily(p2, fam2)
         val first = if (fam1==fam2) true else extending(q1, q2)
         first && noConflictingSelfs(q1, q2, fams1, fams2)
     }
