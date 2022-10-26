@@ -951,7 +951,7 @@ Family A {
     lam (_: {}). {C = lam (x: {f: N, n: N}). 1 }
 }
     """
-    assertResult(Left("Cases cs in <>.A is non-exhaustive."))(typecheckProcess(prog))
+    assert(isLeft(typecheckProcess(prog)))
   }
 
   // TODO(now): this seems OK because checked above?
@@ -1013,7 +1013,7 @@ Family A {
     lam (_: {}). {C = lam (x: {f: B, n: N}). 1}
 }
     """
-    assertResult(Left("Cases cs in <>.A is non-exhaustive."))(typecheckProcess(prog))
+    assert(isLeft(typecheckProcess(prog)))
   }
 
   // TODO(now): this seems OK because checked above?
@@ -1313,7 +1313,7 @@ Family A {
         "lam (_: {}). {C3 = lam (r: {b: B}). r.b}" +
         "}"
         );
-    assertResult(Left("Cases fcases in <>.Base is non-exhaustive."))(typecheckProcess(prog))
+    assert(isLeft(typecheckProcess(prog)))
   }
 
   /* ==================================== default handling ==================================== */

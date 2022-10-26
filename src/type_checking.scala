@@ -340,9 +340,13 @@ object type_checking {
 
       // Exhaustive check
       _ <-
-        if normCtorsHandled == normAllCtors
-        then Right(())
-        else Left(s"Cases ${c.name} in ${print_path(curLkg.path)} is non-exhaustive.")
+      if normCtorsHandled == normAllCtors
+      then Right(())
+      else Left(
+        s"""Cases ${c.name} in ${print_path(curLkg.path)} is non-exhaustive.
+           |Found:    ${normCtorsHandled.mapValues(print_type).mkString(", ")}
+           |Required: ${normAllCtors.mapValues(print_type).mkString(", ")}
+           |""".stripMargin)
       caseHandlerOutTypes <- traverseMap(allCaseHandlerTypes) {
         case FunType(_, outType) => Right(outType)
         case t => Left(s"Invalid type ${print_type(t)} for case handler for cases ${c.name} in ${print_path(curLkg.path)}")
