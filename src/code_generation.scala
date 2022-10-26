@@ -278,7 +278,7 @@ object code_generation {
 
     val translationsSig: String = adts.map { adtDefn =>
       val adtName: String = adtDefn.name
-      s"def $curPathId$$$$$adtName(from: $curPathId.$adtName): $adtName"
+      s"def $curPathId$$$$$adtName(from: $curPathId.$adtName): $adtName = ???/*TODO*/"
     }.mkString("\n")
 
     s"""trait Interface $interfaceExtension {
@@ -498,7 +498,7 @@ object code_generation {
         .collect { case Some(inheritPath) =>
           val inheritPathCode = pathIdentifier(curPath)(inheritPath)
           s"""case $matchTypePathId.$inheritPathCode$$$$${matchType.name}(inherited) =>
-             |  $inheritPathCode.Family.${casesDefn.name}$$Impl(${generateSelfArgs(curPath)(inheritPath)})(inherited)($envParamName)""".stripMargin
+             |  $inheritPathCode.Family.${casesDefn.name}$$Impl(${generateAbsoluteSelfArgs(curPath)(inheritPath)})(inherited)($envParamName)""".stripMargin
         }) // TODO(now2): fix self args in case of conflicts
 
     val caseClauses: List[String] = definedClauses ++ inheritedClauses
@@ -578,7 +578,7 @@ object code_generation {
       val finalTranslationTerm: String =
         if (curPath != targetPath && translationTerm == "from") "???/*TODO*/" else translationTerm
 
-      s"def $targetPathId$$$$${adtDefn.name}(from: $targetPathId.${adtDefn.name}): ${adtDefn.name} = $finalTranslationTerm"
+      s"override def $targetPathId$$$$${adtDefn.name}(from: $targetPathId.${adtDefn.name}): ${adtDefn.name} = $finalTranslationTerm"
     }.mkString("\n")
   }
 

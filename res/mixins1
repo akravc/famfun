@@ -42,11 +42,3 @@ Family ArithExtBuild extends ArithExt {
 }
 
 Family STLCIfArith extends ArithExtBuild.Derived {}
-
-Family MixinsMain {
-  val main1 : {} -> STLCIfArith.Val = lam(_ : {}).
-    STLCIfArith.eval(STLCIfArith.Exp(ENat { n = 10 }))
-
-  val main2 : {} -> STLCIfArith.Val = lam(_ : {}).
-    STLCIfArith.eval(STLCIfArith.Exp(ETrue {}))
-}
