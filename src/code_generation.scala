@@ -483,6 +483,11 @@ object code_generation {
 
     val caseClauses: List[String] = definedClauses ++ inheritedClauses
 
+    if (sentinel)
+    s"""${generateCodeCasesSignature(curPath)(casesDefn)} = ???/*TODO:generateCodeCasesDefn.body*/
+       |${generateCodeCasesImplSignature(curPath)(casesDefn)} = ???/*TODO:generatedCasesDefn.implBody*/
+       |""".stripMargin
+    else
     s"""${generateCodeCasesSignature(curPath)(casesDefn)} = ${casesDefn.name}$$Impl(${generateSelfArgs(curPath)(curPath)})(matched.asInstanceOf[$concreteMatchTypeCode])
        |${generateCodeCasesImplSignature(curPath)(casesDefn)} = ($envParamName: ${generateCodeType(curPath)(envParamType)}) => matched match {
        |${indentBy(1)(caseClauses.mkString("\n"))}
