@@ -139,19 +139,18 @@ object code_generation {
     case SelfFamily(pref, fam) => prefixPaths(pref, Sp(p)::acc)
   }
 
-  def ensureLinkage(p: Path): Unit = {
-    /*
-    if (isSentinelPath(p)) {
+  def hasConflictingSelfs(curPath: Path, supPath: Path): Boolean = false // TODO
+
+  def ensureLinkage(curPath: Path)(p: Path): Unit = {
+    if (hasConflictingSelfs(curPath, p)) {
       val fn = sentinelPathIdentifier(p)+".scala"
       codeCache.get(fn) match {
         case None => {
           codeCacheLinkage(fn, generateSentinelCode(p))
-          prefixPaths(p, Nil).filter{_ != p}.foreach(ensureLinkage)
         }
         case Some(_) =>
       }
      }
-     */
   }
 
   def codeCacheLinkage(fn: String, gen: => String): Unit = {
@@ -248,7 +247,7 @@ object code_generation {
       case (Some(extendsPath), Some(furtherBindsPath)) => List(extendsPath, furtherBindsPath)
     }
 
-    extensionPaths.foreach(ensureLinkage)
+    extensionPaths.foreach(ensureLinkage(curPath))
 
     val interfaceExtension: String = extensionPaths.map{p => s"${pathIdentifier(curPath)(p)}.Interface"} match {
       case Nil => ""
