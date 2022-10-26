@@ -43,22 +43,22 @@ object code_generation {
     }
   }
 
-  def relativePathIdentifier(p: Path) =
+  def relativePathIdentifier(p: Path): String =
     sentinelPathIdentifier(Sp(relativizePath(p)))
 
-  def selfPathsInScope(sentinel: Boolean, p: Path): List[String] = {
+  def selfPathsInScope(p: Path): List[String] = {
     val ps = prefixPaths(p, Nil)
-    val fs = if (sentinel) ps.filter{ p2 => p2==p || (p2 match { case Sp(_) => true; case _ => false }) } else ps.map{p => Sp(relativizePath(p))}
+    val fs = if (false) ps.filter{ p2 => p2==p || (p2 match { case Sp(_) => true; case _ => false }) } else ps.map{p => Sp(relativizePath(p))}
     fs.map(sentinelPathIdentifier)
   }
 
-  def generateSelfParts(sentinel: Boolean, p: Path): List[(String, String)] = {
-    val ps = selfPathsInScope(sentinel, p)
+  def generateSelfParts(p: Path): List[(String, String)] = {
+    val ps = selfPathsInScope(p)
     val n = ps.size
     ps.zipWithIndex.map { (selfParam, i) => (s"self$$${if ((i+1)==n) "" else (i+1)}", selfParam) }
   }
-  def generateSelfParams(sentinel: Boolean, p: Path): List[String] =
-    generateSelfParts(sentinel, p).map { (self, p) => s"$self: $p.Interface" }
+  def generateSelfParams(p: Path): List[String] =
+    generateSelfParts(p).map { (self, p) => s"$self: $p.Interface" }
 
   def findPathAdt(curDefn: AdtDefn, curPath: Path)(check: (Map[String, RecType], Path) => Boolean): List[Path] = {
     def findNext(nextPath: Path): List[Path] = {
@@ -152,7 +152,7 @@ object code_generation {
     case SelfFamily(pref, fam) => prefixPaths(pref, Sp(p)::acc)
   }
 
-  // Ad-hoc check that p1 extends p2
+  // ad-hoc check that p1 extends p2
   def extending(p1: Path, p2: Path): Boolean = {
     p1 == p2 ||
     getCompleteLinkageUnsafe(p1).sup.map{sup =>
@@ -194,24 +194,6 @@ object code_generation {
     }
   }
 
-  def hasConflictingSelfs(curPath: Path, supPath: Path): Boolean =
-    !noConflictingSelfs(Sp(Prog), Sp(Prog), pathToFamList(curPath), pathToFamList(supPath))
-
-  def ensureLinkage(curPath: Path)(p: Path): String = {
-    if (hasConflictingSelfs(curPath, p) && false) {
-      println(s"conflict between ${PrettyPrint.print_path(curPath)} vs ${PrettyPrint.print_path(p)}")
-      val pId = sentinelPathIdentifier(p)
-      val fn = pId+".scala"
-      codeCache.get(fn) match {
-        case None => {
-          codeCacheLinkage(fn, generateCodeLinkage(true, p, getCompleteLinkageUnsafe(p)))
-        }
-        case Some(_) =>
-      }
-      pId
-    } else pathIdentifier(curPath)(p)
-  }
-
   def codeCacheLinkage(fn: String, gen: => String): Unit = {
     codeCache.get(fn) match {
       case Some(_) =>
@@ -230,24 +212,24 @@ object code_generation {
     completeLinkages
       .filter { _.self != Prog }
       .foreach { lkg =>
-        codeCacheLinkage(linkageFileName(lkg), generateCodeLinkage(false, lkg.path, lkg))
+        codeCacheLinkage(linkageFileName(lkg), generateCodeLinkage(lkg.path, lkg))
       }
     codeCache
   }
 
-  def pId(sentinel: Boolean, p: Path): String = if (sentinel) sentinelPathIdentifier(p) else relativePathIdentifier(p)
+  def pId(p: Path): String = relativePathIdentifier(p)
 
-  def generateCodeLinkage(sentinel: Boolean, curPath: Path, lkg: Linkage): String = {
-    val typesCode: String = lkg.types.values.map(generateCodeTypeDefn(sentinel, curPath)).mkString("\n")
+  def generateCodeLinkage(curPath: Path, lkg: Linkage): String = {
+    val typesCode: String = lkg.types.values.map(generateCodeTypeDefn(curPath)).mkString("\n")
 
-    val adtsCode: String = lkg.adts.values.map(generateCodeAdtDefn(sentinel, curPath)).mkString("\n")
+    val adtsCode: String = lkg.adts.values.map(generateCodeAdtDefn(curPath)).mkString("\n")
 
-    val interfaceCode: String = generateCodeInterface(sentinel, curPath)(lkg.types.values, lkg.adts.values, lkg.funs.values, lkg.depot.values)
-    val familyCode: String = generateCodeFamily(sentinel, curPath, lkg.sup)(lkg.types.values, lkg.adts.values, lkg.funs.values, lkg.depot.values)
+    val interfaceCode: String = generateCodeInterface(curPath)(lkg.types.values, lkg.adts.values, lkg.funs.values, lkg.depot.values)
+    val familyCode: String = generateCodeFamily(curPath, lkg.sup)(lkg.types.values, lkg.adts.values, lkg.funs.values, lkg.depot.values)
 
     s"""import reflect.Selectable.reflectiveSelectable
        |
-       |object ${pId(sentinel, curPath)} {
+       |object ${pId(curPath)} {
        |  // Types
        |${indentBy(1)(typesCode)}
        |
@@ -262,29 +244,28 @@ object code_generation {
        |}""".stripMargin
   }
 
-  def generateCodeInterface(sentinel: Boolean, curPath: Path)
+  def generateCodeInterface(curPath: Path)
     (types: Iterable[TypeDefn], adts: Iterable[AdtDefn], funs: Iterable[FunDefn], cases: Iterable[CasesDefn]): String = {
     val curPathId: String = pathIdentifier(curPath)(curPath)
 
     val allBodies: Iterable[DefnBody[Expression]] = funs.map { _.funBody } ++ cases.map { _.casesBody }
 
-    val interfaceExtension: String = if (sentinel) "" else {
-      val extensionPaths: List[Path] = (getCompleteLinkageUnsafe(curPath).sup, findFurtherBinds(curPath)) match {
+    val extensionPaths: List[Path] = (getCompleteLinkageUnsafe(curPath).sup, findFurtherBinds(curPath)) match {
         case (None, None) => List()
         case (Some(extendsPath), None) => List(extendsPath)
         case (None, Some(furtherBindsPath)) => List(furtherBindsPath)
         case (Some(extendsPath), Some(furtherBindsPath)) => List(extendsPath, furtherBindsPath)
       }
 
+    val interfaceExtension: String =
       extensionPaths
-        .map(ensureLinkage(curPath)).map{pId => s"$pId.Interface"} match {
+        .map{p => s"${pId(p)}.Interface"} match {
           case Nil => ""
           case List(a) => s"extends $a"
           case List(a, b) => s"extends $a with $b"
         }
-    }
 
-    val selfFields: String = generateSelfParams(sentinel, curPath).map { selfWithType =>
+    val selfFields: String = generateSelfParams(curPath).map { selfWithType =>
       s"val $selfWithType"
     }.reverse.head
 
@@ -322,32 +303,12 @@ object code_generation {
        |}""".stripMargin
   }
 
-  def generateCodeFamily(sentinel: Boolean, curPath: Path, supPath: Option[Path])
+  def generateCodeFamily(curPath: Path, supPath: Option[Path])
     (types: Iterable[TypeDefn], adts: Iterable[AdtDefn], funs: Iterable[FunDefn], cases: Iterable[CasesDefn]): String = {
     val curPathId: String = pathIdentifier(curPath)(curPath)
 
-    val selfFields: String = {
-      generateSelfParts(sentinel, curPath).map{ (self, p) => s"override val $self: $p.Interface = $p.Family"}.reverse.head
-      /*
-      val parts = generateSelfParts(sentinel, curPath)
-      var s = parts
-        .map { (self, p) => s"override val $self: $p.Interface = $p.Family"}
-        .mkString("\n")
-      // TODO(now): this is a hack!
-      if (!sentinel) {
-        supPath.foreach{ supPath =>
-          val n = parts.size
-          val supParts = selfPathsInScope(false, supPath)
-          val sn = supParts.size
-          if (n < sn) {
-            s = s + "\n" + supParts.drop(n-1).take(sn-n).zipWithIndex.map{ (p, i) => s"override val self$$${i+n}: $p.Interface = $p.Family" }.mkString("\n")
-          }
-        }
-      }
-       s
-       */
-    }
-
+    val selfFields: String =
+      generateSelfParts(curPath).map{ (self, p) => s"override val $self: $p.Interface = $p.Family"}.reverse.head
 
     val typesCode: String = types.map { typeDefn =>
       s"override type ${typeDefn.name} = ${pathIdentifier(curPath)(curPath)}.${typeDefn.name}"
@@ -357,13 +318,13 @@ object code_generation {
       s"override type ${adtDefn.name} = ${pathIdentifier(curPath)(curPath)}.${adtDefn.name}"
     }.mkString("\n")
 
-    val funsCode: String = funs.map(generateCodeFunDefn(sentinel, curPath)).mkString("\n")
+    val funsCode: String = funs.map(generateCodeFunDefn(curPath)).mkString("\n")
 
-    val casesCode: String = cases.map(generateCodeCasesDefn(sentinel, curPath)).mkString("\n")
+    val casesCode: String = cases.map(generateCodeCasesDefn(curPath)).mkString("\n")
 
-    val translationsCode: String = adts.map(generateCodeTranslationFunction(sentinel, curPath)).mkString("\n")
+    val translationsCode: String = adts.map(generateCodeTranslationFunction(curPath)).mkString("\n")
 
-    s"""object Family extends ${pId(sentinel, curPath)}.Interface {
+    s"""object Family extends ${pId(curPath)}.Interface {
        |  // Self field instantiation
        |${indentBy(1)(selfFields)}
        |
@@ -384,13 +345,13 @@ object code_generation {
        |}""".stripMargin
   }
 
-  def generateCodeTypeDefn(sentinel: Boolean, curPath: Path)(typeDefn: TypeDefn): String = {
+  def generateCodeTypeDefn(curPath: Path)(typeDefn: TypeDefn): String = {
     val allFields: Map[String, Type] = collectAllNamedTypeFields(typeDefn).getOrElse(throw new Exception("Shouldn't happen"))
 
     s"type ${typeDefn.name} = ${generateCodeType(curPath)(RecType(allFields))}"
   }
 
-  def generateCodeAdtDefn(sentinel: Boolean, curPath: Path)(adtDefn: AdtDefn): String = {
+  def generateCodeAdtDefn(curPath: Path)(adtDefn: AdtDefn): String = {
     val adtName: String = adtDefn.name
 
     val definedCtors: List[String] = adtDefn.adtBody.defn match {
@@ -439,14 +400,14 @@ object code_generation {
   }
 
   def generateAbsoluteSelfArgs(curPath: Path)(parentPath: Path): String = {
-    val ps = selfPathsInScope(false, parentPath).map(_ ++ ".Family")
+    val ps = selfPathsInScope(parentPath).map(_ ++ ".Family")
     val ps0 = ps.reverse.tail.reverse
     (ps0 ++ List("self$")).mkString(", ")
   }
 
-  def generateCodeFunDefn(sentinel: Boolean, curPath: Path)(funDefn: FunDefn): String = {
-    val body: String = if (sentinel) "???/*TODO:generatedCodeFunDefn.body*/" else s"${funDefn.name}$$Impl(${generateAbsoluteSelfArgs(curPath)(curPath)})"
-    val implBody: String = if (sentinel) "???/*TODO:generateCodeFunDefn.implBody*/" else withRelativeMode(true)(funDefn.funBody match {
+  def generateCodeFunDefn(curPath: Path)(funDefn: FunDefn): String = {
+    val body: String = s"${funDefn.name}$$Impl(${generateAbsoluteSelfArgs(curPath)(curPath)})"
+    val implBody: String = withRelativeMode(true)(funDefn.funBody match {
       case DefnBody(None, _, Some(furtherBindsPath), _) =>
         s"${pathIdentifier(curPath)(furtherBindsPath)}.Family.${funDefn.name}$$Impl(${generateAbsoluteSelfArgs(curPath)(furtherBindsPath)})"
       case DefnBody(None, Some(extendsPath), None, _) =>
@@ -464,11 +425,11 @@ object code_generation {
   def generateCodeFunSignature(curPath: Path)(optPath: Option[Path])(funDefn: FunDefn): String = optPath match {
     case None => s"val ${funDefn.name}: ${generateCodeType(curPath)(funDefn.t)}"
     case Some(curPath) =>
-      val selfParamsCode: String = generateSelfParams(false, curPath).mkString(", ")
+      val selfParamsCode: String = generateSelfParams(curPath).mkString(", ")
       s"def ${funDefn.name}$$Impl($selfParamsCode): ${generateCodeType(curPath)(funDefn.t)}"
   }
 
-  def generateCodeCasesDefn(sentinel: Boolean, curPath: Path)(casesDefn: CasesDefn): String = {
+  def generateCodeCasesDefn(curPath: Path)(casesDefn: CasesDefn): String = {
     val matchType: FamType = casesDefn.matchType
     val concreteMatchTypeCode: String = generateCodeType(curPath)(concretizeType(matchType))
     val matchTypePath: Path = concretizePath(
@@ -523,11 +484,6 @@ object code_generation {
 
     val caseClauses: List[String] = definedClauses ++ inheritedClauses
 
-    if (sentinel)
-    s"""${generateCodeCasesSignature(curPath)(casesDefn)} = ???/*TODO:generateCodeCasesDefn.body*/
-       |${generateCodeCasesImplSignature(curPath)(casesDefn)} = ???/*TODO:generatedCasesDefn.implBody*/
-       |""".stripMargin
-    else
     s"""${generateCodeCasesSignature(curPath)(casesDefn)} = ${casesDefn.name}$$Impl(${generateAbsoluteSelfArgs(curPath)(curPath)})(matched.asInstanceOf[$concreteMatchTypeCode])
        |${generateCodeCasesImplSignature(curPath)(casesDefn)} = ($envParamName: ${generateCodeType(curPath)(envParamType)}) => matched match {
        |${indentBy(1)(caseClauses.mkString("\n"))}
@@ -567,7 +523,7 @@ object code_generation {
     val casesDefnType: Type = FunType(envType, outType)
 
     val concreteMatchType = concretizeType(casesDefn.matchType)
-    val selfParamsCode: String = generateSelfParams(false, curPath).mkString(", ")
+    val selfParamsCode: String = generateSelfParams(curPath).mkString(", ")
     s"def ${casesDefn.name}$$Impl($selfParamsCode)(matched: ${generateCodeType(curPath)(concreteMatchType)}): ${generateCodeType(curPath)(casesDefnType)}"
   }
 
@@ -576,7 +532,7 @@ object code_generation {
     case _ => Nil
   }
 
-  def generateCodeTranslationFunction(sentinel: Boolean, curPath: Path)(adtDefn: AdtDefn): String = {
+  def generateCodeTranslationFunction(curPath: Path)(adtDefn: AdtDefn): String = {
     val curPathId: String = pathIdentifier(curPath)(curPath)
 
     // Collect all paths from which this adt extends a definition
@@ -631,7 +587,7 @@ object code_generation {
 
     case FamFun(Some(path), name) => path match {
       case AbsoluteFamily(_, _) =>
-        val selfArgs: String = selfPathsInScope(false, path).map(_ ++ ".Family").mkString(", ")
+        val selfArgs: String = selfPathsInScope(path).map(_ ++ ".Family").mkString(", ")
         s"${pathIdentifier(curPath)(path)}.Family.$name$$Impl($selfArgs)"
       case Sp(_) =>
         // TODO: only cast if needed (fType contains relative types)
@@ -642,7 +598,7 @@ object code_generation {
 
     case FamCases(Some(path), name) => path match {
       case AbsoluteFamily(_, _) =>
-        val selfArgs: String = selfPathsInScope(false, path).map(_ ++ ".Family").mkString(", ")
+        val selfArgs: String = selfPathsInScope(path).map(_ ++ ".Family").mkString(", ")
         s"${pathIdentifier(curPath)(path)}.Family.$name$$Impl($selfArgs)"
       case Sp(_) =>
         val lkg: Linkage = getCompleteLinkageUnsafe(path)
