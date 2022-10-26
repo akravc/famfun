@@ -21,21 +21,21 @@ object code_generation {
   def linkageFileName(lkg: Linkage): String = s"${pathIdentifier(lkg.path)(lkg.path)}.scala"
 
   def pathIdentifier(curPath: Path)(p: Path): String = {
-    val famList = pathToFamList(p)
     p match {
       case Sp(_) => {
+        val famList = pathToFamList(p)
         val n = famList.size
         val curFamList = pathToFamList(curPath)
         s"self$$${if (curFamList.size==n) "" else n}"
       }
-      case AbsoluteFamily(_, _) => famList.mkString("$")
+      case AbsoluteFamily(_, _) => sentinelPathIdentifier(p)//famList.mkString("$")
     }
   }
 
   def selfPathsInScope(p: Path): List[String] = {
-    pathToFamList(p).inits
-      .toList.reverse.tail
-      .map { spFams => spFams.mkString("$") }
+    val ps = prefixPaths(p, Nil)
+    val fs = if (isSentinelPath(p)) ps.filter{ p2 => p2==p || (p2 match { case Sp(_) => true; case _ => false }) } else ps
+    fs.map(sentinelPathIdentifier)
   }
 
   def generateSelfParts(p: Path): List[(String, String)] = {
@@ -229,7 +229,7 @@ object code_generation {
 
   def generateSentinelCodeInterface(curPath: Path)
                                    (types: Iterable[TypeDefn], adts: Iterable[AdtDefn], funs: Iterable[FunDefn], cases: Iterable[CasesDefn]): String = {
-    s"// TODO"
+    generateCodeInterface(curPath)(types, adts, funs, cases)
   }
 
   def generateCodeInterface(curPath: Path)
