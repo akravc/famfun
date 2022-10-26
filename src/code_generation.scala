@@ -139,18 +139,27 @@ object code_generation {
     case SelfFamily(pref, fam) => prefixPaths(pref, Sp(p)::acc)
   }
 
-  def conflictPaths(p: Path): List[Path] =
-    prefixPaths(Sp(relativizePath(p)), Nil).reverse.tail.reverse
-  /*
-    prefixPaths(p, Nil)
-      .filter{ p2 => (p2 match { case Sp(_) => true; case _ => false }) }
-   */
+  // Ad-hoc check that p1 extends p2
+  def extending(p1: Path, p2: Path): Boolean = {
+    p1 == p2 ||
+    getCompleteLinkageUnsafe(p1).sup.map{sup =>
+      extending(concretizePath(sup), p2)}.getOrElse(false)
+  }
+
+  def noConflictingSelfs(p1: Path, p2: Path, fams1: List[String], fams2: List[String]): Boolean = {
+    (fams1, fams2) match {
+      case (Nil, _) => true
+      case (_, Nil) => true
+      case (fam1::fams1, fam2::fams2) =>
+        val q1 = AbsoluteFamily(p1, fam1)
+        val q2 = AbsoluteFamily(p1, fam1)
+        val first = if (fam1==fam2) true else extending(q1, q2)
+        first && noConflictingSelfs(q1, q2, fams1, fams2)
+    }
+  }
 
   def hasConflictingSelfs(curPath: Path, supPath: Path): Boolean =
-    !conflictPaths(curPath)
-      .zip(conflictPaths(supPath))
-      .map{_ == _}
-      .forall{(b: Boolean) => b}
+    !noConflictingSelfs(Sp(Prog), Sp(Prog), pathToFamList(curPath), pathToFamList(supPath))
 
   def ensureLinkage(curPath: Path)(p: Path): String = {
     if (hasConflictingSelfs(curPath, p)) {
