@@ -150,6 +150,9 @@ object code_generation {
     (fams1, fams2) match {
       case (Nil, _) => true
       case (_, Nil) => true
+      // don't check the self$
+      case (_::Nil, _) => true
+      case (_, _::Nil) => true
       case (fam1::fams1, fam2::fams2) =>
         val q1 = AbsoluteFamily(p1, fam1)
         val q2 = AbsoluteFamily(p2, fam2)
