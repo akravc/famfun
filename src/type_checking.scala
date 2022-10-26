@@ -731,13 +731,12 @@ object type_checking {
     // K |- sp.A ~> L
     // ______________________ L-Self
     // K |- self(sp.A) ~> L
-    val pathResolved0: Path = concretizePath0(p)
     val pathResolved: Path = concretizePath(p)
 
     cache.get(pathResolved) match {
       case Some(lkg) => Right(lkg)
       case None => for {
-        computedLkg <- computeInexactCompleteLinkage(pathResolved0)
+        computedLkg <- computeInexactCompleteLinkage(pathResolved)
       } yield { cache += pathResolved -> computedLkg; computedLkg }
     }
   }
