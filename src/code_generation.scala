@@ -256,31 +256,37 @@ object code_generation {
   }
 
   def generateSentinelCodeInterface(curPath: Path)
-                                   (types: Iterable[TypeDefn], adts: Iterable[AdtDefn], funs: Iterable[FunDefn], cases: Iterable[CasesDefn]): String = {
-    generateCodeInterface(curPath)(types, adts, funs, cases)
+    (types: Iterable[TypeDefn], adts: Iterable[AdtDefn], funs: Iterable[FunDefn], cases: Iterable[CasesDefn]): String = {
+    generateCommonCodeInterface(true, curPath)(types, adts, funs, cases)
   }
 
   def generateCodeInterface(curPath: Path)
-                           (types: Iterable[TypeDefn], adts: Iterable[AdtDefn], funs: Iterable[FunDefn], cases: Iterable[CasesDefn]): String = {
+    (types: Iterable[TypeDefn], adts: Iterable[AdtDefn], funs: Iterable[FunDefn], cases: Iterable[CasesDefn]): String =
+    generateCommonCodeInterface(false, curPath)(types, adts, funs, cases)
+
+  def generateCommonCodeInterface(sentinel: Boolean, curPath: Path)
+    (types: Iterable[TypeDefn], adts: Iterable[AdtDefn], funs: Iterable[FunDefn], cases: Iterable[CasesDefn]): String = {
     val curPathId: String = pathIdentifier(curPath)(curPath)
 
     val allBodies: Iterable[DefnBody[Expression]] = funs.map { _.funBody } ++ cases.map { _.casesBody }
 
-    val extensionPaths: List[Path] = (getCompleteLinkageUnsafe(curPath).sup, findFurtherBinds(curPath)) match {
-      case (None, None) => List()
-      case (Some(extendsPath), None) => List(extendsPath)
-      case (None, Some(furtherBindsPath)) => List(furtherBindsPath)
-      case (Some(extendsPath), Some(furtherBindsPath)) => List(extendsPath, furtherBindsPath)
+    val interfaceExtension: String = if (sentinel) "" else {
+      val extensionPaths: List[Path] = (getCompleteLinkageUnsafe(curPath).sup, findFurtherBinds(curPath)) match {
+        case (None, None) => List()
+        case (Some(extendsPath), None) => List(extendsPath)
+        case (None, Some(furtherBindsPath)) => List(furtherBindsPath)
+        case (Some(extendsPath), Some(furtherBindsPath)) => List(extendsPath, furtherBindsPath)
+      }
+
+      extensionPaths
+        .map(ensureLinkage(curPath)).map{pId => s"$pId.Interface"} match {
+          case Nil => ""
+          case List(a) => s"extends $a"
+          case List(a, b) => s"extends $a with $b"
+        }
     }
 
-    val interfaceExtension: String = extensionPaths
-      .map(ensureLinkage(curPath)).map{pId => s"$pId.Interface"} match {
-      case Nil => ""
-      case List(a) => s"extends $a"
-      case List(a, b) => s"extends $a with $b"
-    }
-
-    val selfFields: String = generateSelfParams(curPath).map { selfWithType =>
+    val selfFields: String = if (sentinel) "" else generateSelfParams(curPath).map { selfWithType =>
       s"val $selfWithType"
     }.mkString("\n")
 
