@@ -327,26 +327,31 @@ object code_generation {
   }
 
   def generateSentinelCodeFamily(curPath: Path, supPath: Option[Path])
-                        (types: Iterable[TypeDefn], adts: Iterable[AdtDefn], funs: Iterable[FunDefn], cases: Iterable[CasesDefn]): String = {
-    s"// TODO"
-  }
+                        (types: Iterable[TypeDefn], adts: Iterable[AdtDefn], funs: Iterable[FunDefn], cases: Iterable[CasesDefn]): String =
+    generateCommonCodeFamily(true, curPath, supPath)(types, adts, funs, cases)
 
   def generateCodeFamily(curPath: Path, supPath: Option[Path])
-                        (types: Iterable[TypeDefn], adts: Iterable[AdtDefn], funs: Iterable[FunDefn], cases: Iterable[CasesDefn]): String = {
+    (types: Iterable[TypeDefn], adts: Iterable[AdtDefn], funs: Iterable[FunDefn], cases: Iterable[CasesDefn]): String =
+    generateCommonCodeFamily(false, curPath, supPath)(types, adts, funs, cases)
+
+  def generateCommonCodeFamily(sentinel: Boolean, curPath: Path, supPath: Option[Path])
+    (types: Iterable[TypeDefn], adts: Iterable[AdtDefn], funs: Iterable[FunDefn], cases: Iterable[CasesDefn]): String = {
     val curPathId: String = pathIdentifier(curPath)(curPath)
 
     val selfFields: String = {
-      val parts = generateSelfParts(false, curPath)
+      val parts = generateSelfParts(sentinel, curPath)
       var s = parts
         .map { (self, p) => s"override val $self: $p.Interface = $p.Family"}
         .mkString("\n")
       // TODO(now): this is a hack!
-      supPath.foreach{ supPath =>
-        val n = parts.size
-        val supParts = selfPathsInScope(false, supPath)
-        val sn = supParts.size
-        if (n < sn) {
-          s = s + "\n" + supParts.drop(n-1).take(sn-n).zipWithIndex.map{ (p, i) => s"override val self$$${i+n}: $p.Interface = $p.Family" }.mkString("\n")
+      if (!sentinel) {
+        supPath.foreach{ supPath =>
+          val n = parts.size
+          val supParts = selfPathsInScope(false, supPath)
+          val sn = supParts.size
+          if (n < sn) {
+            s = s + "\n" + supParts.drop(n-1).take(sn-n).zipWithIndex.map{ (p, i) => s"override val self$$${i+n}: $p.Interface = $p.Family" }.mkString("\n")
+          }
         }
       }
       s
@@ -367,7 +372,8 @@ object code_generation {
 
     val translationsCode: String = adts.map(generateCodeTranslationFunction(curPath)).mkString("\n")
 
-    s"""object Family extends ${pathIdentifier(curPath)(curPath)}.Interface {
+    val pId = if (sentinel) sentinelPathIdentifier(curPath) else pathIdentifier(curPath)(curPath)
+    s"""object Family extends ${pId}.Interface {
        |  // Self field instantiation
        |${indentBy(1)(selfFields)}
        |
