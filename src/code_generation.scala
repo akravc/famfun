@@ -35,17 +35,19 @@ object code_generation {
   def absolutePathIdentifier(p: Path) =
     pathToFamList(p).mkString("$")
 
-  def selfPathsInScope(p: Path): List[String] =
-    prefixPaths(p, Nil)
-      .map(absolutePathIdentifier)
+  def selfPathsInScope(sentinel: Boolean, p: Path): List[String] = {
+    val ps = prefixPaths(p, Nil)
+    val fs = if (sentinel) ps.filter{ p2 => p2==p || (p2 match { case Sp(_) => true; case _ => false }) } else ps.map{p => Sp(relativizePath(p))}
+    fs.map(sentinelPathIdentifier)
+  }
 
-  def generateSelfParts(p: Path): List[(String, String)] = {
-    val ps = selfPathsInScope(p)
+  def generateSelfParts(sentinel: Boolean, p: Path): List[(String, String)] = {
+    val ps = selfPathsInScope(sentinel, p)
     val n = ps.size
     ps.zipWithIndex.map { (selfParam, i) => (s"self$$${if ((i+1)==n) "" else (i+1)}", selfParam) }
   }
-  def generateSelfParams(p: Path): List[String] =
-    generateSelfParts(p).map { (self, p) => s"$self: $p.Interface" }
+  def generateSelfParams(sentinel: Boolean, p: Path): List[String] =
+    generateSelfParts(sentinel, p).map { (self, p) => s"$self: $p.Interface" }
 
   def findPathAdt(curDefn: AdtDefn, curPath: Path)(check: (Map[String, RecType], Path) => Boolean): List[Path] = {
     def findNext(nextPath: Path): List[Path] = {
@@ -286,7 +288,7 @@ object code_generation {
         }
     }
 
-    val selfFields: String = if (sentinel) "" else generateSelfParams(curPath).map { selfWithType =>
+    val selfFields: String = generateSelfParams(sentinel, curPath).map { selfWithType =>
       s"val $selfWithType"
     }.mkString("\n")
 
@@ -334,14 +336,14 @@ object code_generation {
     val curPathId: String = pathIdentifier(curPath)(curPath)
 
     val selfFields: String = {
-      val parts = generateSelfParts(curPath)
+      val parts = generateSelfParts(false, curPath)
       var s = parts
         .map { (self, p) => s"override val $self: $p.Interface = $p.Family"}
         .mkString("\n")
       // TODO(now): this is a hack!
       supPath.foreach{ supPath =>
         val n = parts.size
-        val supParts = selfPathsInScope(supPath)
+        val supParts = selfPathsInScope(false, supPath)
         val sn = supParts.size
         if (n < sn) {
           s = s + "\n" + supParts.drop(n-1).take(sn-n).zipWithIndex.map{ (p, i) => s"override val self$$${i+n}: $p.Interface = $p.Family" }.mkString("\n")
@@ -471,7 +473,7 @@ object code_generation {
   def generateCodeFunSignature(curPath: Path)(optPath: Option[Path])(funDefn: FunDefn): String = optPath match {
     case None => s"val ${funDefn.name}: ${generateCodeType(curPath)(funDefn.t)}"
     case Some(curPath) =>
-      val selfParamsCode: String = generateSelfParams(curPath).mkString(", ")
+      val selfParamsCode: String = generateSelfParams(false, curPath).mkString(", ")
       s"def ${funDefn.name}$$Impl($selfParamsCode): ${generateCodeType(curPath)(funDefn.t)}"
   }
 
@@ -569,7 +571,7 @@ object code_generation {
     val casesDefnType: Type = FunType(envType, outType)
 
     val concreteMatchType = concretizeType(casesDefn.matchType)
-    val selfParamsCode: String = generateSelfParams(curPath).mkString(", ")
+    val selfParamsCode: String = generateSelfParams(false, curPath).mkString(", ")
     s"def ${casesDefn.name}$$Impl($selfParamsCode)(matched: ${generateCodeType(curPath)(concreteMatchType)}): ${generateCodeType(curPath)(casesDefnType)}"
   }
 
@@ -633,7 +635,7 @@ object code_generation {
 
     case FamFun(Some(path), name) => path match {
       case AbsoluteFamily(_, _) =>
-        val selfArgs: String = selfPathsInScope(path).map(_ ++ ".Family").mkString(", ")
+        val selfArgs: String = selfPathsInScope(false, path).map(_ ++ ".Family").mkString(", ")
         s"${pathIdentifier(curPath)(path)}.Family.$name$$Impl($selfArgs)"
       case Sp(_) =>
         // TODO: only cast if needed (fType contains relative types)
@@ -644,7 +646,7 @@ object code_generation {
 
     case FamCases(Some(path), name) => path match {
       case AbsoluteFamily(_, _) =>
-        val selfArgs: String = selfPathsInScope(path).map(_ ++ ".Family").mkString(", ")
+        val selfArgs: String = selfPathsInScope(false, path).map(_ ++ ".Family").mkString(", ")
         s"${pathIdentifier(curPath)(path)}.Family.$name$$Impl($selfArgs)"
       case Sp(_) =>
         val lkg: Linkage = getCompleteLinkageUnsafe(path)
