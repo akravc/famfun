@@ -178,7 +178,7 @@ object code_generation {
     !noConflictingSelfs(Sp(Prog), Sp(Prog), pathToFamList(curPath), pathToFamList(supPath))
 
   def ensureLinkage(curPath: Path)(p: Path): String = {
-    if (hasConflictingSelfs(curPath, p)) {
+    if (hasConflictingSelfs(curPath, p) && false) {
       println(s"conflict between ${PrettyPrint.print_path(curPath)} vs ${PrettyPrint.print_path(p)}")
       val pId = sentinelPathIdentifier(p)
       val fn = pId+".scala"
@@ -428,9 +428,9 @@ object code_generation {
     val body: String = if (sentinel) "???/*TODO:generatedCodeFunDefn.body*/" else s"${funDefn.name}$$Impl(${generateAbsoluteSelfArgs(curPath)(curPath)})"
     val implBody: String = if (sentinel) "???/*TODO:generateCodeFunDefn.implBody*/" else withRelativeMode(true)(funDefn.funBody match {
       case DefnBody(None, _, Some(furtherBindsPath), _) =>
-        s"${pathIdentifier(curPath)(furtherBindsPath)}.Family.${funDefn.name}$$Impl(${generateSelfArgs(curPath)(furtherBindsPath)})"
+        s"${pathIdentifier(curPath)(furtherBindsPath)}.Family.${funDefn.name}$$Impl(${generateAbsoluteSelfArgs(curPath)(furtherBindsPath)})"
       case DefnBody(None, Some(extendsPath), None, _) =>
-        s"${pathIdentifier(curPath)(extendsPath)}.Family.${funDefn.name}$$Impl(${generateSelfArgs(curPath)(extendsPath)})"
+        s"${pathIdentifier(curPath)(extendsPath)}.Family.${funDefn.name}$$Impl(${generateAbsoluteSelfArgs(curPath)(extendsPath)})"
       case DefnBody(Some(expr), _, _, _) =>
         generateCodeExpression(curPath)(expr)
     })
@@ -499,7 +499,7 @@ object code_generation {
           val inheritPathCode = pathIdentifier(curPath)(inheritPath)
           s"""case $matchTypePathId.$inheritPathCode$$$$${matchType.name}(inherited) =>
              |  $inheritPathCode.Family.${casesDefn.name}$$Impl(${generateSelfArgs(curPath)(inheritPath)})(inherited)($envParamName)""".stripMargin
-        })
+        }) // TODO(now2): fix self args in case of conflicts
 
     val caseClauses: List[String] = definedClauses ++ inheritedClauses
 
