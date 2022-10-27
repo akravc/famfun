@@ -202,7 +202,6 @@ object type_checking {
 
   def typeCheckLinkage(l: Linkage): Either[String, Unit] = for {
     completeL <- getCompleteLinkage(Sp(l.self))
-    curPath = concretizePath(completeL.path)
     _ <- traverseMap(completeL.defaults) { d =>
       val assocType = completeL.types.getOrElse(d.name, throw new Exception("Should not happen by construction"))
       typeCheckDefaultDefns(completeL, assocType)(d)
