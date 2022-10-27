@@ -1,6 +1,6 @@
 import OptionOps.firstSome
 import famfun.*
-import type_checking.{collectAllCaseHandlerTypes, collectAllDefaults, collectAllDefns, collectAllNamedTypeFields, getCompleteLinkage, unifyTypes}
+import type_checking.{collectAllCaseHandlerTypes, collectAllDefaults, collectAllNamedTypeFields, getCompleteLinkage, unifyTypes}
 
 import reflect.Selectable.reflectiveSelectable
 
