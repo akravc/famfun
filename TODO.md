@@ -37,3 +37,5 @@
 - [x] Fix `???/*TODO*/` in transport code generation.
 
 - [ ] There seems to be a bug in mark inherited as ADTs for `ArithExtBuild$Base` are marked for further binding with `IfExt$Base` instead of `ArithExt$Base`! I don't rely on the marks as much as possible, but they are used to delegate code in some places.
+
+- [ ] Try to get the ab example to type check with implicit resolution.
