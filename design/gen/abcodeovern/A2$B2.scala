@@ -73,8 +73,8 @@ object A2$B2 {
   
     // Translation function implementations
     override def A2$B2$$Exp(from: A2$B2.Exp): Exp = from
-    override def A1$B2$$Exp(from: A1$B2.Exp): Exp = A2$B2.A1$B2$$Exp(from)
-    override def A1$B1$$Exp(from: A1$B1.Exp): Exp = A2$B2.A1$B2$$Exp(A1$B2.A1$B1$$Exp(from))
     override def A2$B1$$Exp(from: A2$B1.Exp): Exp = A2$B2.A2$B1$$Exp(from)
+    override def A1$B1$$Exp(from: A1$B1.Exp): Exp = A2$B2.A2$B1$$Exp(A2$B1.Family.A1$B1$$Exp(from))
+    override def A1$B2$$Exp(from: A1$B2.Exp): Exp = A2$B2.A1$B2$$Exp(from)
   }
 }
