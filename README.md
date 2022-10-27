@@ -6,6 +6,7 @@ We include the following files:
 - `src/type_checking.scala`, with our typechecker and linkage creation/concatenation engine
 - `src/code_generation.scala`, our translator to Scala code
 - `src/parser.scala`, with our parser
+- `src/name_resolution.scala`, with our name resolver
 - `src/util.scala`, with the pretty-printing capabilities for linkages
 - `src/main.scala`, which brings together the parts of our system
 - `test/testing.scala`, our testing suite
