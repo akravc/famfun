@@ -96,11 +96,6 @@ object code_generation {
     findPathAdt(curDefn, curPath) { (ctors, _) => ctors.contains(ctorName) }
   }
 
-  // Finds a  path of paths to a path containing the currently extended adt type from the current adt defn
-  def findPathToPath(curDefn: AdtDefn, curPath: Path, targetPath: Path): List[Path] = {
-    findPathAdt(curDefn, curPath) { (_, p) => p == targetPath }
-  }
-
   // Produces the path of the family that the family of the given path further binds from
   def findFurtherBinds(path: Path): Option[Path] = {
     def findNext(optNextPath: Option[Path], targetFam: String): Option[Path] = for {
