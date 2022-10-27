@@ -8,7 +8,7 @@ We include the following files:
 - `src/parser.scala`, with our parser
 - `src/name_resolution.scala`, with our name resolver
 - `src/util.scala`, with the pretty-printing capabilities for linkages
-- `src/main.scala`, which brings together the parts of our system
+- `src/main.scala`, with end to end running
 - `test/testing.scala`, our testing suite
 
 The directory `res` contains some sample programs.
