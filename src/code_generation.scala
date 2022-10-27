@@ -128,20 +128,6 @@ object code_generation {
     case SelfFamily(pref, fam) => sentinelPathIdentifier(pref) + "$$" + fam
   }
 
-  def isSentinelPath(p: Path): Boolean = p match {
-    case Sp(sp) => isSentinelSelfPath(sp)
-    case AbsoluteFamily(Sp(Prog), fam) => false
-    case AbsoluteFamily(Sp(pref), fam) => true
-    case AbsoluteFamily(pref, fam) => isSentinelPath(pref)
-  }
-
-  def isSentinelSelfPath(sp: SelfPath): Boolean = sp match {
-    case Prog => false
-    case SelfFamily(Sp(Prog), fam) => false
-    case SelfFamily(Sp(pref), fam) => true
-    case SelfFamily(pref, fam) => isSentinelPath(pref)
-  }
-
   def prefixPaths(p: Path, acc: List[Path]): List[Path] = p match {
     case Sp(sp) => prefixSelfPaths(sp, acc)
     case AbsoluteFamily(pref, fam) => prefixPaths(pref, p::acc)
