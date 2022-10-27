@@ -41,3 +41,5 @@
 - [ ] Try to get the ab example to type check with implicit resolution.
 
 - [ ] Test cyclic extension.
+
+- [ ] Update any documentation formal rules comments.
