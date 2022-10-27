@@ -45,7 +45,7 @@ object famfun_main {
               writer.close()
             }
         }
-      case _ => println(parsed)
+      case _ => println(s"parsing error: $parsed")
     }
   }
 }
