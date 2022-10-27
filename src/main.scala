@@ -34,9 +34,9 @@ object famfun_main {
           init(progLkg)
           typeCheckLinkage(progLkg)
         } match {
-          case Left(msg) => println(msg)
+          case Left(msg) => println(s"typechecking error: $msg")
           case Right(_) =>
-            println("Type-checking succeeded")
+            println("typechecks!")
             generateCode(cache.values).foreach { (fileName, contents) =>
               val file = new File(s"test/gen/$fileName")
               file.createNewFile()
