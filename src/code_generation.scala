@@ -547,23 +547,27 @@ object code_generation {
     visitedPaths.toList
   }
 
+  def collectAllTranslationPaths(p: Path): Map[Path, List[Path]] = {
+    var res: Map[Path, List[Path]] = Map.empty
+    def visit(ps: List[Path])(p: Path): Unit = {
+      if (!res.contains(p)) {
+        res = res + (p ->  (p::ps).reverse)
+        findExtends(p).foreach(visit(ps))
+        findFurtherBinds(p).foreach(visit(ps))
+      }
+    }
+
+    visit(Nil)(p)
+    res
+  }
+
   def generateCodeTranslationFunction(curPath: Path)(adtDefn: AdtDefn): String = {
     val curPathId: String = pathIdentifier(curPath)(curPath)
 
-    /*
-    // Collect all paths from which this adt extends a definition
-    val (inheritedPaths, _) = collectAllDefns(adtDefn)(_.adtBody) { lkg =>
-      lkg.adts
-        .getOrElse(adtDefn.name, throw new Exception(s"${lkg.self} should contain an ADT definition for ${adtDefn.name} by construction"))
-    } { _ => () } (()) { (_, _) => () }.getOrElse(throw new Exception("Should not fail after type-checking"))
-    val allPaths = curPath :: inheritedPaths.toList
-     */
-    val allPaths = collectInheritedPaths(curPath)
-
-    allPaths.map { targetPath =>
+    collectAllTranslationPaths(curPath).map { (targetPath, pathList) =>
       val targetPathId: String = pathIdentifier(curPath)(targetPath)
       // TODO: find target paths and generate translation terms at once to be more efficient
-      val ctorCalls = ctorCallListFromPathList(curPath)(findPathToPath(adtDefn, curPath, targetPath), adtDefn.name)
+      val ctorCalls = ctorCallListFromPathList(curPath)(pathList, adtDefn.name)
       val translationTerm: String = ctorCalls.foldRight("from") { (c, r) =>
         s"$c($r)"
       }
