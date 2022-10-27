@@ -43,3 +43,5 @@
 - [ ] Test cyclic extension.
 
 - [ ] Update any documentation formal rules comments.
+
+- [ ] Why do we need `import reflect.Selectable.reflectiveSelectable` in generated code?
