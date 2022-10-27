@@ -139,21 +139,6 @@ object code_generation {
     }
   }
 
-  def noConflictingSelfs(p1: Path, p2: Path, fams1: List[String], fams2: List[String]): Boolean = {
-    (fams1, fams2) match {
-      case (Nil, _) => true
-      case (_, Nil) => true
-      // don't check the self$
-      case (_::Nil, _) => true
-      case (_, _::Nil) => true
-      case (fam1::fams1, fam2::fams2) =>
-        val q1 = AbsoluteFamily(p1, fam1)
-        val q2 = AbsoluteFamily(p2, fam2)
-        val first = if (fam1==fam2) true else extending(q1, q2)
-        first && noConflictingSelfs(q1, q2, fams1, fams2)
-    }
-  }
-
   def codeCacheLinkage(fn: String, gen: => String): Unit = {
     codeCache.get(fn) match {
       case Some(_) =>
