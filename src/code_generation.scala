@@ -279,7 +279,7 @@ object code_generation {
 
     val translationsSig: String = adts.map { adtDefn =>
       val adtName: String = adtDefn.name
-      s"def $curPathId$$$$$adtName(from: $curPathId.$adtName): $adtName = ???/*TODO*/"
+      s"def $curPathId$$$$$adtName(from: $curPathId.$adtName): $adtName"
     }.mkString("\n")
 
     s"""trait Interface $interfaceExtension {
@@ -532,16 +532,33 @@ object code_generation {
     case _ => Nil
   }
 
+  def findExtends(p: Path): Option[Path] = getCompleteLinkageUnsafe(p).sup
+
+  def collectInheritedPaths(p: Path): List[Path] = {
+    val visitedPaths: scala.collection.mutable.Set[Path] = scala.collection.mutable.Set.empty
+    def visit(p: Path): Unit = {
+      if (!visitedPaths.contains(p)) {
+        visitedPaths += p
+        findExtends(p).foreach(visit)
+        findFurtherBinds(p).foreach(visit)
+      }
+    }
+    visit(p)
+    visitedPaths.toList
+  }
+
   def generateCodeTranslationFunction(curPath: Path)(adtDefn: AdtDefn): String = {
     val curPathId: String = pathIdentifier(curPath)(curPath)
 
+    /*
     // Collect all paths from which this adt extends a definition
     val (inheritedPaths, _) = collectAllDefns(adtDefn)(_.adtBody) { lkg =>
       lkg.adts
         .getOrElse(adtDefn.name, throw new Exception(s"${lkg.self} should contain an ADT definition for ${adtDefn.name} by construction"))
     } { _ => () } (()) { (_, _) => () }.getOrElse(throw new Exception("Should not fail after type-checking"))
-
     val allPaths = curPath :: inheritedPaths.toList
+     */
+    val allPaths = collectInheritedPaths(curPath)
 
     allPaths.map { targetPath =>
       val targetPathId: String = pathIdentifier(curPath)(targetPath)
