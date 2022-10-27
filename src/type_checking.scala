@@ -759,66 +759,66 @@ object type_checking {
         f(lkg.path),
         lkg.self,
         lkg.sup.map(f),
-        subSelfLinkageTypes(f)(lkg.types),
-        subSelfLinkageDefaults(f)(lkg.defaults),
-        subSelfLinkageAdts(f)(lkg.adts),
-        subSelfLinkageFuns(f)(lkg.funs),
-        subSelfLinkageDepot(f)(lkg.depot),
+        mapPathInLinkageTypes(f)(lkg.types),
+        mapPathInLinkageDefaults(f)(lkg.defaults),
+        mapPathInLinkageAdts(f)(lkg.adts),
+        mapPathInLinkageFuns(f)(lkg.funs),
+        mapPathInLinkageDepot(f)(lkg.depot),
         lkg.nested.view.mapValues(subExact(p)).toMap)
     }
   }
 
-  def subSelfLinkageTypes(f: Path => Path)(types: Map[String, TypeDefn]): Map[String, TypeDefn] =
+  def mapPathInLinkageTypes(f: Path => Path)(types: Map[String, TypeDefn]): Map[String, TypeDefn] =
     types.view
       .mapValues {
         case TypeDefn(name, marker, typeBody) => TypeDefn(
           name,
           marker,
-          subSelfInDefnBody(typeBody) { t =>
+          mapPathInDefnBody(typeBody) { t =>
             mapPathInType(f)(t).asInstanceOf[RecType]
           }
         )
       }
     .toMap
 
-  def subSelfLinkageDefaults(f: Path => Path)(defaults: Map[String, DefaultDefn]): Map[String, DefaultDefn] =
+  def mapPathInLinkageDefaults(f: Path => Path)(defaults: Map[String, DefaultDefn]): Map[String, DefaultDefn] =
     defaults.view
       .mapValues {
         case DefaultDefn(name, marker, defaultBody) => DefaultDefn(
           name,
           marker,
-          subSelfInDefnBody(defaultBody) { rec =>
-            subSelfInExpression(f)(rec).asInstanceOf[Rec]
+          mapPathInDefnBody(defaultBody) { rec =>
+            mapPathInExpression(f)(rec).asInstanceOf[Rec]
           }
         )
       }
       .toMap
 
-  def subSelfLinkageAdts(f: Path => Path)(adts: Map[String, AdtDefn]): Map[String, AdtDefn] =
+  def mapPathInLinkageAdts(f: Path => Path)(adts: Map[String, AdtDefn]): Map[String, AdtDefn] =
     adts.view
       .mapValues {
         case AdtDefn(name, marker, adtBody) => AdtDefn(
           name,
           marker,
-          subSelfInDefnBody(adtBody) { body =>
+          mapPathInDefnBody(adtBody) { body =>
             body.view.mapValues(mapPathInType(f)(_).asInstanceOf[RecType]).toMap
           }
         )
       }
     .toMap
 
-  def subSelfLinkageFuns(f: Path => Path)(funs: Map[String, FunDefn]): Map[String, FunDefn] =
+  def mapPathInLinkageFuns(f: Path => Path)(funs: Map[String, FunDefn]): Map[String, FunDefn] =
     funs.view
       .mapValues {
         case FunDefn(name, t, body) => FunDefn(
           name,
           mapPathInType(f)(t).asInstanceOf[FunType],
-          subSelfInDefnBody(body)(subSelfInExpression(f))
+          mapPathInDefnBody(body)(mapPathInExpression(f))
         )
       }
       .toMap
 
-  def subSelfLinkageDepot(f: Path => Path)(depot: Map[String, CasesDefn]): Map[String, CasesDefn] =
+  def mapPathInLinkageDepot(f: Path => Path)(depot: Map[String, CasesDefn]): Map[String, CasesDefn] =
     depot.view
       .mapValues {
         case CasesDefn(name, matchType, t, ts, marker, body) => CasesDefn(
@@ -827,7 +827,7 @@ object type_checking {
           mapPathInType(f)(t).asInstanceOf[FunType],
           ts.map(mapPathInType(f)),
           marker,
-          subSelfInDefnBody(body)(subSelfInExpression(f))
+          mapPathInDefnBody(body)(mapPathInExpression(f))
         )
       }
       .toMap
@@ -838,41 +838,43 @@ object type_checking {
     lkg.path,
     subSelfInSelfPath(newSelf, oldSelf)(lkg.self),
     lkg.sup.map(subSelfInPath(newSelf, oldSelf)),
-    subSelfLinkageTypes(subSelfInPath(newSelf, oldSelf))(lkg.types),
-    subSelfLinkageDefaults(subSelfInPath(newSelf, oldSelf))(lkg.defaults),
-    subSelfLinkageAdts(subSelfInPath(newSelf, oldSelf))(lkg.adts),
-    subSelfLinkageFuns(subSelfInPath(newSelf, oldSelf))(lkg.funs),
-    subSelfLinkageDepot(subSelfInPath(newSelf, oldSelf))(lkg.depot),
+    mapPathInLinkageTypes(subSelfInPath(newSelf, oldSelf))(lkg.types),
+    mapPathInLinkageDefaults(subSelfInPath(newSelf, oldSelf))(lkg.defaults),
+    mapPathInLinkageAdts(subSelfInPath(newSelf, oldSelf))(lkg.adts),
+    mapPathInLinkageFuns(subSelfInPath(newSelf, oldSelf))(lkg.funs),
+    mapPathInLinkageDepot(subSelfInPath(newSelf, oldSelf))(lkg.depot),
     lkg.nested.view.mapValues(subSelf(newSelf, oldSelf)).toMap
   )
 
   def subSelfInType(newSelf: SelfPath, oldSelf: SelfPath)(t: Type): Type =
     mapPathInType(subSelfInPath(newSelf, oldSelf))(t)
-  def subSelfInExpression(f: Path => Path)(e: Expression): Expression = { val ep = e match {
-    case Lam(v, t, body) => Lam(v, mapPathInType(f)(t), subSelfInExpression(f)(body))
+
+  def mapPathInExpression(f: Path => Path)(e: Expression): Expression = { val ep = e match {
+    case Lam(v, t, body) => Lam(v, mapPathInType(f)(t), mapPathInExpression(f)(body))
     case FamFun(path, name) => FamFun(path.map(f), name)
     case FamCases(path, name) => FamCases(path.map(f), name)
-    case App(e1, e2) => App(subSelfInExpression(f)(e1), subSelfInExpression(f)(e2))
-    case Rec(fields) => Rec(fields.view.mapValues(subSelfInExpression(f)).toMap)
-    case Proj(e, name) => Proj(subSelfInExpression(f)(e), name)
+    case App(e1, e2) => App(mapPathInExpression(f)(e1), mapPathInExpression(f)(e2))
+    case Rec(fields) => Rec(fields.view.mapValues(mapPathInExpression(f)).toMap)
+    case Proj(e, name) => Proj(mapPathInExpression(f)(e), name)
     case Inst(t, rec) => Inst(
       mapPathInType(f)(t).asInstanceOf[FamType],
-      subSelfInExpression(f)(rec).asInstanceOf[Rec]
+      mapPathInExpression(f)(rec).asInstanceOf[Rec]
     )
     case InstADT(t, cname, rec) => InstADT(
       mapPathInType(f)(t).asInstanceOf[FamType],
       cname,
-      subSelfInExpression(f)(rec).asInstanceOf[Rec]
+      mapPathInExpression(f)(rec).asInstanceOf[Rec]
     )
-    case Match(e, g) => Match(subSelfInExpression(f)(e), subSelfInExpression(f)(g))
+    case Match(e, g) => Match(mapPathInExpression(f)(e), mapPathInExpression(f)(g))
     case _ => e
   }
     ep.exprType = e.exprType.map(mapPathInType(f))
     ep
   }
-  def subSelfInDefnBody[B](body: DefnBody[B])(subB: B => B): DefnBody[B] = {
+  def mapPathInDefnBody[B](body: DefnBody[B])(subB: B => B): DefnBody[B] = {
     body.copy(defn = body.defn.map(subB), allDefns = body.allDefns.map(subB))
   }
+
   def subSelfInPath(newSelf: SelfPath, oldSelf: SelfPath)(p: Path): Path = p match {
     case Sp(sp) => Sp(subSelfInSelfPath(newSelf, oldSelf)(sp))
     case AbsoluteFamily(pref, fam) => AbsoluteFamily(subSelfInPath(newSelf, oldSelf)(pref), fam)
