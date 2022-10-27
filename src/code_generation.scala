@@ -139,36 +139,23 @@ object code_generation {
     }
   }
 
-  def codeCacheLinkage(fn: String, gen: => String): Unit = {
-    codeCache.get(fn) match {
-      case Some(_) =>
-      case None => {
-        codeCache(fn) = "// TODO"
-        println(s"generating $fn...")
-        codeCache(fn) = gen
-      }
-    }
-  }
-
   // Produces a list of pairs of desired file names with the code they contain
   // generated from the complete linkages given
-  def generateCode(completeLinkages: Iterable[Linkage]): Iterable[(String, String)] = {
-    codeCache.clear()
+  def generateCode(completeLinkages: Iterable[Linkage]): Iterable[(String, String)] =
     completeLinkages
       .filter { _.self != Prog }
-      .foreach { lkg =>
-        codeCacheLinkage(linkageFileName(lkg), generateCodeLinkage(lkg.path, lkg))
+      .map { lkg =>
+        val fn = linkageFileName(lkg)
+        println(s"generating $fn")
+        fn -> generateCodeLinkage(lkg)
       }
-    codeCache
-  }
 
   def pId(p: Path): String = absolutePathIdentifier(p)
 
-  def generateCodeLinkage(curPath: Path, lkg: Linkage): String = {
+  def generateCodeLinkage(lkg: Linkage): String = {
+    val curPath: Path = lkg.path
     val typesCode: String = lkg.types.values.map(generateCodeTypeDefn(curPath)).mkString("\n")
-
     val adtsCode: String = lkg.adts.values.map(generateCodeAdtDefn(curPath)).mkString("\n")
-
     val interfaceCode: String = generateCodeInterface(curPath)(lkg.types.values, lkg.adts.values, lkg.funs.values, lkg.depot.values)
     val familyCode: String = generateCodeFamily(curPath, lkg.sup)(lkg.types.values, lkg.adts.values, lkg.funs.values, lkg.depot.values)
 
