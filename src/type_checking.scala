@@ -131,7 +131,10 @@ object type_checking {
     result = collected._2
   } yield result
 
-  def collectAllDefaults(defaultDefn: DefaultDefn): Either[String, Map[String, Expression]] = for {
+  def collectAllDefaults(defaultDefn: DefaultDefn): Either[String, Map[String, Expression]] =
+    Right(defaultDefn.defaultBody.allDefns.map(_.fields).flatten.toMap)
+
+  def collectAllDefaults0(defaultDefn: DefaultDefn): Either[String, Map[String, Expression]] = for {
     collected <- collectAllDefns(defaultDefn)(_.defaultBody) { lkg =>
       lkg.defaults
         .getOrElse(defaultDefn.name, throw new Exception(s"${lkg.self} should contain a default definition for ${defaultDefn.name} by construction"))
