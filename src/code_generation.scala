@@ -197,7 +197,7 @@ object code_generation {
 
     val selfFields: String = generateSelfParams(curPath).map { selfWithType =>
       s"val $selfWithType"
-    }.reverse.head
+    }.last
 
     val selfTypesSig: String = types.map(typeDefn => s"type ${typeDefn.name}").mkString("\n")
 
@@ -238,7 +238,7 @@ object code_generation {
     val curPathId: String = pathIdentifier(curPath)(curPath)
 
     val selfFields: String =
-      generateSelfParts(curPath).map{ (self, p) => s"override val $self: $p.Interface = $p.Family"}.reverse.head
+      generateSelfParts(curPath).map{ (self, p) => s"override val $self: $p.Interface = $p.Family"}.last
 
     val typesCode: String = types.map { typeDefn =>
       s"override type ${typeDefn.name} = ${pathIdentifier(curPath)(curPath)}.${typeDefn.name}"
@@ -467,7 +467,7 @@ object code_generation {
   def translationCallListFromPathList(curPath: Path)(pathList: List[Path], adtName: String): List[String] = pathList match {
     case p1 :: p2 :: Nil => List(s"${pathIdentifier(curPath)(p1)}.${pathIdentifier(curPath)(p2)}$$$$$adtName")
     case p1 :: p2 :: p3 :: _ => {
-      val last = pathList.reverse.head
+      val last = pathList.last
       List(
         s"${pathIdentifier(curPath)(p1)}.${pathIdentifier(curPath)(p2)}$$$$$adtName",
         s"${pathIdentifier(curPath)(p2)}.Family.${pathIdentifier(curPath)(last)}$$$$$adtName")
