@@ -4,12 +4,11 @@ We include the following files:
 - `build.sbt`, with our SBT settings
 - `src/famfun.scala`, with the representation of our system
 - `src/type_checking.scala`, with our typechecker and linkage creation/concatenation engine
-- `src/parser.scala`, with the parser for FamFun
+- `src/code_generation.scala`, our translator to Scala code
+- `src/parser.scala`, with our parser
 - `src/util.scala`, with the pretty-printing capabilities for linkages
 - `src/main.scala`, which brings together the parts of our system
 - `test/testing.scala`, our testing suite
-- `src/translate.scala`, an old defunct translation to non-extensible modules
-- `src/code_generation.scala`, a translation to Scala code
 
 The directory `res` contains some sample programs.
 
