@@ -263,24 +263,22 @@ object type_checking {
           .fold(Left(s"No ADT ${c.matchType.name} in ${print_path(c.matchType.path.get)}"))(Right.apply)
 
       allCtors: Map[String, RecType] <- collectAllConstructors(matchAdtDefn)
-      normCtorsHandled = caseHandlerTypesAsCtors//.view.mapValues(subSelfInTypeAccordingTo(curLkg.path)).toMap
-      normAllCtors = allCtors//.view.mapValues(subSelfInTypeAccordingTo(curLkg.path)).toMap
 
       // Exhaustive check
       _ <-
-      if normCtorsHandled == normAllCtors
+      if caseHandlerTypesAsCtors == allCtors
       then Right(())
       else Left(
         s"""Cases ${c.name} in ${print_path(curLkg.path)} is non-exhaustive.
-           |Found:    ${normCtorsHandled.mapValues(print_type).mkString(", ")}
-           |Required: ${normAllCtors.mapValues(print_type).mkString(", ")}
+           |Found:    ${caseHandlerTypesAsCtors.mapValues(print_type).mkString(", ")}
+           |Required: ${allCtors.mapValues(print_type).mkString(", ")}
            |""".stripMargin)
       caseHandlerOutTypes <- traverseMap(allCaseHandlerTypes) {
         case FunType(_, outType) => Right(outType)
         case t => Left(s"Invalid type ${print_type(t)} for case handler for cases ${c.name} in ${print_path(curLkg.path)}")
       }.map(_.values.toList)
       // Consistent result type check
-      _ <- unifyTypes(caseHandlerOutTypes/*.map(subSelfInTypeAccordingTo(curLkg.path))*/).left.map { unifyErrMsg =>
+      _ <- unifyTypes(caseHandlerOutTypes).left.map { unifyErrMsg =>
         s"""Inconsistent output types for case handlers for cases ${c.name} in ${print_path(curLkg.path)}:
             |$unifyErrMsg
             |""".stripMargin
@@ -591,7 +589,7 @@ object type_checking {
             ctorFields = ctorRecType.fields
 
             instFieldsType = RecType(instFields)
-            ctorFieldsType0 = /*subSelfInTypeAccordingTo(path)(*/RecType(ctorFields)//)
+            ctorFieldsType0 = RecType(ctorFields)
             ctorFieldsType = path match {
               case AbsoluteFamily(_, _) => concretizeType(ctorFieldsType0)
               case _ => ctorFieldsType0
@@ -634,7 +632,7 @@ object type_checking {
                     case FunType(_, outType) => Right(outType)
                     case t => Left(s"Invalid type ${print_type(t)} for case handler for cases ${casesDefn.name}")
                   }.map(_.values.toList)
-                  outType <- unifyTypes(caseHandlerOutTypes/*.map(subSelfInTypeAccordingTo(path))*/)
+                  outType <- unifyTypes(caseHandlerOutTypes)
                 } yield outType
                 case _ => Left("TODO cannot have cases in family that does not extend adt")
               }

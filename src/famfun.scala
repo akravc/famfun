@@ -72,16 +72,6 @@ object famfun {
   // Transforms self paths in types into absolute paths (except Prog)
   def concretizeType(t: Type): Type = recType(concretizePath)(t)
 
-  // Replaces all self paths `sp` in `t` with the prefix path of `p` (as a self path) of the same length as `sp`
-  def subSelfInTypeAccordingTo(p: Path)(t: Type): Type = {
-    val pFamList: List[String] = pathToFamList(p)
-    recType(path => path match {
-      case Sp(sp) =>
-        pFamList.take(selfPathToFamList(sp).length).foldLeft(Sp(Prog))({case (sp, name) => Sp(SelfFamily(sp, name))})
-      case other => other
-    })(t)
-  }
-
   /* ======================== EXPRESSIONS  ======================== */
 
   sealed trait Expression {
