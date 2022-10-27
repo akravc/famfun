@@ -5,8 +5,6 @@ import type_checking.{collectAllCaseHandlerTypes, collectAllDefaults, collectAll
 import reflect.Selectable.reflectiveSelectable
 
 object code_generation {
-  val codeCache: scala.collection.mutable.Map[String, String] = scala.collection.mutable.Map.empty
-
   // Every getCompleteLinkage call should be a Right for the paths we use after type-checking
   def getCompleteLinkageUnsafe(p: Path): Linkage =
     getCompleteLinkage(p).getOrElse(throw new Exception("Should not happen after type-checking"))
