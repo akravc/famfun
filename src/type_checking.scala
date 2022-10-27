@@ -740,7 +740,7 @@ object type_checking {
     }
   }
 
-  // Recursively substitutes instancess of a self by a path in type
+  // Recursively substitutes instances of a self by a path in type
   def subSelfByPathInPath(oldSelf: SelfPath, newPath: Path)(p: Path): Path = p match {
     case Sp(sp) if sp == oldSelf => newPath
     case Sp(Prog) => Sp(Prog)
