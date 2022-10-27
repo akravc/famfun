@@ -10,8 +10,7 @@ We include the following files:
 - `src/util.scala`, with the pretty-printing capabilities for linkages
 - `src/main.scala`, with end to end running
 - `test/testing.scala`, our testing suite
-
-The directory `res` contains some sample programs.
+- `res/*`, with some sample programs
 
 ## Running
 
