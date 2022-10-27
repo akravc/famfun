@@ -62,15 +62,15 @@ object famfun {
   case class RecType(fields: Map[String, Type]) extends Type // {(f: T)*}
 
   // Generic traversal to change the paths
-  def recType(f: Path => Path)(t: Type): Type = t match {
+  def mapPathInType(f: Path => Path)(t: Type): Type = t match {
     case FamType(path, name) => FamType(path.map(f), name)
-    case FunType(input, output) => FunType(recType(f)(input), recType(f)(output))
-    case RecType(fields) => RecType(fields.view.mapValues(recType(f)).toMap)
+    case FunType(input, output) => FunType(mapPathInType(f)(input), mapPathInType(f)(output))
+    case RecType(fields) => RecType(fields.view.mapValues(mapPathInType(f)).toMap)
     case _ => t
   }
 
   // Transforms self paths in types into absolute paths (except Prog)
-  def concretizeType(t: Type): Type = recType(concretizePath)(t)
+  def concretizeType(t: Type): Type = mapPathInType(concretizePath)(t)
 
   /* ======================== EXPRESSIONS  ======================== */
 

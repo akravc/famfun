@@ -749,7 +749,7 @@ object type_checking {
   }
 
   def subSelfByPathInType(oldSelf: SelfPath, newPath: Path)(t: Type): Type =
-    recType(subSelfByPathInPath(oldSelf, newPath))(t)
+    mapPathInType(subSelfByPathInPath(oldSelf, newPath))(t)
 
   def subExact(p: Path)(lkg: Linkage): Linkage = p match {
     case Sp(sp) => lkg
@@ -775,7 +775,7 @@ object type_checking {
           name,
           marker,
           subSelfInDefnBody(typeBody) { t =>
-            recType(f)(t).asInstanceOf[RecType]
+            mapPathInType(f)(t).asInstanceOf[RecType]
           }
         )
       }
@@ -801,7 +801,7 @@ object type_checking {
           name,
           marker,
           subSelfInDefnBody(adtBody) { body =>
-            body.view.mapValues(recType(f)(_).asInstanceOf[RecType]).toMap
+            body.view.mapValues(mapPathInType(f)(_).asInstanceOf[RecType]).toMap
           }
         )
       }
@@ -812,7 +812,7 @@ object type_checking {
       .mapValues {
         case FunDefn(name, t, body) => FunDefn(
           name,
-          recType(f)(t).asInstanceOf[FunType],
+          mapPathInType(f)(t).asInstanceOf[FunType],
           subSelfInDefnBody(body)(subSelfInExpression(f))
         )
       }
@@ -823,9 +823,9 @@ object type_checking {
       .mapValues {
         case CasesDefn(name, matchType, t, ts, marker, body) => CasesDefn(
           name,
-          recType(f)(matchType).asInstanceOf[FamType],
-          recType(f)(t).asInstanceOf[FunType],
-          ts.map(recType(f)),
+          mapPathInType(f)(matchType).asInstanceOf[FamType],
+          mapPathInType(f)(t).asInstanceOf[FunType],
+          ts.map(mapPathInType(f)),
           marker,
           subSelfInDefnBody(body)(subSelfInExpression(f))
         )
@@ -847,27 +847,27 @@ object type_checking {
   )
 
   def subSelfInType(newSelf: SelfPath, oldSelf: SelfPath)(t: Type): Type =
-    recType(subSelfInPath(newSelf, oldSelf))(t)
+    mapPathInType(subSelfInPath(newSelf, oldSelf))(t)
   def subSelfInExpression(f: Path => Path)(e: Expression): Expression = { val ep = e match {
-    case Lam(v, t, body) => Lam(v, recType(f)(t), subSelfInExpression(f)(body))
+    case Lam(v, t, body) => Lam(v, mapPathInType(f)(t), subSelfInExpression(f)(body))
     case FamFun(path, name) => FamFun(path.map(f), name)
     case FamCases(path, name) => FamCases(path.map(f), name)
     case App(e1, e2) => App(subSelfInExpression(f)(e1), subSelfInExpression(f)(e2))
     case Rec(fields) => Rec(fields.view.mapValues(subSelfInExpression(f)).toMap)
     case Proj(e, name) => Proj(subSelfInExpression(f)(e), name)
     case Inst(t, rec) => Inst(
-      recType(f)(t).asInstanceOf[FamType],
+      mapPathInType(f)(t).asInstanceOf[FamType],
       subSelfInExpression(f)(rec).asInstanceOf[Rec]
     )
     case InstADT(t, cname, rec) => InstADT(
-      recType(f)(t).asInstanceOf[FamType],
+      mapPathInType(f)(t).asInstanceOf[FamType],
       cname,
       subSelfInExpression(f)(rec).asInstanceOf[Rec]
     )
     case Match(e, g) => Match(subSelfInExpression(f)(e), subSelfInExpression(f)(g))
     case _ => e
   }
-    ep.exprType = e.exprType.map(recType(f))
+    ep.exprType = e.exprType.map(mapPathInType(f))
     ep
   }
   def subSelfInDefnBody[B](body: DefnBody[B])(subB: B => B): DefnBody[B] = {
