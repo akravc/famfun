@@ -551,9 +551,10 @@ object code_generation {
     var res: Map[Path, List[Path]] = Map.empty
     def visit(ps: List[Path])(p: Path): Unit = {
       if (!res.contains(p)) {
-        res = res + (p ->  (p::ps).reverse)
-        findExtends(p).foreach(visit(ps))
-        findFurtherBinds(p).foreach(visit(ps))
+        val ps2 = p::ps
+        res = res + (p ->  ps2.reverse)
+        findExtends(p).foreach(visit(ps2))
+        findFurtherBinds(p).foreach(visit(ps2))
       }
     }
 
