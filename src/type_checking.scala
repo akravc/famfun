@@ -120,7 +120,10 @@ object type_checking {
     result = collected._2
   } yield result
 
-  def collectAllNamedTypeFields(typeDefn: TypeDefn): Either[String, Map[String, Type]] = for {
+  def collectAllNamedTypeFields(typeDefn: TypeDefn): Either[String, Map[String, Type]] =
+    Right(typeDefn.typeBody.allDefns.map(_.fields).flatten.toMap)
+
+  def collectAllNamedTypeFields0(typeDefn: TypeDefn): Either[String, Map[String, Type]] = for {
     collected <- collectAllDefns(typeDefn)(_.typeBody) { lkg =>
       lkg.types
         .getOrElse(typeDefn.name, throw new Exception(s"${lkg.self} should contain a type definition for ${typeDefn.name} by construction"))
