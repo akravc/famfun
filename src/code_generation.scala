@@ -20,6 +20,8 @@ object code_generation {
 
   def linkageFileName(lkg: Linkage): String = s"${pathIdentifier(lkg.path)(lkg.path)}.scala"
 
+  def absolutePathIdentifier(p: Path): String = pathToFamList(p).mkString("$")
+
   var relativeMode: Boolean = false
   def withRelativeMode[A](newMode: Boolean)(res: => A): A = {
     val oldMode = relativeMode
@@ -37,26 +39,30 @@ object code_generation {
         val n = famList.size
         val curFamList = pathToFamList(curPath)
         if (relativeMode) s"self$$${if (curFamList.size==n) "" else n}"
-        else if (curFamList.size==n) "self$" else s"${relativePathIdentifier(p)}.Family"
+        else if (curFamList.size==n) "self$" else s"${absolutePathIdentifier(p)}.Family"
       }
-      case AbsoluteFamily(_, _) => relativePathIdentifier(p)
+      case AbsoluteFamily(_, _) => absolutePathIdentifier(p)
     }
   }
 
-  def relativePathIdentifier(p: Path): String =
-    sentinelPathIdentifier(Sp(relativizePath(p)))
-
-  def selfPathsInScope(p: Path): List[String] = {
-    val ps = prefixPaths(p, Nil)
-    val fs = if (false) ps.filter{ p2 => p2==p || (p2 match { case Sp(_) => true; case _ => false }) } else ps.map{p => Sp(relativizePath(p))}
-    fs.map(sentinelPathIdentifier)
+  def prefixPaths(p: Path, acc: List[Path]): List[Path] = p match {
+    case Sp(sp) => prefixSelfPaths(sp, acc)
+    case AbsoluteFamily(pref, fam) => prefixPaths(pref, p::acc)
   }
+
+  def prefixSelfPaths(p: SelfPath, acc: List[Path]): List[Path] = p match {
+    case Prog => acc
+    case SelfFamily(pref, fam) => prefixPaths(pref, Sp(p)::acc)
+  }
+
+  def selfPathsInScope(p: Path): List[String] = prefixPaths(p, Nil).map(absolutePathIdentifier)
 
   def generateSelfParts(p: Path): List[(String, String)] = {
     val ps = selfPathsInScope(p)
     val n = ps.size
     ps.zipWithIndex.map { (selfParam, i) => (s"self$$${if ((i+1)==n) "" else (i+1)}", selfParam) }
   }
+
   def generateSelfParams(p: Path): List[String] =
     generateSelfParts(p).map { (self, p) => s"$self: $p.Interface" }
 
@@ -114,30 +120,6 @@ object code_generation {
     }
   }
 
-  def sentinelPathIdentifier(p: Path): String = p match {
-    case Sp(sp) => sentinelSelfPathIdentifier(sp)
-    case AbsoluteFamily(Sp(Prog), fam) => fam
-    case AbsoluteFamily(Sp(pref), fam) => sentinelSelfPathIdentifier(pref) + "$" + fam
-    case AbsoluteFamily(pref, fam) => sentinelPathIdentifier(pref) + "$$" + fam
-  }
-
-  def sentinelSelfPathIdentifier(sp: SelfPath): String = sp match {
-    case Prog => ""
-    case SelfFamily(Sp(Prog), fam) => fam
-    case SelfFamily(Sp(pref), fam) => sentinelSelfPathIdentifier(pref) + "$" + fam
-    case SelfFamily(pref, fam) => sentinelPathIdentifier(pref) + "$$" + fam
-  }
-
-  def prefixPaths(p: Path, acc: List[Path]): List[Path] = p match {
-    case Sp(sp) => prefixSelfPaths(sp, acc)
-    case AbsoluteFamily(pref, fam) => prefixPaths(pref, p::acc)
-  }
-
-  def prefixSelfPaths(p: SelfPath, acc: List[Path]): List[Path] = p match {
-    case Prog => acc
-    case SelfFamily(pref, fam) => prefixPaths(pref, Sp(p)::acc)
-  }
-
   // ad-hoc check that p1 extends p2
   def extending(p1: Path, p2: Path): Boolean = {
     p1 == p2 ||
@@ -153,14 +135,14 @@ object code_generation {
       case (_, fam2::Nil) => (("self$")::acc).reverse
       case (Nil, fam2::fams2) => {
         val q2 = AbsoluteFamily(p2, fam2)
-        val id = s"${relativePathIdentifier(q2)}.Family"
+        val id = s"${absolutePathIdentifier(q2)}.Family"
         generateConflictingSelfArgsRec(p1, q2, fams1, fams2, id::acc)
       }
       case (fam1::fams1, fam2::fams2) =>
         val q1 = AbsoluteFamily(p1, fam1)
         val q2 = AbsoluteFamily(p2, fam2)
         val compatible = fam1==fam2 || extending(q1, q2)
-        val id = if (compatible) "self$"+(acc.size+1) else s"${relativePathIdentifier(q2)}.Family"
+        val id = if (compatible) "self$"+(acc.size+1) else s"${absolutePathIdentifier(q2)}.Family"
         generateConflictingSelfArgsRec(q1, q2, fams1, fams2, id :: acc)
     }
   }
@@ -203,7 +185,7 @@ object code_generation {
     codeCache
   }
 
-  def pId(p: Path): String = relativePathIdentifier(p)
+  def pId(p: Path): String = absolutePathIdentifier(p)
 
   def generateCodeLinkage(curPath: Path, lkg: Linkage): String = {
     val typesCode: String = lkg.types.values.map(generateCodeTypeDefn(curPath)).mkString("\n")
