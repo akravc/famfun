@@ -378,7 +378,8 @@ object code_generation {
         }
     }
     val inheritCtors: List[String] =
-      List(adtDefn.adtBody.extendsFrom, adtDefn.adtBody.furtherBindsFrom)
+      //List(adtDefn.adtBody.extendsFrom, adtDefn.adtBody.furtherBindsFrom)
+      List(findExtends(curPath), findFurtherBinds(curPath))
         .collect { case Some(inheritPath) =>
           val inheritPathCode = pathIdentifier(curPath)(inheritPath)
           s"""case class $inheritPathCode$$$$$adtName(inherited: $inheritPathCode.$adtName) extends $adtName {
@@ -475,7 +476,8 @@ object code_generation {
     })
 
     val inheritedClauses: List[String] = withRelativeMode(true)(
-      List(casesDefn.casesBody.extendsFrom, casesDefn.casesBody.furtherBindsFrom)
+      //List(casesDefn.casesBody.extendsFrom, casesDefn.casesBody.furtherBindsFrom)
+      List(findExtends(curPath), findFurtherBinds(curPath))
         .collect { case Some(inheritPath) =>
           val inheritPathCode = pathIdentifier(curPath)(inheritPath)
           s"""case $matchTypePathId.$inheritPathCode$$$$${matchType.name}(inherited) =>
@@ -532,6 +534,18 @@ object code_generation {
     case _ => Nil
   }
 
+  def translationCallListFromPathList(curPath: Path)(pathList: List[Path], adtName: String): List[String] = pathList match {
+    case p1 :: p2 :: Nil => List(s"${pathIdentifier(curPath)(p1)}.${pathIdentifier(curPath)(p2)}$$$$$adtName")
+    case p1 :: p2 :: p3 :: _ => {
+      val last = pathList.reverse.head
+      List(
+        s"${pathIdentifier(curPath)(p1)}.${pathIdentifier(curPath)(p2)}$$$$$adtName",
+        s"${pathIdentifier(curPath)(p2)}.Family.${pathIdentifier(curPath)(last)}$$$$$adtName")
+    }
+    case Nil => Nil
+    case p :: Nil => Nil
+  }
+
   def findExtends(p: Path): Option[Path] = getCompleteLinkageUnsafe(p).sup
 
   def collectInheritedPaths(p: Path): List[Path] = {
@@ -547,7 +561,7 @@ object code_generation {
     visitedPaths.toList
   }
 
-  def collectAllTranslationPaths(p: Path): Map[Path, List[Path]] = {
+  def collectAllTranslationPaths(p: Path, adtName: String): Map[Path, List[Path]] = {
     var res: Map[Path, List[Path]] = Map.empty
     def visit(ps: List[Path])(p: Path): Unit = {
       if (!res.contains(p)) {
@@ -565,21 +579,14 @@ object code_generation {
   def generateCodeTranslationFunction(curPath: Path)(adtDefn: AdtDefn): String = {
     val curPathId: String = pathIdentifier(curPath)(curPath)
 
-    collectAllTranslationPaths(curPath).map { (targetPath, pathList) =>
+    collectAllTranslationPaths(curPath, adtDefn.name).map { (targetPath, pathList) =>
       val targetPathId: String = pathIdentifier(curPath)(targetPath)
       // TODO: find target paths and generate translation terms at once to be more efficient
-      val ctorCalls = ctorCallListFromPathList(curPath)(pathList, adtDefn.name)
+      val ctorCalls = translationCallListFromPathList(curPath)(pathList, adtDefn.name)
       val translationTerm: String = ctorCalls.foldRight("from") { (c, r) =>
         s"$c($r)"
       }
-      // TODO(now): commented out because these don't compile?
-      val finalTranslationTerm: String =
-        if (curPath != targetPath && translationTerm == "from") {
-          println(s"warning generating to do for ${PrettyPrint.print_path(curPath)} to ${PrettyPrint.print_path(targetPath)}")
-          "???/*TODO*/"
-        } else translationTerm
-
-      s"override def $targetPathId$$$$${adtDefn.name}(from: $targetPathId.${adtDefn.name}): ${adtDefn.name} = $finalTranslationTerm"
+      s"override def $targetPathId$$$$${adtDefn.name}(from: $targetPathId.${adtDefn.name}): ${adtDefn.name} = $translationTerm"
     }.mkString("\n")
   }
 
