@@ -22,11 +22,11 @@
 
 - [x] The generated code for even_odd does not compile with Scala :(
 
-- [ ] The generated code for mixins does not compile with Scala
+- [x] The generated code for mixins does not compile with Scala
 
 - Also, we need to specify the self, e.g. `self(IfExt).Base` instead of it being inferred.
 
-- [ ] Should be able to run a "Main" with the code.
+- [x] Should be able to run a "Main" with the code.
 
 - [x] Why is `subSelfInTypeAccordingTo` taking a prefix? Causes trouble for test5. But prefix is necessary for pretty_example.
 
@@ -34,4 +34,6 @@
 
 - [x] Get rid of `throwLeft`.
 
-- [ ] Fix `???/*TODO*/` in transport code generation.
+- [x] Fix `???/*TODO*/` in transport code generation.
+
+- [ ] There seems to be a bug in mark inherited as ADTs for `ArithExtBuild$Base` are marked for further binding with `IfExt$Base` instead of `ArithExt$Base`! I don't rely on the marks as much as possible, but they are used to delegate code in some places.
