@@ -29,7 +29,6 @@ object famfun_main {
     val parsed = parse0(pProgram, inp)
     parsed match {
       case Success(result, _) =>
-        //println(result)
         resolveVarsAndValidateSelfPaths(result).flatMap { progLkg =>
           init(progLkg)
           typeCheckLinkage(progLkg)
