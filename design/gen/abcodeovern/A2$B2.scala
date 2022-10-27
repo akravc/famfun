@@ -60,15 +60,15 @@ object A2$B2 {
   
     // Cases implementations
     def eval_cases(matched: self$.Exp): Unit => Int = eval_cases$Impl(A2.Family, self$)(matched.asInstanceOf[A2$B2.Exp])
-    def eval_cases$Impl(self$1: A2.Interface, self$: A2$B2.Interface)(matched: A2$B2.Exp): Unit => Int = (ignore: Unit) => matched match {
+    def eval_cases$Impl(self$1: A2.Interface, self$: A2$B2.Interface)(matched: A2$B2.Exp): Unit => Int = (unit: Unit) => matched match {
       case matched@A2$B2.ENat2(_) =>
         val x: A2$B2.ENat2 = matched
         val x$proj = x
         (x.n + 2)
       case A2$B2.A2$B1$$Exp(inherited) =>
-        A2$B1.Family.eval_cases$Impl(self$1, self$)(inherited)(ignore)
+        A2$B1.Family.eval_cases$Impl(self$1, self$)(inherited)(unit)
       case A2$B2.A1$B2$$Exp(inherited) =>
-        A1$B2.Family.eval_cases$Impl(self$1, self$)(inherited)(ignore)
+        A1$B2.Family.eval_cases$Impl(self$1, self$)(inherited)(unit)
     }
   
     // Translation function implementations
