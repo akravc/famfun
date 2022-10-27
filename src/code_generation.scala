@@ -116,11 +116,8 @@ object code_generation {
   }
 
   // ad-hoc check that p1 extends p2
-  def extending(p1: Path, p2: Path): Boolean = {
-    p1 == p2 ||
-    getCompleteLinkageUnsafe(p1).sup.map{sup =>
-      extending(concretizePath(sup), p2)}.getOrElse(false)
-  }
+  def extending(p1: Path, p2: Path): Boolean =
+    p1 == p2 || findExtends(p1).map(extending(_, p2)).getOrElse(false)
 
   def generateConflictingSelfArgs(curPath: Path)(parentPath: Path): String =
     generateConflictingSelfArgsRec(Sp(Prog), Sp(Prog), pathToFamList(curPath), pathToFamList(parentPath), Nil).mkString(", ")
