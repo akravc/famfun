@@ -511,7 +511,6 @@ object code_generation {
 
     collectAllTranslationPaths(curPath, adtDefn.name).map { (targetPath, pathList) =>
       val targetPathId: String = pathIdentifier(curPath)(targetPath)
-      // TODO: find target paths and generate translation terms at once to be more efficient
       val ctorCalls = translationCallListFromPathList(curPath)(pathList, adtDefn.name)
       val translationTerm: String = ctorCalls.foldRight("from") { (c, r) =>
         s"$c($r)"
