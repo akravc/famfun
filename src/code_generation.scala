@@ -569,7 +569,10 @@ object code_generation {
       }
       // TODO(now): commented out because these don't compile?
       val finalTranslationTerm: String =
-        if (curPath != targetPath && translationTerm == "from") "???/*TODO*/" else translationTerm
+        if (curPath != targetPath && translationTerm == "from") {
+          println(s"warning generating to do for ${PrettyPrint.print_path(curPath)} to ${PrettyPrint.print_path(targetPath)}")
+          "???/*TODO*/"
+        } else translationTerm
 
       s"override def $targetPathId$$$$${adtDefn.name}(from: $targetPathId.${adtDefn.name}): ${adtDefn.name} = $finalTranslationTerm"
     }.mkString("\n")
