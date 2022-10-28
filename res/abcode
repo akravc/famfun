@@ -24,5 +24,6 @@ Family A2 extends A1 {
   }
 }
 Family ABMain {
-  val main: {} -> N = lam (ignore: {}). A2.B2.eval (A2.B2.Exp(ENat2 {n = 3}))
+  val main1: {} -> N = lam (ignore: {}). A2.B2.eval (A2.B2.Exp(ENat2 {n = 3}))
+  val main2: {} -> N = lam (ignore: {}). A2.B2.eval (A2.B2.Exp(ENat2 {n = 3}))
 }
