@@ -340,9 +340,9 @@ object code_generation {
     val body: String = s"${funDefn.name}$$Impl(${generateAbsoluteSelfArgs(curPath)(curPath)})"
     val implBody: String = withRelativeMode(true)(funDefn.funBody match {
       case DefnBody(None, _, Some(furtherBindsPath), _) =>
-        s"${pathIdentifier(curPath)(furtherBindsPath)}.Family.${funDefn.name}$$Impl(${generateAbsoluteSelfArgs(curPath)(furtherBindsPath)})"
+        s"${pathIdentifier(curPath)(furtherBindsPath)}.Family.${funDefn.name}$$Impl(${generateConflictingSelfArgs(curPath)(furtherBindsPath)})"
       case DefnBody(None, Some(extendsPath), None, _) =>
-        s"${pathIdentifier(curPath)(extendsPath)}.Family.${funDefn.name}$$Impl(${generateAbsoluteSelfArgs(curPath)(extendsPath)})"
+        s"${pathIdentifier(curPath)(extendsPath)}.Family.${funDefn.name}$$Impl(${generateConflictingSelfArgs(curPath)(extendsPath)})"
       case DefnBody(Some(expr), _, _, _) =>
         generateCodeExpression(curPath)(expr)
     })
