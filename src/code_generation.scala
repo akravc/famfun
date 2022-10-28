@@ -384,7 +384,6 @@ object code_generation {
             val matchedCast: String = if typeArgs.isEmpty then "" else s".asInstanceOf[$instType]"
             s"""case $caseMatched =>
                |  val $instName: $instType = matched$matchedCast
-               |  val $instName$$proj = $instName
                |${indentBy(1)(generateCodeExpression(curPath)(handlerExp))}""".stripMargin
           case _ => throw new Exception("Other shapes for case handlers not handled")
         }

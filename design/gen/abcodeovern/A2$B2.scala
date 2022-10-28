@@ -57,7 +57,6 @@ object A2$B2 {
     def eval_cases$Impl(self$1: A2.Interface, self$: A2$B2.Interface)(matched: A2$B2.Exp): Unit => Int = (unit: Unit) => matched match {
       case matched@A2$B2.ENat2(_) =>
         val x: A2$B2.ENat2 = matched
-        val x$proj = x
         (x.n + 2)
       case A2$B2.A2$B1$$Exp(inherited) =>
         A2$B1.Family.eval_cases$Impl(self$1, self$)(inherited)(unit)
