@@ -53,10 +53,10 @@ object A2$B2 {
     // Function implementations
     override val eval: self$.Exp => Int = eval$Impl(A2.Family, self$)
     def eval$Impl(self$1: A2.Interface, self$: A2$B2.Interface): self$.Exp => Int =
-      A1$B1.Family.eval$Impl(A1.Family, self$)
+      A1$B1.Family.eval$Impl(self$1, self$)
     override val f: Int => Int = f$Impl(A2.Family, self$)
     def f$Impl(self$1: A2.Interface, self$: A2$B2.Interface): Int => Int =
-      A1$B2.Family.f$Impl(A1.Family, self$)
+      A1$B2.Family.f$Impl(self$1, self$)
   
     // Cases implementations
     def eval_cases(matched: self$.Exp): Unit => Int = eval_cases$Impl(A2.Family, self$)(matched.asInstanceOf[A2$B2.Exp])
