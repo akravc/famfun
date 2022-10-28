@@ -403,7 +403,7 @@ object code_generation {
 
     val caseClauses: List[String] = definedClauses ++ inheritedClauses
 
-    s"""${generateCodeCasesSignature(curPath)(casesDefn)} = ${casesDefn.name}$$Impl(${generateAbsoluteSelfArgs(curPath)(curPath)})(matched.asInstanceOf[$concreteMatchTypeCode])
+    s"""${generateCodeCasesSignature(curPath)(casesDefn)} = ${casesDefn.name}$$Impl(${generateAbsoluteSelfArgs(curPath)(curPath)})(matched)
        |${withRelativeMode(true)(generateCodeCasesImplSignature(curPath)(casesDefn))} = ($envParamName: ${withRelativeMode(true)(generateCodeType(curPath)(envParamType))}) => matched match {
        |${indentBy(1)(caseClauses.mkString("\n"))}
        |}""".stripMargin
