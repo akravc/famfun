@@ -19,9 +19,6 @@ object A2$B2 {
 
   // Path interface
   trait Interface extends A2$B1.Interface with A1$B2.Interface {
-    // Self fields
-    val self$: A2$B2.Interface
-  
     // Self Named types
     type X
   
@@ -29,11 +26,11 @@ object A2$B2 {
     type Exp
   
     // Functions
-    val eval: self$.Exp => Int
+    val eval: this.Exp => Int
     val f: Int => Int
   
     // Cases
-    def eval_cases(matched: self$.Exp): Unit => Int
+    def eval_cases(matched: this.Exp): Unit => Int
   
     // Translations
     def A2$B2$$Exp(from: A2$B2.Exp): Exp
@@ -41,9 +38,6 @@ object A2$B2 {
 
   // Path implementation
   object Family extends A2$B2.Interface {
-    // Self field instantiation
-    override val self$: A2$B2.Interface = A2$B2.Family
-  
     // Self named types instantiation
     override type X = A2$B2.X
   
@@ -51,15 +45,15 @@ object A2$B2 {
     override type Exp = A2$B2.Exp
   
     // Function implementations
-    override val eval: self$.Exp => Int = eval$Impl(A2.Family, self$)
+    override val eval: this.Exp => Int = eval$Impl(A2.Family, this)
     def eval$Impl(self$1: A2.Interface, self$: A2$B2.Interface): self$.Exp => Int =
       A1$B1.Family.eval$Impl(self$1, self$)
-    override val f: Int => Int = f$Impl(A2.Family, self$)
+    override val f: Int => Int = f$Impl(A2.Family, this)
     def f$Impl(self$1: A2.Interface, self$: A2$B2.Interface): Int => Int =
       A1$B2.Family.f$Impl(self$1, self$)
   
     // Cases implementations
-    def eval_cases(matched: self$.Exp): Unit => Int = eval_cases$Impl(A2.Family, self$)(matched.asInstanceOf[A2$B2.Exp])
+    def eval_cases(matched: this.Exp): Unit => Int = eval_cases$Impl(A2.Family, this)(matched.asInstanceOf[A2$B2.Exp])
     def eval_cases$Impl(self$1: A2.Interface, self$: A2$B2.Interface)(matched: A2$B2.Exp): Unit => Int = (unit: Unit) => matched match {
       case matched@A2$B2.ENat2(_) =>
         val x: A2$B2.ENat2 = matched

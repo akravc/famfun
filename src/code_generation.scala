@@ -37,7 +37,7 @@ object code_generation {
         val n = famList.size
         val curFamList = pathToFamList(curPath)
         if (relativeMode) s"self$$${if (curFamList.size==n) "" else n}"
-        else if (curFamList.size==n) "self$" else s"${absolutePathIdentifier(p)}.Family"
+        else if (curFamList.size==n) "this" else s"${absolutePathIdentifier(p)}.Family"
       }
       case AbsoluteFamily(_, _) => absolutePathIdentifier(p)
     }
@@ -195,10 +195,6 @@ object code_generation {
           case List(a, b) => s"extends $a with $b"
         }
 
-    val selfFields: String = generateSelfParams(curPath).map { selfWithType =>
-      s"val $selfWithType"
-    }.last
-
     val selfTypesSig: String = types.map(typeDefn => s"type ${typeDefn.name}").mkString("\n")
 
     val selfAdtsSig: String = adts.map(adtDefn => s"type ${adtDefn.name}").mkString("\n")
@@ -213,9 +209,6 @@ object code_generation {
     }.mkString("\n")
 
     s"""trait Interface $interfaceExtension {
-       |  // Self fields
-       |${indentBy(1)(selfFields)}
-       |
        |  // Self Named types
        |${indentBy(1)(selfTypesSig)}
        |
@@ -237,9 +230,6 @@ object code_generation {
     (types: Iterable[TypeDefn], adts: Iterable[AdtDefn], funs: Iterable[FunDefn], cases: Iterable[CasesDefn]): String = {
     val curPathId: String = pathIdentifier(curPath)(curPath)
 
-    val selfFields: String =
-      generateSelfParts(curPath).map{ (self, p) => s"override val $self: $p.Interface = $p.Family"}.last
-
     val typesCode: String = types.map { typeDefn =>
       s"override type ${typeDefn.name} = ${pathIdentifier(curPath)(curPath)}.${typeDefn.name}"
     }.mkString("\n")
@@ -255,9 +245,6 @@ object code_generation {
     val translationsCode: String = adts.map(generateCodeTranslationFunction(curPath)).mkString("\n")
 
     s"""object Family extends ${pId(curPath)}.Interface {
-       |  // Self field instantiation
-       |${indentBy(1)(selfFields)}
-       |
        |  // Self named types instantiation
        |${indentBy(1)(typesCode)}
        |
@@ -333,7 +320,7 @@ object code_generation {
   def generateAbsoluteSelfArgs(curPath: Path)(parentPath: Path): String = {
     val ps = selfPathsInScope(parentPath).map(_ ++ ".Family")
     val ps0 = ps.reverse.tail.reverse
-    (ps0 ++ List("self$")).mkString(", ")
+    (ps0 ++ List("this")).mkString(", ")
   }
 
   def generateCodeFunDefn(curPath: Path)(funDefn: FunDefn): String = {
@@ -348,7 +335,7 @@ object code_generation {
     })
 
     s"""override ${generateCodeFunSignature(curPath)(None)(funDefn)} = $body
-       |${generateCodeFunSignature(curPath)(Some(curPath))(funDefn)} =
+       |${withRelativeMode(true)(generateCodeFunSignature(curPath)(Some(curPath))(funDefn))} =
        |${indentBy(1)(implBody)}""".stripMargin
   }
 
@@ -417,7 +404,7 @@ object code_generation {
     val caseClauses: List[String] = definedClauses ++ inheritedClauses
 
     s"""${generateCodeCasesSignature(curPath)(casesDefn)} = ${casesDefn.name}$$Impl(${generateAbsoluteSelfArgs(curPath)(curPath)})(matched.asInstanceOf[$concreteMatchTypeCode])
-       |${generateCodeCasesImplSignature(curPath)(casesDefn)} = ($envParamName: ${generateCodeType(curPath)(envParamType)}) => matched match {
+       |${withRelativeMode(true)(generateCodeCasesImplSignature(curPath)(casesDefn))} = ($envParamName: ${withRelativeMode(true)(generateCodeType(curPath)(envParamType))}) => matched match {
        |${indentBy(1)(caseClauses.mkString("\n"))}
        |}""".stripMargin
   }
