@@ -45,3 +45,9 @@
 - [ ] Update any documentation formal rules comments.
 
 - [ ] Why do we need `import reflect.Selectable.reflectiveSelectable` in generated code?
+
+- [ ] Implement new syntax.
+
+- [ ] Implement Option type or polymorphism.
+
+- [ ] Avoid unnecessary casts in codegen.
