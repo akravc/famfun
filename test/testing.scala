@@ -412,6 +412,14 @@ def plus(n1: N): Exp -> N =
 """))
   }
 
+  test("can parse extended definition syntax, empty context") {
+    assert(canParse(pExtendedDef, """
+def ev: Exp -> N =
+  ev EBase{} = 0;
+  ev ENat{n:N} = n
+"""))
+  }
+
   test("Var resolution: bound Var stays Var") {
     val inp =
       """
