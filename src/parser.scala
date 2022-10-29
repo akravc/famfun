@@ -270,7 +270,7 @@ class FamParser extends RegexParsers with PackratParsers {
 
 
   // Replaces occurrences of a variable id in s with a projection x.id
-  def var2proj(x: Var, s: Set[String])(e: Expression): Expression = {
+  def var2proj(x: Expression, s: Set[String])(e: Expression): Expression = {
     val f = var2proj(x, s)
     e match {
       case Var(id) if s.contains(id) => Proj(x, id)
@@ -296,7 +296,7 @@ class FamParser extends RegexParsers with PackratParsers {
     else {
       val name_cases = s"${name}_$$cases"
       val x = Var("$x")
-      val matched = "$m"
+      val matched = "matched"
       val casesType = RecType(bodies.map{c => (c.constructor -> FunType(RecType(c.params.toMap), returnType))}.toMap)
       val params_plus_matched = params ++ List(matched -> matchType)
       val inputType = RecType(params_plus_matched.toMap)
@@ -304,10 +304,16 @@ class FamParser extends RegexParsers with PackratParsers {
       val fun = marker match {
         case Eq => Some(
           FunDefn(name, FunType(inputType, returnType),
-            DefnBody(Some(Match(Proj(x, matched), App(FamCases(None, name_cases), x))), None, None)))
+            DefnBody(Some(Lam(x, inputType, Match(Proj(x, matched),
+              App(FamCases(None, name_cases), Rec(params_plus_matched.map{(k,_) => (k -> Proj(x, k))}.toMap))))),
+              None, None)))
         case PlusEq => None
       }
-      val b = Lam(x, inputType, Rec(bodies.map{c => c.constructor -> var2proj(x, params.map(_._1).toSet)(c.body)}.toMap))
+      val b = Lam(x, inputType, Rec(bodies.map{c => c.constructor ->
+        var2proj(x, params.map(_._1).toSet)(
+          Lam(Var(matched), RecType(c.params.toMap),
+            var2proj(Var(matched), c.params.map(_._1).toSet)(
+              c.body)))}.toMap))
       val cases = CasesDefn(name_cases, matchType, t, marker, DefnBody(Some(b), None, None))
       success(name -> (fun, cases))
     }
@@ -343,7 +349,7 @@ class FamParser extends RegexParsers with PackratParsers {
         rep(pTypeDef) ~ rep(pAdtDef) ~ rep(pFunDef) ~ rep(pExtendedDef) ~ rep(pCasesDef) ~ rep(pFamDef(curSelfPath))
       )
     } yield {
-      val funs = funs0 ++ extended.filter{_._2._1.isEmpty}.map{(k,v) => (k -> v._1.get)}
+      val funs = funs0 ++ extended.filter{_._2._1.nonEmpty}.map{(k,v) => (k -> v._1.get)}
       val cases = cases0 ++ extended.map{(k,v) => (k -> v._2)}
 
       if hasDuplicateName(typs) then throw new Exception("Parsing duplicate type names.")
