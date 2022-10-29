@@ -51,3 +51,5 @@
 - [ ] Implement Option type or polymorphism.
 
 - [ ] Avoid unnecessary casts in codegen.
+
+- [ ] Ensure wildcards work.
