@@ -288,7 +288,7 @@ class FamParser extends RegexParsers with PackratParsers {
     }
   }
 
-  type ExtendedDef = String
+  type ExtendedDef = (Option[FunDefn], CasesDefn)
   case class ExtendedDefCase(constructor: String, params: List[(String, Type)], body: Expression)
   def extendedDef(name: String, params: List[(String, Type)], matchType: FamType, returnType: Type, marker: Marker, bodies: List[ExtendedDefCase]): PackratParser[(String, ExtendedDef)] = {
     if (hasDuplicateName(params)) failure(s"duplicate name in $params")
@@ -309,7 +309,7 @@ class FamParser extends RegexParsers with PackratParsers {
       }
       val b = Lam(x, inputType, Rec(bodies.map{c => c.constructor -> var2proj(x, params.map(_._1).toSet)(c.body)}.toMap))
       val cases = CasesDefn(name_cases, matchType, t, marker, DefnBody(Some(b), None, None))
-      success(name -> name)
+      success(name -> (fun, cases))
     }
   }
   def extendedDefCase(name: String, params0: List[(String, Type)], repeatedParams0: List[String], constructor: String, params: List[(String, Type)], body: Expression): PackratParser[ExtendedDefCase] = {
@@ -339,10 +339,13 @@ class FamParser extends RegexParsers with PackratParsers {
       fam <- kwFamily ~> pFamilyName
       curSelfPath = SelfFamily(Sp(selfPrefix), fam)
       supFam <- (kwExtends ~> pPath).?
-      typs~adts~funs~cases~nested <- between("{", "}",
-        rep(pTypeDef) ~ rep(pAdtDef) ~ rep(pFunDef) ~ rep(pCasesDef) ~ rep(pFamDef(curSelfPath))
+      typs~adts~funs0~extended~cases0~nested <- between("{", "}",
+        rep(pTypeDef) ~ rep(pAdtDef) ~ rep(pFunDef) ~ rep(pExtendedDef) ~ rep(pCasesDef) ~ rep(pFamDef(curSelfPath))
       )
     } yield {
+      val funs = funs0 ++ extended.filter{_._2._1.isEmpty}.map{(k,v) => (k -> v._1.get)}
+      val cases = cases0 ++ extended.map{(k,v) => (k -> v._2)}
+
       if hasDuplicateName(typs) then throw new Exception("Parsing duplicate type names.")
       else if hasDuplicateName(adts) then throw new Exception("Parsing duplicate ADT names.")
       else if hasDuplicateName(funs) then throw new Exception("Parsing duplicate function names.")
