@@ -270,12 +270,12 @@ class FamParser extends RegexParsers with PackratParsers {
 
   lazy val pExtendedDef: PackratParser[(String, ExtendedDefn)] =
     kwDef ~> pFunctionName ~ ("(" ~> repsep(pRecField, ",") <~ ")") ~ (":" ~> optBetween("(", ")", pFunType)) ~ pMarker >> {
-      case n~p~t~m => repsep(pExtendedDefCase(n), ";") ^^ {bs =>
+      case n~p~t~m => repsep(pExtendedDefCase(n, p.size), ";") ^^ {bs =>
         n -> ExtendedDefn(n, p, t, m, DefnBody(Some(bs), None, None))}
     }
 
-  def pExtendedDefCase(name: String): PackratParser[ExtendedDefCase] = {
-    name.r ~> ("(" ~> repsep(pFieldName, ",") <~ ")") ~ pConstructorName ~ ("(" ~> repsep(pFieldName, ",") <~ ")" <~ "=") ~ pExp ^^ {
+  def pExtendedDefCase(name: String, paramCount: Int): PackratParser[ExtendedDefCase] = {
+    name.r ~> ("(" ~> repNM(paramCount, paramCount, pFieldName, ",") <~ ")") ~ pConstructorName ~ ("(" ~> repsep(pFieldName, ",") <~ ")" <~ "=") ~ pExp ^^ {
       case p0~c~p~e => ExtendedDefCase(p0, c, p, e)
     }
   }
