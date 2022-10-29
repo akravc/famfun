@@ -17,11 +17,11 @@ Family A2 extends A1 {
     type X = {x: B}
     type Exp += EPlus {e1: Exp, e2: Exp}
     def ev: Exp -> N +=
-      case EPlus{e1: Exp, e2: Exp} = (ev({matched = e1}) + ev({matched = e2}))
+      case EPlus{e1: Exp, e2: Exp} = (ev(e1) + ev(e2))
   }
 }
 Family ABMain {
-  val main1: {} -> N = lam (ignore: {}). A2.B2.ev ({matched = A2.B2.Exp(ENat {n = 3})})
+  val main1: {} -> N = lam (ignore: {}). A2.B2.ev (A2.B2.Exp(ENat {n = 3}))
   val main2: {} -> N = lam (ignore: {}). A2.B2.f (3)
 }
 
