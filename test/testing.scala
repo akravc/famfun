@@ -420,6 +420,14 @@ def ev: Exp -> N =
 """))
   }
 
+  test("can parse extended definition syntax, currying") {
+    assert(canParse(pExp, "foo(a, b, c)(d)"))
+  }
+
+  test("can parse extended definition syntax, currying empty") {
+    assert(canParse(pExp, "foo()(d)"))
+  }
+
   test("Var resolution: bound Var stays Var") {
     val inp =
       """

@@ -212,6 +212,11 @@ class FamParser extends RegexParsers with PackratParsers {
   lazy val pExpMatch: PackratParser[Match] =
     kwMatch ~> pExp ~ (kwWith ~> pExp) ^^ { case e~g => Match(e, g) }
 
+  lazy val pExpExtendedApp: PackratParser[Expression] =
+    pPrimary ~ ("(" ~> repsep(pPrimary, ",") <~ ")") ^^ {
+      case e~gs => gs.foldLeft(e)(App)
+    }
+
   lazy val pExp: PackratParser[Expression] = pCondAnd
   lazy val pCondAnd: PackratParser[Expression] =
     pCondAnd ~ ("&&" ~> pCondOr) ^^ { case e1~e2 => BBinExp(e1, BAnd, e2) }
@@ -242,6 +247,7 @@ class FamParser extends RegexParsers with PackratParsers {
     | pPrimary
   lazy val pPrimary: PackratParser[Expression] =
     pExpProj | pExpMatch | pExpInstAdt | pExpInst | pExpApp | pExpRec
+    | pExpExtendedApp
     | pExpIfThenElse | pExpLam | pExpString | pExpBool | pExpNat
     | pExpFamFun | pExpFamCases
     | pExpVar
