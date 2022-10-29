@@ -305,7 +305,6 @@ class FamParser extends RegexParsers with PackratParsers {
     else {
       val name_cases = name+cases_suffix
       val x = Var("$x")
-      val matched = "matched"
       val matched_var = Var("$m")
       val casesType = RecType(bodies.map{c => (c.constructor -> FunType(RecType(c.params.toMap), returnType))}.toMap)
       val inputType = RecType(params.toMap)
