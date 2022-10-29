@@ -50,9 +50,10 @@ class FamParser extends RegexParsers with PackratParsers {
   val kwThen: Parser[String] = "then\\b".r
   val kwElse: Parser[String] = "else\\b".r
   val kwDef: Parser[String] = "def\\b".r
+  val kwCase: Parser[String] = "case\\b".r
 
   val reserved: Parser[String] = kwMatch | kwWith | kwTrue | kwFalse | kwLam  | kwType | kwVal | kwFamily
-    | kwExtends | kwN | kwB | kwString | kwSelf | kwCases | kwIf | kwThen | kwElse | kwDef
+    | kwExtends | kwN | kwB | kwString | kwSelf | kwCases | kwIf | kwThen | kwElse | kwDef | kwCase
 
   // NAMES
   lazy val pVarName: Parser[String] = not(reserved) ~> """_|[a-z][a-zA-Z0-9_]*""".r
@@ -320,26 +321,23 @@ class FamParser extends RegexParsers with PackratParsers {
       success(name -> (fun, cases))
     }
   }
-  def extendedDefCase(name: String, params0: List[(String, Type)], repeatedParams0: List[String], constructor: String, params: List[(String, Type)], body: Expression): PackratParser[ExtendedDefCase] = {
-    if (params0.map(_._1) != repeatedParams0)
-      failure(s"expect parameters $params0 and $repeatedParams0 to match")
-    else if (hasDuplicateName(params))
+  def extendedDefCase(constructor: String, params: List[(String, Type)], body: Expression): PackratParser[ExtendedDefCase] = {
+    if (hasDuplicateName(params))
       failure(s"duplicate names in $params")
     else success(ExtendedDefCase(constructor, params, body))
   }
 
   lazy val pExtendedDef: PackratParser[(String, ExtendedDef)] =
     kwDef ~> pFunctionName ~ (("(" ~> repsep(pRecField, ",") <~ ")") | success(Nil)) ~ (":" ~> optBetween("(", ")", (pFamType ~ ("->" ~> pType)))) ~ pMarker >> {
-      case n~p~(f~t)~m => repsep(pExtendedDefCase(n, p), ";") >> {bs =>
+      case n~p~(f~t)~m => repsep(pExtendedDefCase, ";") >> {bs =>
         extendedDef(n, p, f, t, m, bs)
       }
     }
 
-  def pExtendedDefCase(name: String, params0: List[(String, Type)]): PackratParser[ExtendedDefCase] = {
-    name.r ~> (("(" ~> repsep(pFieldName, ",") <~ ")") | success(Nil)) ~ pConstructorName ~ ("{" ~> repsep(pRecField, ",") <~ "}" <~ "=") ~ pExp >> {
-      case p0~c~p~e => extendedDefCase(name, params0, p0, c, p, e)
+  lazy val pExtendedDefCase: PackratParser[ExtendedDefCase] =
+    kwCase ~> pConstructorName ~ ("{" ~> repsep(pRecField, ",") <~ "}" <~ "=") ~ pExp >> {
+      case c~p~e => extendedDefCase(c, p, e)
     }
-  }
 
   // A family can extend another family. If it does not, the parent is None.
   def pFamDef(selfPrefix: SelfPath): PackratParser[(String, Linkage)] = {

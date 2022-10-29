@@ -407,16 +407,16 @@ class FamFunParserTesting extends AnyFunSuite {
   test("can parse extended definition syntax") {
     assert(canParse(pExtendedDef, """
 def plus(n1: N): Exp -> N =
-  plus(n1) EBase{} = n1;
-  plus(n1) ENat{n2:N} = n1 + n2
+  case EBase{} = n1;
+  case ENat{n2:N} = n1 + n2
 """))
   }
 
   test("can parse extended definition syntax, empty context") {
     assert(canParse(pExtendedDef, """
 def ev: Exp -> N =
-  ev EBase{} = 0;
-  ev ENat{n:N} = n
+  case EBase{} = 0;
+  case ENat{n:N} = n
 """))
   }
 
