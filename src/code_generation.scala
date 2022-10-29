@@ -37,7 +37,7 @@ object code_generation {
         val n = famList.size
         val curFamList = pathToFamList(curPath)
         if (relativeMode) s"self$$${if (curFamList.size==n) "" else n}"
-        else if (curFamList.size==n) "this" else s"${absolutePathIdentifier(p)}.Family"
+        else if (curFamList.size==n) "self$" else s"${absolutePathIdentifier(p)}.Family"
       }
       case AbsoluteFamily(_, _) => absolutePathIdentifier(p)
     }
@@ -208,7 +208,7 @@ object code_generation {
       s"def $curPathId$$$$$adtName(from: $curPathId.$adtName): $adtName"
     }.mkString("\n")
 
-    s"""trait Interface $interfaceExtension {
+    s"""trait Interface $interfaceExtension { self$$ =>
        |  // Self Named types
        |${indentBy(1)(selfTypesSig)}
        |
@@ -244,7 +244,7 @@ object code_generation {
 
     val translationsCode: String = adts.map(generateCodeTranslationFunction(curPath)).mkString("\n")
 
-    s"""object Family extends ${pId(curPath)}.Interface {
+    s"""object Family extends ${pId(curPath)}.Interface { self$$ =>
        |  // Self named types instantiation
        |${indentBy(1)(typesCode)}
        |
@@ -320,7 +320,7 @@ object code_generation {
   def generateAbsoluteSelfArgs(curPath: Path)(parentPath: Path): String = {
     val ps = selfPathsInScope(parentPath).map(_ ++ ".Family")
     val ps0 = ps.reverse.tail.reverse
-    (ps0 ++ List("this")).mkString(", ")
+    (ps0 ++ List("self$")).mkString(", ")
   }
 
   def generateCodeFunDefn(curPath: Path)(funDefn: FunDefn): String = {
