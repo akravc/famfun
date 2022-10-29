@@ -270,20 +270,26 @@ class FamParser extends RegexParsers with PackratParsers {
 
   // TODO(now)
   type ExtendedDef = String
-  type ExtendedDefCase = String
-  def extendedDef(name: String, params: List[(String, Type)], t: FunType, marker: Marker, bodies: List[String]): PackratParser[(String, ExtendedDef)] = success(name -> name)
-  def extendedDefCase(name: String, params0: List[(String, Type)], t: FunType, repeatedParams0: List[String], constructor: String, params: List[(String, Type)], body: Expression): PackratParser[ExtendedDefCase] = success(constructor)
+  case class ExtendedDefCase(constructor: String, params: List[(String, Type)], body: Expression)
+  def extendedDef(name: String, params: List[(String, Type)], matchType: FamType, t: Type, marker: Marker, bodies: List[ExtendedDefCase]): PackratParser[(String, ExtendedDef)] = {
+    success(name -> name)
+  }
+  def extendedDefCase(name: String, params0: List[(String, Type)], repeatedParams0: List[String], constructor: String, params: List[(String, Type)], body: Expression): PackratParser[ExtendedDefCase] = {
+    if (params0.map(_._1) != repeatedParams0)
+      failure(s"expect parameters $params0 and $repeatedParams0 to match")
+    else success(ExtendedDefCase(constructor, params, body))
+  }
 
   lazy val pExtendedDef: PackratParser[(String, ExtendedDef)] =
-    kwDef ~> pFunctionName ~ ("(" ~> repsep(pRecField, ",") <~ ")") ~ (":" ~> optBetween("(", ")", pFunType)) ~ pMarker >> {
-      case n~p~t~m => repsep(pExtendedDefCase(n, p, t), ";") >> {bs =>
-        extendedDef(n, p, t, m, bs)
+    kwDef ~> pFunctionName ~ ("(" ~> repsep(pRecField, ",") <~ ")") ~ (":" ~> optBetween("(", ")", (pFamType ~ ("->" ~> pType)))) ~ pMarker >> {
+      case n~p~(f~t)~m => repsep(pExtendedDefCase(n, p), ";") >> {bs =>
+        extendedDef(n, p, f, t, m, bs)
       }
     }
 
-  def pExtendedDefCase(name: String, params0: List[(String, Type)], t: FunType): PackratParser[ExtendedDefCase] = {
+  def pExtendedDefCase(name: String, params0: List[(String, Type)]): PackratParser[ExtendedDefCase] = {
     name.r ~> ("(" ~> repsep(pFieldName, ",") <~ ")") ~ pConstructorName ~ ("{" ~> repsep(pRecField, ",") <~ "}" <~ "=") ~ pExp >> {
-      case p0~c~p~e => extendedDefCase(name, params0, t, p0, c, p, e)
+      case p0~c~p~e => extendedDefCase(name, params0, p0, c, p, e)
     }
   }
 
