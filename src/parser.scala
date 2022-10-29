@@ -5,12 +5,14 @@ import scala.annotation.tailrec
 
 /*
 Family A (extends P)? {
-    type R (+)?= {(f: T = e)*}                  % extensible records w/ defaults
-    type R (+)?= \overline{C {(f: T)*}}         % extensible ADTs
-    val m : (T -> T') = (lam (x : T). body)     % functions w/ inputs
-    cases r <a.R> : {(f:T)*} -> {(C': T'->T'')*} =
+    type R (+)?= {(f: T = e)*}                         % extensible records w/ defaults
+    type R (+)?= \overline{C {(f: T)*}}                % extensible ADTs
+    val m : (T -> T') = (lam (x : T). body)            % functions w/ inputs
+    def f((x:T)*): T -> T (+)?=                        % sugar functions with stylized pattern match
+        overline{f(x*) C(f*) = e}
+    cases r <a.R> : {(f:T)*} -> {(C': T'->T'')*} (+)?= % extensible cases
         lam (x:{(f:T)*}). {(C' = lam (x: T'). body)*}
-    Family C (extends P')? { ... }               % nested families
+    Family C (extends P')? { ... }                     % nested families
 }
  */
 
@@ -47,9 +49,10 @@ class FamParser extends RegexParsers with PackratParsers {
   val kwIf: Parser[String] = "if\\b".r
   val kwThen: Parser[String] = "then\\b".r
   val kwElse: Parser[String] = "else\\b".r
+  val kwDef: Parser[String] = "def\\b".r
 
   val reserved: Parser[String] = kwMatch | kwWith | kwTrue | kwFalse | kwLam  | kwType | kwVal | kwFamily
-    | kwExtends | kwN | kwB | kwString | kwSelf | kwCases | kwIf | kwThen | kwElse
+    | kwExtends | kwN | kwB | kwString | kwSelf | kwCases | kwIf | kwThen | kwElse | kwDef
 
   // NAMES
   lazy val pVarName: Parser[String] = not(reserved) ~> """_|[a-z][a-zA-Z0-9_]*""".r
@@ -264,6 +267,18 @@ class FamParser extends RegexParsers with PackratParsers {
     kwCases ~> pFunctionName ~ pMatchType ~ (":" ~> optBetween("(", ")", pFunType)) ~ pMarker ~ pExp ^^ {
       case n~mt~ft~m~b => n -> CasesDefn(n, mt, ft, m, DefnBody(Some(b), None, None))
     }
+
+  lazy val pExtendedDef: PackratParser[(String, ExtendedDefn)] =
+    kwDef ~> pFunctionName ~ ("(" ~> repsep(pRecField, ",") <~ ")") ~ (":" ~> optBetween("(", ")", pFunType)) ~ pMarker >> {
+      case n~p~t~m => repsep(pExtendedDefCase(n), ";") ^^ {bs =>
+        n -> ExtendedDefn(n, p, t, m, DefnBody(Some(bs), None, None))}
+    }
+
+  def pExtendedDefCase(name: String): PackratParser[ExtendedDefCase] = {
+    name.r ~> ("(" ~> repsep(pFieldName, ",") <~ ")") ~ pConstructorName ~ ("(" ~> repsep(pFieldName, ",") <~ ")" <~ "=") ~ pExp ^^ {
+      case p0~c~p~e => ExtendedDefCase(p0, c, p, e)
+    }
+  }
 
   // A family can extend another family. If it does not, the parent is None.
   def pFamDef(selfPrefix: SelfPath): PackratParser[(String, Linkage)] = {

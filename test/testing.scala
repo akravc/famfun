@@ -404,6 +404,14 @@ class FamFunParserTesting extends AnyFunSuite {
       "lam (_: {}). {A = lam (x: B). 3, C = lam (x: B). 4}"))
   }
 
+  test("can parse extended definition syntax") {
+    assert(canParse(pExtendedDef, """
+def plus(n1: N): Exp -> N =
+  plus(n1) EBase() = n1;
+  plus(n1) ENat(n2) = n1 + n2
+"""))
+  }
+
   test("Var resolution: bound Var stays Var") {
     val inp =
       """

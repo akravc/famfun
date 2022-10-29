@@ -172,6 +172,11 @@ object famfun {
   def CasesDefn(name: String, matchType: FamType, t: Type, marker: Marker, casesBody: DefnBody[Expression]): CasesDefn =
     CasesDefn(name, matchType, t, List(t), marker, casesBody)
 
+  // Extended function definitions
+  case class ExtendedDefn(name: String, params: List[(String, Type)], t: Type, marker: Marker, bodies: DefnBody[List[ExtendedDefCase]])
+
+  case class ExtendedDefCase(params0: List[String], constructor: String, params: List[String], body: Expression)
+
   /* ======================== LINKAGES ======================== */
 
   case class Linkage(path: Path,
