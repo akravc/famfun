@@ -271,12 +271,19 @@ class FamParser extends RegexParsers with PackratParsers {
   // TODO(now)
   type ExtendedDef = String
   case class ExtendedDefCase(constructor: String, params: List[(String, Type)], body: Expression)
-  def extendedDef(name: String, params: List[(String, Type)], matchType: FamType, t: Type, marker: Marker, bodies: List[ExtendedDefCase]): PackratParser[(String, ExtendedDef)] = {
-    success(name -> name)
+  def extendedDef(name: String, params: List[(String, Type)], matchType: FamType, returnType: Type, marker: Marker, bodies: List[ExtendedDefCase]): PackratParser[(String, ExtendedDef)] = {
+    if (hasDuplicateName(params)) failure(s"duplicate name in $params")
+    else if (hasDuplicateName(bodies.map{(_.constructor -> 0)})) failure("duplicate constructor")
+    else {
+      val t = RecType(bodies.map{c => (c.constructor -> FunType(RecType(c.params.toMap), returnType))}.toMap)
+      success(name -> name)
+    }
   }
   def extendedDefCase(name: String, params0: List[(String, Type)], repeatedParams0: List[String], constructor: String, params: List[(String, Type)], body: Expression): PackratParser[ExtendedDefCase] = {
     if (params0.map(_._1) != repeatedParams0)
       failure(s"expect parameters $params0 and $repeatedParams0 to match")
+    else if (hasDuplicateName(params))
+      failure(s"duplicate names in $params")
     else success(ExtendedDefCase(constructor, params, body))
   }
 
