@@ -18,7 +18,7 @@ object A2$B2 {
   
 
   // Path interface
-  trait Interface extends A2$B1.Interface with A1$B2.Interface {
+  trait Interface extends A2$B1.Interface with A1$B2.Interface { self$ =>
     // Self Named types
     type X
   
@@ -26,18 +26,18 @@ object A2$B2 {
     type Exp
   
     // Functions
-    val ev: this.Exp => Int
+    val ev: self$.Exp => Int
     val f: Int => Int
   
     // Cases
-    def evc(matched: this.Exp): Unit => Int
+    def evc(matched: self$.Exp): Unit => Int
   
     // Translations
     def A2$B2$$Exp(from: A2$B2.Exp): Exp
   }
 
   // Path implementation
-  object Family extends A2$B2.Interface {
+  object Family extends A2$B2.Interface { self$ =>
     // Self named types instantiation
     override type X = A2$B2.X
   
@@ -45,15 +45,15 @@ object A2$B2 {
     override type Exp = A2$B2.Exp
   
     // Function implementations
-    override val ev: this.Exp => Int = ev$Impl(A2.Family, this)
+    override val ev: self$.Exp => Int = ev$Impl(A2.Family, self$)
     def ev$Impl(self$1: A2.Interface, self$: A2$B2.Interface): self$.Exp => Int =
       A1$B1.Family.ev$Impl(self$1, self$)
-    override val f: Int => Int = f$Impl(A2.Family, this)
+    override val f: Int => Int = f$Impl(A2.Family, self$)
     def f$Impl(self$1: A2.Interface, self$: A2$B2.Interface): Int => Int =
       A1$B2.Family.f$Impl(self$1, self$)
   
     // Cases implementations
-    def evc(matched: this.Exp): Unit => Int = evc$Impl(A2.Family, this)(matched)
+    def evc(matched: self$.Exp): Unit => Int = evc$Impl(A2.Family, self$)(matched)
     def evc$Impl(self$1: A2.Interface, self$: A2$B2.Interface)(matched: A2$B2.Exp): Unit => Int = (unit: Unit) => matched match {
       case matched@A2$B2.EPlus(_, _) =>
         val x: A2$B2.EPlus[self$.Exp] = matched.asInstanceOf[A2$B2.EPlus[self$.Exp]]
