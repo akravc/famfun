@@ -315,8 +315,9 @@ class FamParser extends RegexParsers with PackratParsers {
       val fun = marker match {
         case Eq => {
           val body0 = Lam(matched_var, matchType, Match(matched_var,
-            App(FamCases(None, name_cases), Rec(params.map{(k,_) => (k -> Var(k))}.toMap))))
-          val body = params.foldRight(body0){case ((p,t),r) =>
+            App(FamCases(None, name_cases), Rec(params.map{(k,_) => (k -> Var("_"+k))}.toMap))))
+          val paramsTr = params.map{(k,v) => ("_"+k, v)}.toMap
+          val body = paramsTr.foldRight(body0){case ((p,t),r) =>
             Lam(Var(p), t, r)
           }
           Some(FunDefn(name, foldedType, DefnBody(Some(body), None, None)))
