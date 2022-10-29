@@ -281,6 +281,7 @@ class FamParser extends RegexParsers with PackratParsers {
     val f = var2proj(x, s)
     e match {
       case Var(id) if s.contains(id) => Proj(x, id)
+      case Lam(v, t, body) => Lam(v, t, f(body))
       case App(e1, e2) => App(f(e1), f(e2))
       case Rec(fields) => Rec(fields.mapValues(f).toMap)
       case Proj(e, name) => Proj(f(e), name)
