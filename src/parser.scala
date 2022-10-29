@@ -298,6 +298,7 @@ class FamParser extends RegexParsers with PackratParsers {
       val name_cases = name+cases_suffix
       val x = Var("$x")
       val matched = "matched"
+      val matched_var = Var("$m")
       val casesType = RecType(bodies.map{c => (c.constructor -> FunType(RecType(c.params.toMap), returnType))}.toMap)
       val params_plus_matched = params ++ List(matched -> matchType)
       val inputType = RecType(params_plus_matched.toMap)
@@ -312,8 +313,8 @@ class FamParser extends RegexParsers with PackratParsers {
       }
       val b = Lam(x, inputType, Rec(bodies.map{c => c.constructor ->
         var2proj(x, params.map(_._1).toSet)(
-          Lam(Var(matched), RecType(c.params.toMap),
-            var2proj(Var(matched), c.params.map(_._1).toSet)(
+          Lam(matched_var, RecType(c.params.toMap),
+            var2proj(matched_var, c.params.map(_._1).toSet)(
               c.body)))}.toMap))
       val cases = CasesDefn(name_cases, matchType, t, marker, DefnBody(Some(b), None, None))
       success(name -> (fun, cases))
