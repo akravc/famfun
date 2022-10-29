@@ -5,7 +5,7 @@ Family Adjust1 {
 
   Family LangBase {
     type Val =
-      Val_int {i : N} // TODO: parens instead
+      Val_int {i : N}
     | Val_String {s : String}
 
     val pretty_Val : (Val -> String) =
