@@ -268,21 +268,47 @@ class FamParser extends RegexParsers with PackratParsers {
       case n~mt~ft~m~b => n -> CasesDefn(n, mt, ft, m, DefnBody(Some(b), None, None))
     }
 
-  // TODO(now)
+
+  // Replaces occurrences of a variable id in s with a projection x.id
+  def var2proj(x: Var, s: Set[String])(e: Expression): Expression = {
+    val f = var2proj(x, s)
+    e match {
+      case Var(id) if s.contains(id) => Proj(x, id)
+      case App(e1, e2) => App(f(e1), f(e2))
+      case Rec(fields) => Rec(fields.mapValues(f).toMap)
+      case Proj(e, name) => Proj(f(e), name)
+      case Inst(t, rec) => Inst(t, f(rec).asInstanceOf[Rec])
+      case InstADT(t, cname, rec) => InstADT(t, cname, f(rec).asInstanceOf[Rec])
+      case Match(e, g) => Match(f(e), f(g))
+      case IfThenElse(a, b, c) => IfThenElse(f(a), f(b), f(c))
+      case ABinExp(a1, op, a2) => ABinExp(f(a1), op, f(a2))
+      case BBinExp(e1, op, e2) => BBinExp(f(e1), op, f(e2))
+      case BNot(e) => BNot(f(e))
+      case _ => e
+    }
+  }
+
   type ExtendedDef = String
   case class ExtendedDefCase(constructor: String, params: List[(String, Type)], body: Expression)
   def extendedDef(name: String, params: List[(String, Type)], matchType: FamType, returnType: Type, marker: Marker, bodies: List[ExtendedDefCase]): PackratParser[(String, ExtendedDef)] = {
     if (hasDuplicateName(params)) failure(s"duplicate name in $params")
     else if (hasDuplicateName(bodies.map{(_.constructor -> 0)})) failure("duplicate constructor")
     else {
-      val t = RecType(bodies.map{c => (c.constructor -> FunType(RecType(c.params.toMap), returnType))}.toMap)
       val name_cases = s"${name}_$$cases"
       val x = Var("$x")
       val matched = "$m"
+      val casesType = RecType(bodies.map{c => (c.constructor -> FunType(RecType(c.params.toMap), returnType))}.toMap)
+      val params_plus_matched = params ++ List(matched -> matchType)
+      val inputType = RecType(params_plus_matched.toMap)
+      val t = FunType(inputType, casesType)
       val fun = marker match {
-        case Eq => Some(Match(Proj(x, matched), App(FamCases(None, name_cases), x)))
+        case Eq => Some(
+          FunDefn(name, FunType(inputType, returnType),
+            DefnBody(Some(Match(Proj(x, matched), App(FamCases(None, name_cases), x))), None, None)))
         case PlusEq => None
       }
+      val b = Lam(x, inputType, Rec(bodies.map{c => c.constructor -> var2proj(x, params.map(_._1).toSet)(c.body)}.toMap))
+      val cases = CasesDefn(name_cases, matchType, t, marker, DefnBody(Some(b), None, None))
       success(name -> name)
     }
   }
