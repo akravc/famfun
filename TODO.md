@@ -44,9 +44,9 @@
 
 - [ ] Update any documentation formal rules comments.
 
-- [ ] Why do we need `import reflect.Selectable.reflectiveSelectable` in generated code?
+- [x] Why do we need `import reflect.Selectable.reflectiveSelectable` in generated code? We need it for records.
 
-- [ ] Implement new syntax.
+- [x] Implement new syntax.
 
 - [ ] Implement Option type or polymorphism.
 
