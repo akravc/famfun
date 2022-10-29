@@ -288,13 +288,14 @@ class FamParser extends RegexParsers with PackratParsers {
     }
   }
 
+  val cases_suffix = "_cases"
   type ExtendedDef = (Option[FunDefn], CasesDefn)
   case class ExtendedDefCase(constructor: String, params: List[(String, Type)], body: Expression)
   def extendedDef(name: String, params: List[(String, Type)], matchType: FamType, returnType: Type, marker: Marker, bodies: List[ExtendedDefCase]): PackratParser[(String, ExtendedDef)] = {
     if (hasDuplicateName(params)) failure(s"duplicate name in $params")
     else if (hasDuplicateName(bodies.map{(_.constructor -> 0)})) failure("duplicate constructor")
     else {
-      val name_cases = s"${name}_$$cases"
+      val name_cases = name+cases_suffix
       val x = Var("$x")
       val matched = "matched"
       val casesType = RecType(bodies.map{c => (c.constructor -> FunType(RecType(c.params.toMap), returnType))}.toMap)
@@ -350,7 +351,7 @@ class FamParser extends RegexParsers with PackratParsers {
       )
     } yield {
       val funs = funs0 ++ extended.filter{_._2._1.nonEmpty}.map{(k,v) => (k -> v._1.get)}
-      val cases = cases0 ++ extended.map{(k,v) => (k -> v._2)}
+      val cases = cases0 ++ extended.map{(k,v) => (k+cases_suffix -> v._2)}
 
       if hasDuplicateName(typs) then throw new Exception("Parsing duplicate type names.")
       else if hasDuplicateName(adts) then throw new Exception("Parsing duplicate ADT names.")
