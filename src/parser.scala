@@ -276,6 +276,13 @@ class FamParser extends RegexParsers with PackratParsers {
     else if (hasDuplicateName(bodies.map{(_.constructor -> 0)})) failure("duplicate constructor")
     else {
       val t = RecType(bodies.map{c => (c.constructor -> FunType(RecType(c.params.toMap), returnType))}.toMap)
+      val name_cases = s"${name}_$$cases"
+      val x = Var("$x")
+      val matched = "$m"
+      val fun = marker match {
+        case Eq => Some(Match(Proj(x, matched), App(FamCases(None, name_cases), x)))
+        case PlusEq => None
+      }
       success(name -> name)
     }
   }
