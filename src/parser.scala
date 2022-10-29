@@ -268,15 +268,21 @@ class FamParser extends RegexParsers with PackratParsers {
       case n~mt~ft~m~b => n -> CasesDefn(n, mt, ft, m, DefnBody(Some(b), None, None))
     }
 
+  // TODO(now)
+  type ExtendedDefn = String
+  type ExtendedDefCase = String
+  def extendedDef(name: String, params: List[(String, Type)], t: Type, marker: Marker, bodies: List[String]) = name
+  def extendedDefCase(params0: List[String], constructor: String, params: List[(String, Type)], body: Expression) = constructor
+
   lazy val pExtendedDef: PackratParser[(String, ExtendedDefn)] =
     kwDef ~> pFunctionName ~ ("(" ~> repsep(pRecField, ",") <~ ")") ~ (":" ~> optBetween("(", ")", pFunType)) ~ pMarker >> {
       case n~p~t~m => repsep(pExtendedDefCase(n, p.size), ";") ^^ {bs =>
-        n -> ExtendedDefn(n, p, t, m, DefnBody(Some(bs), None, None))}
+        n -> extendedDef(n, p, t, m, bs)}
     }
 
   def pExtendedDefCase(name: String, paramCount: Int): PackratParser[ExtendedDefCase] = {
-    name.r ~> ("(" ~> repNM(paramCount, paramCount, pFieldName, ",") <~ ")") ~ pConstructorName ~ ("(" ~> repsep(pFieldName, ",") <~ ")" <~ "=") ~ pExp ^^ {
-      case p0~c~p~e => ExtendedDefCase(p0, c, p, e)
+    name.r ~> ("(" ~> repNM(paramCount, paramCount, pFieldName, ",") <~ ")") ~ pConstructorName ~ ("{" ~> repsep(pRecField, ",") <~ "}" <~ "=") ~ pExp ^^ {
+      case p0~c~p~e => extendedDefCase(p0, c, p, e)
     }
   }
 
