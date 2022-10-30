@@ -1326,6 +1326,36 @@ Family A {
     assertResult(Right(()))(typecheckProcess(prog))
   }
 
+  test("wildcard unfolding: parent only: extended syntax") {
+    val prog: String = """
+Family Base {
+  type T = C1 {} | C2 {n: N} | C3 {b: B}
+  def f: T -> B =
+    case C3{b: B} = b;
+    case _ = false
+}
+"""
+    assertResult(Right(()))(typecheckProcess(prog))
+  }
+
+  test("wildcard unfolding: parent and child: extended syntax") {
+    val prog: String = """
+Family Base {
+  type T = C1 {} | C2 {n: N} | C3 {b: B}
+  def f: T -> B =
+    case C3{b: B} = b;
+    case _ = false
+}
+Family Ext extends Base {
+  type T += C4 {} | C5 {b: B}
+  def f: T -> B +=
+    case C5{b: B} = b;
+    case _ = false
+}
+"""
+    assertResult(Right(()))(typecheckProcess(prog))
+  }
+
   test("wildcard unfolding: incomplete match") {
     val prog : String =
       ("Family Base {" +

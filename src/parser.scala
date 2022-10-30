@@ -346,9 +346,9 @@ class FamParser extends RegexParsers with PackratParsers {
     }
 
   lazy val pExtendedDefCase: PackratParser[ExtendedDefCase] =
-    kwCase ~> pConstructorName ~ ("{" ~> repsep(pRecField, ",") <~ "}" <~ "=") ~ pExp >> {
+    (kwCase ~> pConstructorName ~ ("{" ~> repsep(pRecField, ",") <~ "}" <~ "=") ~ pExp >> {
       case c~p~e => extendedDefCase(c, p, e)
-    }
+    }) | (kwCase ~> "_" ~> "=" ~> pExp >> {e => extendedDefCase("_", Nil, e)})
 
   // A family can extend another family. If it does not, the parent is None.
   def pFamDef(selfPrefix: SelfPath): PackratParser[(String, Linkage)] = {
