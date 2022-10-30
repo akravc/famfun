@@ -6,7 +6,7 @@ import TestFamParser._
 import main._
 import scala.language.postfixOps
 
-class FamFunParserTesting extends AnyFunSuite {
+class ParserTesting extends AnyFunSuite {
   /* ==================================== PARSER TESTING ==================================== */
 
   // Parsing Paths
@@ -474,7 +474,7 @@ def ev: Exp -> N =
   }
 }
 
-class FamFunTesting extends AnyFunSuite {
+class Testing extends AnyFunSuite {
   /* ==================================== TYPECHECKER TESTING ==================================== */
 
   // TESTING IS_VALUE
