@@ -1309,7 +1309,7 @@ Family A {
     assertResult(Right(()))(typecheckProcess(prog))
   }
 
-  ignore("wildcard unfolding: parent and child") {
+  test("wildcard unfolding: parent and child") {
     val prog : String =
       ("Family Base {" +
         "type T = C1 {} | C2 {n: N} | C3 {b: B}" +
@@ -1319,7 +1319,7 @@ Family A {
         "}" +
         "Family Ext extends Base {" +
         "type T += C4 {} | C5 {b: B}" +
-        "cases fcases <T> : {} -> {C5: {b: B} -> B, _: {} -> B} = " +
+        "cases fcases <T> : {} -> {C5: {b: B} -> B, _: {} -> B} += " +
         "lam (_: {}). {C5 = lam (r: {b: B}). r.b, _ = lam (_:{}). false}" +
         "}"
         );
