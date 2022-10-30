@@ -1298,8 +1298,7 @@ Family A {
 
   /* ==================================== wildcard unfolding ==================================== */
 
-  // TODO(now): it doesn't look like wildcard unfolding is implemented?
-  ignore("wildcard unfolding: parent only") {
+  test("wildcard unfolding: parent only") {
     val prog : String =
       ("Family Base {" +
         "type T = C1 {} | C2 {n: N} | C3 {b: B}" +
@@ -1310,7 +1309,6 @@ Family A {
     assertResult(Right(()))(typecheckProcess(prog))
   }
 
-  // TODO(now): ditto?
   ignore("wildcard unfolding: parent and child") {
     val prog : String =
       ("Family Base {" +

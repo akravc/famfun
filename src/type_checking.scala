@@ -699,7 +699,50 @@ object type_checking {
     } yield result
   }
   def unfoldWildcards(path: Path, lkg: Linkage): Either[String, Linkage] = {
-    Right(lkg)
+    val depot = lkg.depot.mapValues{ casesDefn =>
+      if (casesDefn.matchType.path==Some(Sp(lkg.self)) &&
+        (casesDefn.t match {
+          case FunType(_, RecType(fields)) if fields.contains("_") => true
+          case _ => false
+        })) {
+        val wildcardCase = casesDefn.casesBody match {
+          case DefnBody(Some(Lam(_, _, Rec(fields))), _, _, _) => fields("_")
+        }
+        val (wildcardVar, wildcardBody) = wildcardCase match {
+          case Lam(v, _, body) => (v, body)
+        }
+        val presentConstructors = casesDefn.casesBody match {
+          case DefnBody(Some(Lam(_, _, Rec(fields))), _, _, _) => fields.keys.toSet - "_"
+        }
+        val constructors = lkg.adts(casesDefn.matchType.name).adtBody match {
+          case DefnBody(Some(body), _, _, _) => body
+        }
+        val unfoldedCases = for {
+          (c,t) <- constructors
+          if !presentConstructors.contains(c)
+        } yield (c -> Lam(wildcardVar, t, wildcardBody))
+        val (context, returnType, presentFields) = casesDefn.t match {
+          case FunType(c, RecType(fields)) => (c,
+            fields("_") match { case FunType(_, r) => r },
+            fields - "_")
+        }
+        val unfoldedTypes = for {
+          (c,t) <- constructors
+          if !presentConstructors.contains(c)
+        } yield (c -> FunType(t, returnType))
+        val newT = FunType(context, RecType(presentFields ++ unfoldedTypes))
+        val newBody = casesDefn.casesBody match {
+          case DefnBody(Some(Lam(v, t, Rec(fields))), _, _, _) =>
+            Lam(v, t, Rec((fields - "_") ++ unfoldedCases))
+        }
+        val newCasesDefn = casesDefn match {
+          case CasesDefn(name, matchType, _, _, marker, DefnBody(_, extendsFrom, furtherBindsFrom, _)) =>
+            CasesDefn(name, matchType, newT, marker, DefnBody(Some(newBody), extendsFrom, furtherBindsFrom))
+        }
+        newCasesDefn
+      } else casesDefn
+    }.toMap
+    Right(lkg.copy(depot = depot))
   }
   def resolveImplicitPathsInSigs(l: Linkage): Unit = {
     val curPath: Path = l.path
