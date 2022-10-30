@@ -276,7 +276,7 @@ class FamParser extends RegexParsers with PackratParsers {
     }
 
 
-  // Replaces occurrences of a variable id in s with a projection x.id
+  // Replaces occurrences of any variable id in s with a projection x.id
   def var2proj(x: Expression, s: Set[String])(e: Expression): Expression = {
     val f = var2proj(x, s)
     e match {
