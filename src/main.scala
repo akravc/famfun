@@ -9,7 +9,7 @@ import java.io.File
 import java.io.PrintWriter
 import scala.io.Source
 
-object main {
+object persimmon_main {
   def typecheckProcess(inp: String): Either[String, Unit] = {
     val parsed = parse0(pProgram, inp)
     parsed match {
