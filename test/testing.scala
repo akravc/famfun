@@ -3,7 +3,7 @@ import rep._
 import name_resolution._
 import type_checking._
 import TestFamParser._
-import main._
+import persimmon_main._
 import scala.language.postfixOps
 
 class ParserTesting extends AnyFunSuite {
