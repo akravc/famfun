@@ -1,4 +1,4 @@
-import famfun.*
+import rep.*
 import TestFamParser.*
 import PrettyPrint.*
 import name_resolution.*
@@ -9,7 +9,7 @@ import java.io.File
 import java.io.PrintWriter
 import scala.io.Source
 
-object famfun_main {
+object main {
   def typecheckProcess(inp: String): Either[String, Unit] = {
     val parsed = parse0(pProgram, inp)
     parsed match {

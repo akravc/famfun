@@ -1,6 +1,6 @@
 import scala.annotation.tailrec
 
-object famfun {
+object rep {
   /* ======================== FAMILIES & PATHS ======================== */
 
   // Path a := sp | a.A

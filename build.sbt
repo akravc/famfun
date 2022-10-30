@@ -1,6 +1,6 @@
 lazy val root = (project in file("."))
   .settings(
-    name := "famfun",
+    name := "persimmon",
     scalaVersion := "3.2.0",
     libraryDependencies += "org.scala-lang.modules" %% "scala-parser-combinators" % "2.1.1",
     libraryDependencies += "org.scalactic" %% "scalactic" % "3.2.14",

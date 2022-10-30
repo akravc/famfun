@@ -1,9 +1,9 @@
 import org.scalatest.funsuite.AnyFunSuite
-import famfun._
+import rep._
 import name_resolution._
 import type_checking._
 import TestFamParser._
-import famfun_main._
+import main._
 import scala.language.postfixOps
 
 class FamFunParserTesting extends AnyFunSuite {

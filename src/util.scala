@@ -1,4 +1,4 @@
-import famfun._
+import rep._
 
 object PrettyPrint {
   def print_selfPath(sp: SelfPath): String = sp match {

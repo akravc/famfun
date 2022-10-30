@@ -1,8 +1,8 @@
-# famfun
+# Persimmon
 
 We include the following files:
 - `build.sbt`, with our SBT settings
-- `src/famfun.scala`, with the representation of our system
+- `src/rep.scala`, with the representation of our system
 - `src/type_checking.scala`, with our typechecker and linkage creation/concatenation engine
 - `src/code_generation.scala`, our translator to Scala code
 - `src/parser.scala`, with our parser
