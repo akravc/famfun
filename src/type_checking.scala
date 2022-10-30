@@ -700,6 +700,7 @@ object type_checking {
   }
   def unfoldWildcards(path: Path, lkg: Linkage): Either[String, Linkage] = {
     val depot = lkg.depot.mapValues{ casesDefn =>
+      // TODO(now): rewrite to use proper Left and Right.
       if (casesDefn.matchType.path==Some(Sp(lkg.self)) &&
         (casesDefn.t match {
           case FunType(_, RecType(fields)) if fields.contains("_") => true

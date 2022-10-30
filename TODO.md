@@ -52,4 +52,4 @@
 
 - [ ] Avoid unnecessary casts in codegen.
 
-- [ ] Ensure wildcards work.
+- [x] Ensure wildcards work.
