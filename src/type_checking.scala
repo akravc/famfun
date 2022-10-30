@@ -694,9 +694,12 @@ object type_checking {
         case None => Right(None)
         case Some(supP) => getInexactCompleteLinkage(supP).map(Some.apply)
       }
-
-      result <- concatLinkages(Extends)(optSupLkg, incompleteCurLkg)
+      incompleteUnfoldedCurLkg <- unfoldWildcards(path, incompleteCurLkg)
+      result <- concatLinkages(Extends)(optSupLkg, incompleteUnfoldedCurLkg)
     } yield result
+  }
+  def unfoldWildcards(path: Path, lkg: Linkage): Either[String, Linkage] = {
+    Right(lkg)
   }
   def resolveImplicitPathsInSigs(l: Linkage): Unit = {
     val curPath: Path = l.path
