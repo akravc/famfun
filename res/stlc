@@ -92,15 +92,18 @@ Family BaseComp {
       case EApp{v: Val, vs: ListVal} = Exp(EApp{v = substVal(y, v0, v), vs = map(substVal(y, v0), vs)});
       case EHalt{v: Val} = Exp(EHalt{v = substVal(y, v0, v)})
 
-    def substVal(y: String, v0: Val): Val -> Val =
-      case U{} = Val(U{});
-      case Var{x: String} = if x==y then v0 else Val(Var{x = x})
+    def substVal(y: String, v0: Val): Val -> self(self(BaseComp).IL).Val =
+      case U{} = self(self(BaseComp).IL).Val(U{});
+      case Var{x: String} = if x==y then v0 else self(self(BaseComp).IL).Val(Var{x = x})
   }
 
   Family ILK extends self(BaseComp).IL {
-    type Val += Lam{xs: self(BaseComp).ListString, e: Exp}
+    type Val += Lam{xs: self(BaseComp).ListString, e: self(self(BaseComp).ILK).Exp}
 
     def apply(fs: ListFun, vs: ListVal): Val -> self(self(BaseComp).ILK).OptionVal +=
-      case Lam{xs: self(BaseComp).ListString, e: Exp} = eval(fs, substs(xs, vs, e))
+      case Lam{xs: self(BaseComp).ListString, e: self(self(BaseComp).ILK).Exp} = eval(fs, substs(xs, vs, e))
+
+    def substVal(y: String, v0: Val): Val -> self(self(BaseComp).ILK).Val +=
+      case Lam{xs: self(BaseComp).ListString, e: self(self(BaseComp).ILK).Exp} = self(self(BaseComp).ILK).Val(Lam{xs = xs, e = e}) // TODO
   }
 }
