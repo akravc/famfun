@@ -65,22 +65,22 @@ Family BaseComp {
     type Exp = ELet{x: String, v: Val, e: Exp} | EApp{v: Val, vs: ListVal} | EHalt{v: Val}
     type Fun = MkFun{n: String, xs: self(BaseComp).ListString, e: Exp}
 
-    type ListTy = NilTy{} | ConsTy{head: Ty, tail: ListTy}
-    type ListVal = NilVal{} | ConsVal{head: Val, tail: ListVal}
-    type ListFun = NilFun{} | ConsFun{head: Fun, tail: ListFun}
+    type ListTy = NilTy{} | ConsTy{head: self(self(BaseComp).IL).Ty, tail: self(self(BaseComp).IL).ListTy}
+    type ListVal = NilVal{} | ConsVal{head: self(self(BaseComp).IL).Val, tail: self(self(BaseComp).IL).ListVal}
+    type ListFun = NilFun{} | ConsFun{head: self(self(BaseComp).IL).Fun, tail: self(self(BaseComp).IL).ListFun}
 
-    type OptionVal = None{} | Some{v: Val}
-    def bind(f: Val -> self(self(BaseComp).IL).OptionVal): self(self(BaseComp).IL).OptionVal -> self(self(BaseComp).IL).OptionVal =
-      case None{} = self(self(BaseComp).IL).OptionVal(None{});
-      case Some{v: Val} = f(v)
+    type OptionVal = None{} | Some{v: self(self(BaseComp).IL).Val}
 
-    def map(f: Val -> Val): ListVal -> ListVal =
-      case NilVal{} = ListVal(NilVal{});
-      case ConsVal{head: Val, tail: ListVal} = ListVal(ConsVal{head = f(head), tail = map(f, tail)})
+    val substs: self(BaseComp).ListString -> ListVal -> Exp -> Exp =
+      lam(ys: self(BaseComp).ListString). lam(vs: ListVal). lam(e: Exp). e // TODO
+
+    def map(f: self(self(BaseComp).IL).Val -> self(self(BaseComp).IL).Val): self(self(BaseComp).IL).ListVal -> self(self(BaseComp).IL).ListVal =
+      case NilVal{} = self(self(BaseComp).IL).ListVal(NilVal{});
+      case ConsVal{head: self(self(BaseComp).IL).Val, tail: self(self(BaseComp).IL).ListVal} = self(self(BaseComp).IL).ListVal(ConsVal{head = f(head), tail = map(f, tail)})
 
     def eval(fs: ListFun): Exp -> self(self(BaseComp).IL).OptionVal =
       case ELet{x: String, v: Val, e: Exp} = eval(fs, subst(x, v, e));
-      case EApp{v: Val, vs: ListVal} = apply(fs, vs, v);//bind(apply(fs, vs), eval(fs, v));
+      case EApp{v: Val, vs: ListVal} = apply(fs, vs, v);
       case EHalt{v: Val} = self(self(BaseComp).IL).OptionVal(Some{v = v})
 
     def apply(fs: ListFun, vs: ListVal): Val -> self(self(BaseComp).IL).OptionVal =
@@ -95,5 +95,12 @@ Family BaseComp {
     def substVal(y: String, v0: Val): Val -> Val =
       case U{} = Val(U{});
       case Var{x: String} = if x==y then v0 else Val(Var{x = x})
+  }
+
+  Family ILK extends self(BaseComp).IL {
+    type Val += Lam{xs: self(BaseComp).ListString, e: Exp}
+
+    def apply(fs: ListFun, vs: ListVal): Val -> self(self(BaseComp).ILK).OptionVal +=
+      case Lam{xs: self(BaseComp).ListString, e: Exp} = eval(fs, substs(xs, vs, e))
   }
 }
