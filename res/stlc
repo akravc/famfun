@@ -53,3 +53,47 @@ Family STLCIf extends STLCBase {
     case True{} = Exp(EVal{v = Val(True{})});
     case False{} = Exp(EVal{v = Val(False{})})
 }
+
+Family BaseComp {
+  type ListString = NilString{} | ConsString{head: String, tail: ListString}
+
+  Family STLC extends STLCBase {}
+
+  Family IL {
+    type Ty = TUnit{} | TCont{ts: ListTy}
+    type Val = U{} | Var{x: String}
+    type Exp = ELet{x: String, v: Val, e: Exp} | EApp{v: Val, vs: ListVal} | EHalt{v: Val}
+    type Fun = MkFun{n: String, xs: self(BaseComp).ListString, e: Exp}
+
+    type ListTy = NilTy{} | ConsTy{head: Ty, tail: ListTy}
+    type ListVal = NilVal{} | ConsVal{head: Val, tail: ListVal}
+    type ListFun = NilFun{} | ConsFun{head: Fun, tail: ListFun}
+
+    type OptionVal = None{} | Some{v: Val}
+    def bind(f: Val -> self(self(BaseComp).IL).OptionVal): self(self(BaseComp).IL).OptionVal -> self(self(BaseComp).IL).OptionVal =
+      case None{} = self(self(BaseComp).IL).OptionVal(None{});
+      case Some{v: Val} = f(v)
+
+    def map(f: Val -> Val): ListVal -> ListVal =
+      case NilVal{} = ListVal(NilVal{});
+      case ConsVal{head: Val, tail: ListVal} = ListVal(ConsVal{head = f(head), tail = map(f, tail)})
+
+    def eval(fs: ListFun): Exp -> self(self(BaseComp).IL).OptionVal =
+      case ELet{x: String, v: Val, e: Exp} = eval(fs, subst(x, v, e));
+      case EApp{v: Val, vs: ListVal} = apply(fs, vs, v);//bind(apply(fs, vs), eval(fs, v));
+      case EHalt{v: Val} = self(self(BaseComp).IL).OptionVal(Some{v = v})
+
+    def apply(fs: ListFun, vs: ListVal): Val -> self(self(BaseComp).IL).OptionVal =
+      case _ = self(self(BaseComp).IL).OptionVal(None{})
+
+    def subst(y: String, v0: Val): Exp -> Exp =
+      case ELet{x: String, v: Val, e: Exp} =
+        if x==y then Exp(ELet{x=x, v=substVal(y, v0, v), e=e}) else Exp(ELet{x=x, v=substVal(y, v0, v), e=subst(y, v0, e)});
+      case EApp{v: Val, vs: ListVal} = Exp(EApp{v = substVal(y, v0, v), vs = map(substVal(y, v0), vs)});
+      case EHalt{v: Val} = Exp(EHalt{v = substVal(y, v0, v)})
+
+    def substVal(y: String, v0: Val): Val -> Val =
+      case U{} = Val(U{});
+      case Var{x: String} = if x==y then v0 else Val(Var{x = x})
+  }
+}
