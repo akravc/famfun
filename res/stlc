@@ -103,7 +103,10 @@ Family BaseComp {
 
     // TODO: this should be defined only in ILC
     def unpack(fs: self(self(BaseComp).IL).ListFun, alpha: String, x: String, e: self(self(BaseComp).IL).Exp): Val -> self(self(BaseComp).IL).OptionVal =
-      case _ = self(self(BaseComp).IL).OptionVal(None{})
+      // TODO: should be possible to define this way
+      // case _ = self(self(BaseComp).IL).OptionVal(None{})
+      case U{} = self(self(BaseComp).IL).OptionVal(None{});
+      case Var{x: String} = self(self(BaseComp).IL).OptionVal(None{})
   }
 
   Family ILK extends self(BaseComp).IL {
@@ -117,7 +120,9 @@ Family BaseComp {
 
     // TODO: shouldn't be needed here!
     def unpack(fs: self(self(BaseComp).ILK).ListFun, alpha: String, x: String, e: self(self(BaseComp).ILK).Exp): Val -> self(self(BaseComp).ILK).OptionVal +=
-      case _ = self(self(BaseComp).ILK).OptionVal(None{})
+      // TODO: this way
+      // case _ = self(self(BaseComp).ILK).OptionVal(None{})
+      case Lam{xs: Help.ListString, e: self(self(BaseComp).ILK).Exp} = self(self(BaseComp).ILK).OptionVal(None{})
   }
 
   Family ILC extends self(BaseComp).IL {
@@ -133,7 +138,9 @@ Family BaseComp {
 
     def unpack(fs: self(self(BaseComp).ILC).ListFun, alpha: String, x: String, e: self(self(BaseComp).ILC).Exp): Val -> self(self(BaseComp).ILC).OptionVal +=
       case Pack{t: self(self(BaseComp).ILC).Ty, v: self(self(BaseComp).ILC).Val} = eval(fs, subst(x, v, substTy(alpha, t, e)));
-      case _ = self(self(BaseComp).ILC).OptionVal(None{})
+      // TODO: this way
+      // case _ = self(self(BaseComp).ILC).OptionVal(None{})
+      case Name{n: String} = self(self(BaseComp).ILC).OptionVal(None{})
 
     def subst(y: String, v0: Val): Exp -> self(self(BaseComp).ILC).Exp +=
       case EUnpack{alpha: String, x: String, v: Val, e: self(self(BaseComp).ILC).Exp} =
@@ -167,6 +174,11 @@ Family IfExt extends BaseComp {
       case EIf{v: Val, e1: Exp, e2: Exp} = self(self(IfExt).IL).Exp(EIf{v = substVal(y, v0, v), e1 = subst(y, v0, e1), e2 = subst(y, v0, e2)})
 
     def substVal(y: String, v0: Val): self(self(IfExt).IL).Val -> self(self(IfExt).IL).Val +=
-      case EInt{n: N} = self(self(IfExt).IL).Val(EInt{n = n})
+      case Int{i: N} = self(self(IfExt).IL).Val(Int{i = i})
+
+   def unpack(fs: self(self(IfExt).IL).ListFun, alpha: String, x: String, e: self(self(IfExt).IL).Exp): self(self(IfExt).IL).Val -> self(self(IfExt).IL).OptionVal +=
+      // TODO: this way
+      // case _ = self(self(IfExt).IL).OptionVal(None{})
+      case Int{i: N} = self(self(IfExt).IL).OptionVal(None{})
   }
 }
