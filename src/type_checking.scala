@@ -698,9 +698,9 @@ object type_checking {
       result <- concatLinkages(Extends)(optSupLkg, incompleteUnfoldedCurLkg)
     } yield result
   }
-  def unfoldWildcards(path: Path, lkg: Linkage): Either[String, Linkage] = {
-    val depot = lkg.depot.mapValues{ casesDefn =>
-      // TODO(now): rewrite to use proper Left and Right.
+
+  def unfoldWildcards(path: Path, lkg: Linkage): Either[String, Linkage] = for {
+    depot <- traverseMap(lkg.depot) { casesDefn =>
       if (casesDefn.matchType.path==Some(Sp(lkg.self)) &&
         (casesDefn.t match {
           case FunType(_, RecType(fields)) if fields.contains("_") => true
@@ -740,11 +740,11 @@ object type_checking {
           case CasesDefn(name, matchType, _, _, marker, DefnBody(_, extendsFrom, furtherBindsFrom, _)) =>
             CasesDefn(name, matchType, newT, marker, DefnBody(Some(newBody), extendsFrom, furtherBindsFrom))
         }
-        newCasesDefn
-      } else casesDefn
-    }.toMap
-    Right(lkg.copy(depot = depot))
-  }
+        Right(newCasesDefn)
+      } else Right(casesDefn)
+    }
+  } yield (lkg.copy(depot = depot))
+
   def resolveImplicitPathsInSigs(l: Linkage): Unit = {
     val curPath: Path = l.path
     // Resolve paths in type fields
