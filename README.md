@@ -20,4 +20,4 @@ To generate code, first create `mkdir -p test/gen` once.
 Then do `sbt "run EXAMPLE_FILE"`.
 For example, `sbt "run res/pretty_example"`.
 The generated code will be in `test/gen` and can be compiled with `sbt test`.
-The files `res/*scala` contains example main runs for the test. They can be copied to `test/gen` and ran with `test:run`.
+The files `res/*scala` contains example main runs for the test. They can be copied to `test/gen` and ran with `sbt test:run`.
