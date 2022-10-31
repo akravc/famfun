@@ -6,3 +6,7 @@ Family Outer {
 }
 Family OuterExt extends Outer {
 }
+Family WrapperMain {
+  val main: {} -> B = lam(ignore: {}).
+    OuterExt.Inner.foo(OuterExt.A(SomeA{}), true)
+}

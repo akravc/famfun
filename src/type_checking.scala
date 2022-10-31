@@ -661,7 +661,7 @@ object type_checking {
     // K |- sp.A ~> L
     // ______________________ L-Self
     // K |- self(sp.A) ~> L
-    val pathResolved0: Path = concretizePath0(p)
+    val pathResolved0: Path = concretizePath0(Sp(relativizePath(p)))
     val pathResolved: Path = concretizePath(p)
 
     cache.get(pathResolved) match {
