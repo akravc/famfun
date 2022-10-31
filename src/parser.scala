@@ -214,7 +214,7 @@ class FamParser extends RegexParsers with PackratParsers {
 
   lazy val pExpExtendedApp: PackratParser[Expression] =
     pPrimary ~ ("(" ~> repsep(pPrimary, ",") <~ ")") ^^ {
-      case e~gs => gs.foldLeft(e)(App)
+      case e~gs => gs.foldLeft(e)(App.apply)
     }
 
   lazy val pExp: PackratParser[Expression] = pCondAnd
