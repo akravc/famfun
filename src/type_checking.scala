@@ -1110,13 +1110,13 @@ object type_checking {
           case (FunType(RecType(prevFields), RecType(_)), FunType(RecType(curFields), curOutT@RecType(_))) =>
             // TODO: curFields cannot have a field overwriting one in prevFields with different type?
             Right(FunType(RecType(prevFields ++ curFields), curOutT))
-          case _ => Left("TODO invalid cases definition")
+          case _ => Left("Invalid cases definition: expected record or function type")
         }
         // For implementation purposes, we do not absorb inherited cases directly.
         // The result `DefnBody` is instead marked with information about where it inherits from,
         // which is used to look up those other cases recursively
       } yield CasesDefn(casesName, curMatchType, resultT, prevTs ++ curTs, PlusEq, mergeDefnBody(prevCasesDefn, curCasesDefn))
-      case _ => Left("TODO invalid cases definition")
+      case _ => Left("Invalid cases definition: expected +=")
     }
 
   // forall A,
