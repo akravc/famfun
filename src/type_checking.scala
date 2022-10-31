@@ -706,7 +706,20 @@ object type_checking {
         (casesDefn.t match {
           case FunType(_, RecType(fields)) if fields.contains("_") => true
           case _ => false
-        })) for {
+        }))
+        if (casesDefn.casesBody match {
+          case DefnBody(Some(_), _, _, _) => false
+          case _ => true
+        }) {
+          val newT = casesDefn.t match {
+            case FunType(inputType, RecType(fields)) => FunType(inputType, RecType(fields - "_"))
+          }
+          Right(casesDefn match {
+          case CasesDefn(name, matchType, _, _, marker, body) =>
+              CasesDefn(name, matchType, newT, marker, body)
+          })
+        }
+        else for {
         wildcardCase <- casesDefn.casesBody match {
           case DefnBody(Some(Lam(_, _, Rec(fields))), _, _, _) => fields.get("_").toRight("expected _ case in body")
         }
