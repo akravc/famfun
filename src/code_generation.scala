@@ -432,13 +432,15 @@ object code_generation {
     val inheritedClauses: List[String] = withRelativeMode(true)(
       //List(casesDefn.casesBody.extendsFrom, casesDefn.casesBody.furtherBindsFrom)
       List(findExtends(curPath), findFurtherBinds(curPath))
-        .zip(List(findExtends(matchTypePath), findFurtherBinds(matchTypePath)))
-        .collect { case (Some(inheritPath), Some(matchInheritPath)) =>
+        .collect { case Some(inheritPath) =>
           val inheritPathCode = pathIdentifier(curPath)(inheritPath)
-          val matchInheritPathCode = pathIdentifier(curPath)(concretizePath(matchInheritPath))
-          s"""case $matchTypePathId.$inheritPathCode$$$$${matchType.name}(inherited) =>
+          List(findExtends(matchTypePath), findFurtherBinds(matchTypePath))
+          .collect { case Some(inheritMatchPath) =>
+            val matchInheritPathCode = pathIdentifier(inheritMatchPath)(inheritMatchPath)
+            s"""case $matchTypePathId.$matchInheritPathCode$$$$${matchType.name}(inherited) =>
              |  $inheritPathCode.Family.${casesDefn.name}$$Impl(${generateConflictingSelfArgs(curPath)(inheritPath)})(inherited)($envParamName)""".stripMargin
-        })
+          }
+        }).flatten.toSet.toList
 
     val caseClauses: List[String] = definedClauses ++ inheritedClauses
 
