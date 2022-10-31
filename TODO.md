@@ -53,3 +53,5 @@
 - [ ] Avoid unnecessary casts in codegen.
 
 - [x] Ensure wildcards work.
+
+- [ ] Figure out implicit resolution, and why None still happen at codegen.
