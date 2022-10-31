@@ -86,7 +86,10 @@ Family BaseComp {
       case EHalt{v: Val} = self(self(BaseComp).IL).OptionVal(Some{v = v})
 
     def apply(fs: self(self(BaseComp).IL).ListFun, vs: self(self(BaseComp).IL).ListVal): Val -> self(self(BaseComp).IL).OptionVal =
-      case _ = self(self(BaseComp).IL).OptionVal(None{})
+      // TODO: should be possible to define this way
+      // case _ = self(self(BaseComp).IL).OptionVal(None{})
+      case U{} = self(self(BaseComp).IL).OptionVal(None{});
+      case Var{x: String} = self(self(BaseComp).IL).OptionVal(None{})
 
     def subst(y: String, v0: Val): Exp -> self(self(BaseComp).IL).Exp =
       case ELet{x: String, v: Val, e: self(self(BaseComp).IL).Exp} =
@@ -158,7 +161,7 @@ Family IfExt extends BaseComp {
        case _ = self(self(IfExt).IL).OptionVal(None{}) // ... TODO EIf case
 
     def apply(fs: self(self(IfExt).IL).ListFun, vs: self(self(IfExt).IL).ListVal): self(self(IfExt).IL).Val -> self(self(IfExt).IL).OptionVal +=
-      case _ = self(self(IfExt).IL).OptionVal(None{})
+      case Int{i: N} = self(self(IfExt).IL).OptionVal(None{})
 
     def subst(y: String, v0: Val): self(self(IfExt).IL).Exp -> self(self(IfExt).IL).Exp +=
       case EIf{v: Val, e1: Exp, e2: Exp} = self(self(IfExt).IL).Exp(EIf{v = substVal(y, v0, v), e1 = subst(y, v0, e1), e2 = subst(y, v0, e2)})
