@@ -50,7 +50,7 @@ object code_generation {
         val curFamList = pathToFamList(curPath)
         if (relativeMode) s"self$$${if (curFamList.size==n) "" else n}"
         else if (curFamList.size==n) "self$"
-        else if (forgetMode) "Any" else "${absolutePathIdentifier(p)}.Family"
+        else if (forgetMode) "Any" else s"${absolutePathIdentifier(p)}.Family"
       }
       case AbsoluteFamily(_, _) => absolutePathIdentifier(p)
     }
