@@ -148,4 +148,22 @@ Family BaseComp {
 
 Family IfExt extends BaseComp {
   Family STLC extends STLCIf {}
+
+  Family IL {
+    type Ty += TInt{}
+    type Val += Int{i: N}
+    type Exp += EIf{v: Val, e1: Exp, e2: Exp}
+
+    def eval(fs: self(self(IfExt).IL).ListFun): self(self(IfExt).IL).Exp -> self(self(IfExt).IL).OptionVal +=
+       case _ = self(self(IfExt).IL).OptionVal(None{}) // ... TODO EIf case
+
+    def apply(fs: self(self(IfExt).IL).ListFun, vs: self(self(IfExt).IL).ListVal): self(self(IfExt).IL).Val -> self(self(IfExt).IL).OptionVal +=
+      case _ = self(self(IfExt).IL).OptionVal(None{})
+
+    def subst(y: String, v0: Val): self(self(IfExt).IL).Exp -> self(self(IfExt).IL).Exp +=
+      case EIf{v: Val, e1: Exp, e2: Exp} = self(self(IfExt).IL).Exp(EIf{v = substVal(y, v0, v), e1 = subst(y, v0, e1), e2 = subst(y, v0, e2)})
+
+    def substVal(y: String, v0: Val): self(self(IfExt).IL).Val -> self(self(IfExt).IL).Val +=
+      case EInt{n: N} = self(self(IfExt).IL).Val(EInt{n = n})
+  }
 }

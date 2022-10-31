@@ -727,8 +727,8 @@ object type_checking {
           } yield (c -> FunType(t, returnType))
           val newT = FunType(context, RecType(presentFields ++ unfoldedTypes))
           Right(casesDefn match {
-          case CasesDefn(name, matchType, _, _, marker, body) =>
-              CasesDefn(name, matchType, newT, marker, body)
+            case CasesDefn(name, matchType, _, ts, marker, body) =>
+            CasesDefn(name, matchType, newT, replaceLast(ts, newT), marker, body)
           })
         } else for {
         wildcardCase <- casesDefn.casesBody match {
@@ -764,14 +764,15 @@ object type_checking {
         }
         newCasesDefn = casesDefn match {
           case CasesDefn(name, matchType, _, ts, marker, DefnBody(_, extendsFrom, furtherBindsFrom, allDefns)) =>
-            assert(ts.size==1)
-            assert(allDefns.size==1)
-            CasesDefn(name, matchType, newT, marker, DefnBody(Some(newBody), extendsFrom, furtherBindsFrom))
+            CasesDefn(name, matchType, newT, replaceLast(ts, newT), marker, DefnBody(Some(newBody), extendsFrom, furtherBindsFrom, replaceLast(allDefns, newBody)))
         }
       } yield newCasesDefn
       else Right(casesDefn)
     }
   } yield (lkg.copy(depot = depot))
+
+  def replaceLast[A](xs: List[A], x: A): List[A] =
+    (x :: xs.reverse.tail).reverse
 
   def resolveImplicitPathsInSigs(l: Linkage): Unit = {
     val curPath: Path = l.path
