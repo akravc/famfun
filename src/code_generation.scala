@@ -16,7 +16,7 @@ object code_generation {
     case c => c.toString
   }
 
-  def linkageFileName(lkg: Linkage): String = s"${pathIdentifier(lkg.path)(lkg.path)}.scala"
+  def linkageFileName(p: Path): String = s"${pathIdentifier(p)(p)}.scala"
 
   def absolutePathIdentifier(p: Path): String = pathToFamList(p).mkString("$")
 
@@ -139,19 +139,18 @@ object code_generation {
 
   // Produces a list of pairs of desired file names with the code they contain
   // generated from the complete linkages given
-  def generateCode(completeLinkages: Iterable[Linkage]): Iterable[(String, String)] =
+  def generateCode(completeLinkages: Iterable[(Path, Linkage)]): Iterable[(String, String)] =
     completeLinkages
-      .filter { _.self != Prog }
-      .map { lkg =>
-        val fn = linkageFileName(lkg)
+      .filter { _._1 != Sp(Prog) }
+      .map { (p, lkg) =>
+        val fn = linkageFileName(p)
         println(s"generating $fn")
-        fn -> generateCodeLinkage(lkg)
+        fn -> generateCodeLinkage(p, lkg)
       }
 
   def pId(p: Path): String = absolutePathIdentifier(p)
 
-  def generateCodeLinkage(lkg: Linkage): String = {
-    val curPath: Path = lkg.path
+  def generateCodeLinkage(curPath: Path, lkg: Linkage): String = {
     val typesCode: String = lkg.types.values.map(generateCodeTypeDefn(curPath)).mkString("\n")
     val adtsCode: String = lkg.adts.values.map(generateCodeAdtDefn(curPath)).mkString("\n")
     val interfaceCode: String = generateCodeInterface(curPath)(lkg.types.values, lkg.adts.values, lkg.funs.values, lkg.depot.values)

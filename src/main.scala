@@ -36,7 +36,7 @@ object persimmon_main {
           case Left(msg) => println(s"typechecking error: $msg")
           case Right(_) =>
             println("typechecks!")
-            generateCode(cache.values).foreach { (fileName, contents) =>
+            generateCode(cache.toList).foreach { (fileName, contents) =>
               val file = new File(s"test/gen/$fileName")
               file.createNewFile()
               val writer = new PrintWriter(file)
