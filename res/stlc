@@ -143,3 +143,7 @@ Family BaseComp {
       case Pack{t: self(self(BaseComp).ILC).Ty, v: self(self(BaseComp).ILC).Val} = self(self(BaseComp).ILC).OptionVal(None{})
   }
 }
+
+Family IfExt extends BaseComp {
+
+}
