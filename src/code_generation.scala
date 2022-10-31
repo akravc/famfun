@@ -430,15 +430,21 @@ object code_generation {
     })
 
     val inheritedClauses: List[String] = withRelativeMode(true)(
+      // TODO: hacky logic! needed for wrapper4
       //List(casesDefn.casesBody.extendsFrom, casesDefn.casesBody.furtherBindsFrom)
       List(findExtends(curPath), findFurtherBinds(curPath))
         .collect { case Some(inheritPath) =>
           val inheritPathCode = pathIdentifier(curPath)(inheritPath)
-          List(findExtends(matchTypePath), findFurtherBinds(matchTypePath))
-          .collect { case Some(inheritMatchPath) =>
-            val matchInheritPathCode = pathIdentifier(inheritMatchPath)(inheritMatchPath)
-            s"""case $matchTypePathId.$matchInheritPathCode$$$$${matchType.name}(inherited) =>
-             |  $inheritPathCode.Family.${casesDefn.name}$$Impl(${generateConflictingSelfArgs(curPath)(inheritPath)})(inherited)($envParamName)""".stripMargin
+          if (curPath == matchTypePath) {
+            List(s"""case $matchTypePathId.$inheritPathCode$$$$${matchType.name}(inherited) =>
+                 |  $inheritPathCode.Family.${casesDefn.name}$$Impl(${generateConflictingSelfArgs(curPath)(inheritPath)})(inherited)($envParamName)""".stripMargin)
+          } else {
+            List(findExtends(matchTypePath), findFurtherBinds(matchTypePath))
+              .collect { case Some(inheritMatchPath) =>
+                val matchInheritPathCode = pathIdentifier(inheritMatchPath)(inheritMatchPath)
+                s"""case $matchTypePathId.$matchInheritPathCode$$$$${matchType.name}(inherited) =>
+                 |  $inheritPathCode.Family.${casesDefn.name}$$Impl(${generateConflictingSelfArgs(curPath)(inheritPath)})(inherited)($envParamName)""".stripMargin
+              }
           }
         }).flatten.toSet.toList
 
