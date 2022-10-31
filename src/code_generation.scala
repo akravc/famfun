@@ -511,7 +511,7 @@ object code_generation {
     case BType => "Boolean"
     case StringType => "String"
     case FamType(Some(p), name) => s"${pathIdentifier(curPath)(p)}.$name"
-    case FamType(None, name) => throw new Exception("Should not have None paths after name resolution")
+    case FamType(None, name) => throw new Exception(s"Should not have None paths after name resolution ($name)")
     case FunType(input, output) => s"(${generateCodeType(curPath)(input)} => ${generateCodeType(curPath)(output)})"
     case RecType(fields) =>
       if fields.isEmpty then "Unit"

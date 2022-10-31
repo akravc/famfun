@@ -711,15 +711,26 @@ object type_checking {
           case DefnBody(Some(_), _, _, _) => false
           case _ => true
         }) {
-          val newT = casesDefn.t match {
-            case FunType(inputType, RecType(fields)) => FunType(inputType, RecType(fields - "_"))
+          val adt = lkg.adts(casesDefn.matchType.name)
+          val constructors = adt.adtBody match {
+            case DefnBody(Some(body), _, _, _) => body
+            case DefnBody(None, _, _, allDefns) => allDefns.last
           }
+          val (context, returnType, presentFields) = casesDefn.t match {
+            case FunType(c, RecType(fields)) => (c,
+              fields("_") match { case FunType(_, r) => r },
+              fields - "_")
+          }
+          val unfoldedTypes = for {
+            (c,t) <- constructors
+            if !presentFields.contains(c)
+          } yield (c -> FunType(t, returnType))
+          val newT = FunType(context, RecType(presentFields ++ unfoldedTypes))
           Right(casesDefn match {
           case CasesDefn(name, matchType, _, _, marker, body) =>
               CasesDefn(name, matchType, newT, marker, body)
           })
-        }
-        else for {
+        } else for {
         wildcardCase <- casesDefn.casesBody match {
           case DefnBody(Some(Lam(_, _, Rec(fields))), _, _, _) => fields.get("_").toRight("expected _ case in body")
         }
@@ -752,7 +763,9 @@ object type_checking {
             Lam(v, t, Rec((fields - "_") ++ unfoldedCases))
         }
         newCasesDefn = casesDefn match {
-          case CasesDefn(name, matchType, _, _, marker, DefnBody(_, extendsFrom, furtherBindsFrom, _)) =>
+          case CasesDefn(name, matchType, _, ts, marker, DefnBody(_, extendsFrom, furtherBindsFrom, allDefns)) =>
+            assert(ts.size==1)
+            assert(allDefns.size==1)
             CasesDefn(name, matchType, newT, marker, DefnBody(Some(newBody), extendsFrom, furtherBindsFrom))
         }
       } yield newCasesDefn
