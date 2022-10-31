@@ -705,43 +705,43 @@ object type_checking {
         (casesDefn.t match {
           case FunType(_, RecType(fields)) if fields.contains("_") => true
           case _ => false
-        })) {
-        val wildcardCase = casesDefn.casesBody match {
-          case DefnBody(Some(Lam(_, _, Rec(fields))), _, _, _) => fields("_")
+        })) for {
+        wildcardCase <- casesDefn.casesBody match {
+          case DefnBody(Some(Lam(_, _, Rec(fields))), _, _, _) => fields.get("_").toRight("expected _ case in body")
         }
-        val (wildcardVar, wildcardBody) = wildcardCase match {
+        (wildcardVar, wildcardBody) = wildcardCase match {
           case Lam(v, _, body) => (v, body)
         }
-        val presentConstructors = casesDefn.casesBody match {
+        presentConstructors = casesDefn.casesBody match {
           case DefnBody(Some(Lam(_, _, Rec(fields))), _, _, _) => fields.keys.toSet - "_"
         }
-        val constructors = lkg.adts(casesDefn.matchType.name).adtBody match {
+        constructors = lkg.adts(casesDefn.matchType.name).adtBody match {
           case DefnBody(Some(body), _, _, _) => body
         }
-        val unfoldedCases = for {
+        unfoldedCases = for {
           (c,t) <- constructors
           if !presentConstructors.contains(c)
         } yield (c -> Lam(wildcardVar, t, wildcardBody))
-        val (context, returnType, presentFields) = casesDefn.t match {
+        (context, returnType, presentFields) = casesDefn.t match {
           case FunType(c, RecType(fields)) => (c,
             fields("_") match { case FunType(_, r) => r },
             fields - "_")
         }
-        val unfoldedTypes = for {
+        unfoldedTypes = for {
           (c,t) <- constructors
           if !presentConstructors.contains(c)
         } yield (c -> FunType(t, returnType))
-        val newT = FunType(context, RecType(presentFields ++ unfoldedTypes))
-        val newBody = casesDefn.casesBody match {
+        newT = FunType(context, RecType(presentFields ++ unfoldedTypes))
+        newBody = casesDefn.casesBody match {
           case DefnBody(Some(Lam(v, t, Rec(fields))), _, _, _) =>
             Lam(v, t, Rec((fields - "_") ++ unfoldedCases))
         }
-        val newCasesDefn = casesDefn match {
+        newCasesDefn = casesDefn match {
           case CasesDefn(name, matchType, _, _, marker, DefnBody(_, extendsFrom, furtherBindsFrom, _)) =>
             CasesDefn(name, matchType, newT, marker, DefnBody(Some(newBody), extendsFrom, furtherBindsFrom))
         }
-        Right(newCasesDefn)
-      } else Right(casesDefn)
+      } yield newCasesDefn
+      else Right(casesDefn)
     }
   } yield (lkg.copy(depot = depot))
 
