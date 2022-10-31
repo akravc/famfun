@@ -213,7 +213,7 @@ object code_generation {
 
     val funsSig: String = funs.map{x => withForgetMode(true)(generateCodeFunSignature(curPath)(None)(x))._1}.mkString("\n")
 
-    val casesSig: String = cases.map(generateCodeCasesSignature(curPath)).mkString("\n")
+    val casesSig: String = cases.map{x => withForgetMode(true)(generateCodeCasesSignature(curPath)(x))._1}.mkString("\n")
 
     val translationsSig: String = adts.map { adtDefn =>
       val adtName: String = adtDefn.name
@@ -432,21 +432,29 @@ object code_generation {
     val inheritedClauses: List[String] = withRelativeMode(true)(
       //List(casesDefn.casesBody.extendsFrom, casesDefn.casesBody.furtherBindsFrom)
       List(findExtends(curPath), findFurtherBinds(curPath))
-        .collect { case Some(inheritPath) =>
+        .zip(List(findExtends(matchTypePath), findFurtherBinds(matchTypePath)))
+        .collect { case (Some(inheritPath), Some(matchInheritPath)) =>
           val inheritPathCode = pathIdentifier(curPath)(inheritPath)
+          val matchInheritPathCode = pathIdentifier(curPath)(concretizePath(matchInheritPath))
           s"""case $matchTypePathId.$inheritPathCode$$$$${matchType.name}(inherited) =>
              |  $inheritPathCode.Family.${casesDefn.name}$$Impl(${generateConflictingSelfArgs(curPath)(inheritPath)})(inherited)($envParamName)""".stripMargin
         })
 
     val caseClauses: List[String] = definedClauses ++ inheritedClauses
 
-    s"""${generateCodeCasesSignature(curPath)(casesDefn)} = ${casesDefn.name}$$Impl(${generateAbsoluteSelfArgs(curPath)(curPath)})(matched)
-       |${withRelativeMode(true)(generateCodeCasesImplSignature(curPath)(casesDefn))} = ($envParamName: ${withRelativeMode(true)(generateCodeType(curPath)(envParamType))}) => matched match {
+    val (sig, m, t) = withForgetMode(true)(generateCodeCasesSignature(curPath)(casesDefn))
+    val (sigImpl, mImpl, tImpl) = withRelativeMode(true)(generateCodeCasesImplSignature(curPath)(casesDefn))
+
+    val castMatch = if (m==mImpl) "" else s".asInstanceOf[$mImpl]"
+    val castRet = if (t==tImpl) "" else s".asInstanceOf[$t]"
+
+    s"""$sig = ${casesDefn.name}$$Impl(${generateAbsoluteSelfArgs(curPath)(curPath)})(matched$castMatch)$castRet
+       |$sigImpl = ($envParamName: ${withRelativeMode(true)(generateCodeType(curPath)(envParamType))}) => matched match {
        |${indentBy(1)(caseClauses.mkString("\n"))}
        |}""".stripMargin
   }
 
-  def generateCodeCasesSignature(curPath: Path)(casesDefn: CasesDefn): String = {
+  def generateCodeCasesSignature(curPath: Path)(casesDefn: CasesDefn): (String, String, String) = {
     val envType: Type = casesDefn.t match {
       case FunType(input, _) => input
       case _ => throw new Exception("Other shapes for cases types not handled")
@@ -461,9 +469,11 @@ object code_generation {
     } yield outT).getOrElse(throw new Exception("Should not happen after type-checking"))
     val casesDefnType: Type = FunType(envType, outType)
 
-    s"def ${casesDefn.name}(matched: ${generateCodeType(curPath)(casesDefn.matchType)}): ${generateCodeType(curPath)(casesDefnType)}"
+    val m = generateCodeType(curPath)(casesDefn.matchType)
+    val t = generateCodeType(curPath)(casesDefnType)
+    (s"def ${casesDefn.name}(matched: $m): $t", m, t)
   }
-  def generateCodeCasesImplSignature(curPath: Path)(casesDefn: CasesDefn): String = {
+  def generateCodeCasesImplSignature(curPath: Path)(casesDefn: CasesDefn): (String, String, String) = {
     val envType: Type = casesDefn.t match {
       case FunType(input, _) => input
       case _ => throw new Exception("Other shapes for cases types not handled")
@@ -480,7 +490,9 @@ object code_generation {
 
     val concreteMatchType = concretizeType(casesDefn.matchType)
     val selfParamsCode: String = generateSelfParams(curPath).mkString(", ")
-    s"def ${casesDefn.name}$$Impl($selfParamsCode)(matched: ${generateCodeType(curPath)(concreteMatchType)}): ${generateCodeType(curPath)(casesDefnType)}"
+    val m = generateCodeType(curPath)(concreteMatchType)
+    val t = generateCodeType(curPath)(casesDefnType)
+    (s"def ${casesDefn.name}$$Impl($selfParamsCode)(matched: $m): $t", m, t)
   }
 
   def ctorCallListFromPathList(curPath: Path)(pathList: List[Path], adtName: String): List[String] = pathList match {
