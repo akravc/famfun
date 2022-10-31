@@ -54,16 +54,18 @@ Family STLCIf extends STLCBase {
     case False{} = Exp(EVal{v = Val(False{})})
 }
 
-Family BaseComp {
+Family Help {
   type ListString = NilString{} | ConsString{head: String, tail: ListString}
+}
 
+Family BaseComp {
   Family STLC extends STLCBase {}
 
   Family IL {
     type Ty = TUnit{} | TCont{ts: ListTy}
     type Val = U{} | Var{x: String}
     type Exp = ELet{x: String, v: Val, e: self(self(BaseComp).IL).Exp} | EApp{v: Val, vs: ListVal} | EHalt{v: Val}
-    type Fun = MkFun{n: String, xs: self(BaseComp).ListString, e: self(self(BaseComp).IL).Exp}
+    type Fun = MkFun{n: String, xs: Help.ListString, e: self(self(BaseComp).IL).Exp}
 
     type ListTy = NilTy{} | ConsTy{head: self(self(BaseComp).IL).Ty, tail: self(self(BaseComp).IL).ListTy}
     type ListVal = NilVal{} | ConsVal{head: self(self(BaseComp).IL).Val, tail: self(self(BaseComp).IL).ListVal}
@@ -71,8 +73,8 @@ Family BaseComp {
 
     type OptionVal = None{} | Some{v: self(self(BaseComp).IL).Val}
 
-    val substs: self(BaseComp).ListString -> self(self(BaseComp).IL).ListVal -> self(self(BaseComp).IL).Exp -> self(self(BaseComp).IL).Exp =
-      lam(ys: self(BaseComp).ListString). lam(vs: self(self(BaseComp).IL).ListVal). lam(e: self(self(BaseComp).IL).Exp). e // TODO
+    val substs: Help.ListString -> self(self(BaseComp).IL).ListVal -> self(self(BaseComp).IL).Exp -> self(self(BaseComp).IL).Exp =
+      lam(ys: Help.ListString). lam(vs: self(self(BaseComp).IL).ListVal). lam(e: self(self(BaseComp).IL).Exp). e // TODO
 
     def map(f: self(self(BaseComp).IL).Val -> self(self(BaseComp).IL).Val): self(self(BaseComp).IL).ListVal -> self(self(BaseComp).IL).ListVal =
       case NilVal{} = self(self(BaseComp).IL).ListVal(NilVal{});
@@ -102,13 +104,13 @@ Family BaseComp {
   }
 
   Family ILK extends self(BaseComp).IL {
-    type Val += Lam{xs: self(BaseComp).ListString, e: self(self(BaseComp).ILK).Exp}
+    type Val += Lam{xs: Help.ListString, e: self(self(BaseComp).ILK).Exp}
 
     def apply(fs: self(self(BaseComp).ILK).ListFun, vs: self(self(BaseComp).ILK).ListVal): Val -> self(self(BaseComp).ILK).OptionVal +=
-      case Lam{xs: self(BaseComp).ListString, e: self(self(BaseComp).ILK).Exp} = eval(fs, substs(xs, vs, e))
+      case Lam{xs: Help.ListString, e: self(self(BaseComp).ILK).Exp} = eval(fs, substs(xs, vs, e))
 
     def substVal(y: String, v0: Val): Val -> self(self(BaseComp).ILK).Val +=
-      case Lam{xs: self(BaseComp).ListString, e: self(self(BaseComp).ILK).Exp} = self(self(BaseComp).ILK).Val(Lam{xs = xs, e = e}) // TODO
+      case Lam{xs: Help.ListString, e: self(self(BaseComp).ILK).Exp} = self(self(BaseComp).ILK).Val(Lam{xs = xs, e = e}) // TODO
 
     // TODO: shouldn't be needed here!
     def unpack(fs: self(self(BaseComp).ILK).ListFun, alpha: String, x: String, e: self(self(BaseComp).ILK).Exp): Val -> self(self(BaseComp).ILK).OptionVal +=
