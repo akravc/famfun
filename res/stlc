@@ -4,25 +4,52 @@ Family STLCBase {
   type Exp = EVal{v: Val} | EApp{e1: Exp, e2: Exp}
 
   type OptionVal = None{} | Some{v: Val}
-  def bind(f: Val -> OptionVal): OptionVal -> OptionVal =
-    case None{} = OptionVal(None{});
+  def bind(f: Val -> self(STLCBase).OptionVal): self(STLCBase).OptionVal -> self(STLCBase).OptionVal =
+    case None{} = self(STLCBase).OptionVal(None{});
     case Some{v: Val} = f(v)
 
-
-  def eval: Exp -> OptionVal =
-    case EVal{v: Val} = OptionVal(Some{v = v});
+  def eval: Exp -> self(STLCBase).OptionVal =
+    case EVal{v: Val} = self(STLCBase).OptionVal(Some{v = v});
     case EApp{e1: Exp, e2: Exp} = bind(lam(v: Val).apply(e2,v), eval(e1))
 
-  def apply(e2: Exp): Val -> OptionVal =
+  def apply(e2: Exp): Val -> self(STLCBase).OptionVal =
     case Lam{x: String, e: Exp} = eval (subst(x, e2, e));
-    case _ = OptionVal(None{})
+    case _ = self(STLCBase).OptionVal(None{})
 
-  def subst(x: String, e: Exp): Exp -> Exp =
-    case EVal{v: Val} = substVal(x, e, v);
-    case EApp{e1: Exp, e2: Exp} = Exp(EApp{e1 = subst(x, e, e1), e2 = subst(x, e, e2)})
+  def subst(x: String, e0: Exp): Exp -> Exp =
+    case EVal{v: Val} = substVal(x, e0, v);
+    case EApp{e1: Exp, e2: Exp} = Exp(EApp{e1 = subst(x, e0, e1), e2 = subst(x, e0, e2)})
 
   def substVal(y: String, e0: Exp): Val -> Exp =
     case U{} = Exp(EVal{v = Val(U{})});
     case Var{x: String} = if x==y then e0 else Exp(EVal{v = Val(Var{x = x})});
     case Lam{x: String, e: Exp} = Exp(EVal{v = if x==y then Val(Lam{x = x, e = e}) else Val(Lam{x = x, e = subst(y, e0, e)})})
+
+  def branch(e1: Exp, e2: Exp): Val -> self(STLCBase).OptionVal =
+    case _ = self(STLCBase).OptionVal(None{})
+}
+
+Family STLCIf extends STLCBase {
+  type Ty += TBool{}
+  type Val += True{} | False{}
+  type Exp += EIf{e: Exp, e1: Exp, e2: Exp}
+
+  def eval: Exp -> self(STLCIf).OptionVal +=
+    case EIf{e: Exp, e1: Exp, e2: Exp} =
+      bind(branch(e1, e2), eval(e))
+
+  def branch(e1: Exp, e2: Exp): Val -> self(STLCIf).OptionVal +=
+    case True{} = eval e1;
+    case False{} = eval e2;
+    case _ = self(STLCIf).OptionVal(None{})
+
+  def apply(e2: Exp): Val -> self(STLCIf).OptionVal +=
+    case _ = self(STLCIf).OptionVal(None{})
+
+  def subst(x: String, e0: Exp): Exp -> Exp +=
+    case EIf{e: Exp, e1: Exp, e2: Exp} = Exp(EIf{e = subst(x, e0, e), e1 = subst(x, e0, e1), e2 = subst(x, e0, e1)})
+
+  def substVal(y: String, e0: Exp): Val -> Exp +=
+    case True{} = Exp(EVal{v = Val(True{})});
+    case False{} = Exp(EVal{v = Val(False{})})
 }
