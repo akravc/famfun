@@ -347,8 +347,10 @@ object code_generation {
     })
 
     val (s, t) = withForgetMode(true)(generateCodeFunSignature(curPath)(None)(funDefn))
-    s"""override $s = $body.asInstanceOf[$t]
-       |${withRelativeMode(true)(generateCodeFunSignature(curPath)(Some(curPath))(funDefn)._1)} =
+    val (sImpl, tImpl) = withRelativeMode(true)(generateCodeFunSignature(curPath)(Some(curPath))(funDefn))
+    val cast = if (t==tImpl) "" else s".asInstanceOf[$t]"
+    s"""override $s = $body$cast
+       |$sImpl =
        |${indentBy(1)(implBody)}""".stripMargin
   }
 
