@@ -147,5 +147,5 @@ Family BaseComp {
 }
 
 Family IfExt extends BaseComp {
-
+  Family STLC extends STLCIf {}
 }
