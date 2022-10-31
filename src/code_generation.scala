@@ -479,7 +479,8 @@ object code_generation {
 
   def collectAllTranslationPaths(p: Path, adtName: String): Map[Path, List[Path]] = {
     var res: Map[Path, List[Path]] = Map.empty
-    def visit(ps: List[Path])(p: Path): Unit = {
+    def visit(ps: List[Path])(p0: Path): Unit = {
+      val p = concretizePath(p0)
       if (!res.contains(p)) {
         val ps2 = p::ps
         res = res + (p ->  ps2.reverse)
