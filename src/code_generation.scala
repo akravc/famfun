@@ -30,6 +30,18 @@ object code_generation {
       relativeMode = oldMode
     }
   }
+
+  var forgetMode: Boolean = false
+  def withForgetMode[A](newMode: Boolean)(res: => A): A = {
+    val oldMode = forgetMode
+    forgetMode = newMode
+    try {
+      res
+    } finally {
+      forgetMode = oldMode
+    }
+  }
+
   def pathIdentifier(curPath: Path)(p: Path): String = {
     p match {
       case Sp(_) => {
@@ -37,7 +49,8 @@ object code_generation {
         val n = famList.size
         val curFamList = pathToFamList(curPath)
         if (relativeMode) s"self$$${if (curFamList.size==n) "" else n}"
-        else if (curFamList.size==n) "self$" else s"${absolutePathIdentifier(p)}.Family"
+        else if (curFamList.size==n) "self$"
+        else if (forgetMode) "Any" else "${absolutePathIdentifier(p)}.Family"
       }
       case AbsoluteFamily(_, _) => absolutePathIdentifier(p)
     }
@@ -198,7 +211,7 @@ object code_generation {
 
     val selfAdtsSig: String = adts.map(adtDefn => s"type ${adtDefn.name}").mkString("\n")
 
-    val funsSig: String = funs.map(generateCodeFunSignature(curPath)(None)).mkString("\n")
+    val funsSig: String = funs.map{x => withForgetMode(true)(generateCodeFunSignature(curPath)(None)(x))._1}.mkString("\n")
 
     val casesSig: String = cases.map(generateCodeCasesSignature(curPath)).mkString("\n")
 
@@ -333,17 +346,21 @@ object code_generation {
         generateCodeExpression(curPath)(expr)
     })
 
-    s"""override ${generateCodeFunSignature(curPath)(None)(funDefn)} = $body
-       |${withRelativeMode(true)(generateCodeFunSignature(curPath)(Some(curPath))(funDefn))} =
+    val (s, t) = withForgetMode(true)(generateCodeFunSignature(curPath)(None)(funDefn))
+    s"""override $s = $body.asInstanceOf[$t]
+       |${withRelativeMode(true)(generateCodeFunSignature(curPath)(Some(curPath))(funDefn)._1)} =
        |${indentBy(1)(implBody)}""".stripMargin
   }
 
   // When optSelf is Some(_), generates the signature for the $Impl function
-  def generateCodeFunSignature(curPath: Path)(optPath: Option[Path])(funDefn: FunDefn): String = optPath match {
-    case None => s"val ${funDefn.name}: ${generateCodeType(curPath)(funDefn.t)}"
-    case Some(curPath) =>
-      val selfParamsCode: String = generateSelfParams(curPath).mkString(", ")
-      s"def ${funDefn.name}$$Impl($selfParamsCode): ${generateCodeType(curPath)(funDefn.t)}"
+  def generateCodeFunSignature(curPath: Path)(optPath: Option[Path])(funDefn: FunDefn): (String, String) = {
+    val t = generateCodeType(curPath)(funDefn.t)
+    (optPath match {
+      case None => s"val ${funDefn.name}: $t"
+      case Some(curPath) =>
+        val selfParamsCode: String = generateSelfParams(curPath).mkString(", ")
+        s"def ${funDefn.name}$$Impl($selfParamsCode): $t"
+    }, t)
   }
 
   def fieldTypeArguments(fields: Map[String,Type]): List[FamType] = fields.values.toList.flatMap{
@@ -529,7 +546,10 @@ object code_generation {
     case NType => "Int"
     case BType => "Boolean"
     case StringType => "String"
-    case FamType(Some(p), name) => s"${pathIdentifier(curPath)(p)}.$name"
+    case FamType(Some(p), name) => {
+      val pid = pathIdentifier(curPath)(p)
+      if (pid=="Any") "Any" else s"$pid.$name"
+    }
     case FamType(None, name) => throw new Exception(s"Should not have None paths after name resolution ($name)")
     case FunType(input, output) => s"(${generateCodeType(curPath)(input)} => ${generateCodeType(curPath)(output)})"
     case RecType(fields) =>
