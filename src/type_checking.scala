@@ -715,7 +715,8 @@ object type_checking {
         presentConstructors = casesDefn.casesBody match {
           case DefnBody(Some(Lam(_, _, Rec(fields))), _, _, _) => fields.keys.toSet - "_"
         }
-        constructors = lkg.adts(casesDefn.matchType.name).adtBody match {
+        adt <- lkg.adts.get(casesDefn.matchType.name).toRight(s"expected local ADT ${casesDefn.matchType.name}")
+        constructors = adt.adtBody match {
           case DefnBody(Some(body), _, _, _) => body
         }
         unfoldedCases = for {
