@@ -1,0 +1,28 @@
+Family STLCBase {
+  type Ty = TUnit{} | TNat{} | TArr{t1: Ty, t2: Ty}
+  type Val = Unit{} | Var{x: String} | Lam{x: String, e: Exp}
+  type Exp = EVal{v: Val} | EApp{e1: Exp, e2: Exp}
+
+  type OptionVal = None{} | Some{v: Val}
+  def bind(f: Val -> OptionVal): OptionVal -> OptionVal =
+    case None{} = OptionVal(None{});
+    case Some{v: Val} = f(v)
+
+
+  def eval: Exp -> OptionVal =
+    case EVal{v: Val} = OptionVal(Some{v = v});
+    case EApp{e1: Exp, e2: Exp} = bind(lam(v: Val).apply(e2,v), eval(e1))
+
+  def apply(e2: Exp): Val -> OptionVal =
+    case Lam{x: String, e: Exp} = eval (subst(x, e2, e));
+    case _ = OptionVal(None{})
+
+  def subst(x: String, e: Exp): Exp -> Exp =
+    case EVal{v: Val} = substVal(x, e, v);
+    case EApp{e1: Exp, e2: Exp} = Exp(EApp{e1 = subst(x, e, e1), e2 = subst(x, e, e2)})
+
+  def substVal(y: String, e0: Exp): Val -> Exp =
+    case Unit{} = Exp(EVal{v = Val(Unit{})});
+    case Var{x: String} = if x==y then e0 else Exp(EVal{v = Val(Var{x = x})});
+    case Lam{x: String, e: Exp} = Exp(EVal{v = if x==y then Val(Lam{x = x, e = e}) else Val(Lam{x = x, e = subst(y, e0, e)})})
+}
