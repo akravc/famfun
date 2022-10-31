@@ -346,6 +346,21 @@ object code_generation {
       s"def ${funDefn.name}$$Impl($selfParamsCode): ${generateCodeType(curPath)(funDefn.t)}"
   }
 
+  def fieldTypeArguments(fields: Map[String,Type]): List[FamType] = fields.values.toList.flatMap{
+    case t@FamType(Some(p), name) if getCompleteLinkageUnsafe(p).adts.contains(name) => List(t)
+    case _ => Nil
+  }
+  def filterFieldTypeArgument(xs: List[(FamType,FamType)]): List[FamType] = {
+    val seen: scala.collection.mutable.Set[FamType] = scala.collection.mutable.Set.empty
+    xs.flatMap{(x1,x2) => if (seen(x1)) Nil else {
+      seen += x1
+      x1 match {
+        case FamType(Some(Sp(_)), _) => List(x2)
+        case _ => Nil
+      }
+    }}
+  }
+
   def generateCodeCasesDefn(curPath: Path)(casesDefn: CasesDefn): String = {
     val matchType: FamType = casesDefn.matchType
     val concreteMatchTypeCode: String = generateCodeType(curPath)(concretizeType(matchType))
@@ -373,11 +388,16 @@ object code_generation {
               ctorCallListFromPathList(curPath)(pathToCtor, matchType.name)
                 .foldRight(s"matched@$lastCtorCode($ignoredFields)") { (c, r) => s"$c($r)" }
 
-            val typeArgs: Set[String] = ctorFieldTypes.values.toSet.flatMap {
-              case FamType(Some(p), name) if getCompleteLinkageUnsafe(p).adts.contains(name) =>
-                Set(s"${pathIdentifier(curPath)(p)}.$name")
-              case _ => Set.empty
+            val declared = Sp(relativizePath(pathToCtor.last))
+            val declaredCtorFieldTypes = getCompleteLinkageUnsafe(declared).adts(matchTypeAdtDefn.name).adtBody match {
+              case DefnBody(Some(ctors), _, _, _) => ctors(ctorName).fields
             }
+            val typeArgs = filterFieldTypeArgument(
+              fieldTypeArguments(declaredCtorFieldTypes)
+                .zip(fieldTypeArguments(ctorFieldTypes))).map{
+              case FamType(Some(p), name) => s"${pathIdentifier(curPath)(p)}.$name"
+            }
+
             val typeArgsCode: String = if typeArgs.isEmpty then "" else s"[${typeArgs.mkString(", ")}]"
             val instType: String = s"$lastCtorCode$typeArgsCode"
             val matchedCast: String = if typeArgs.isEmpty then "" else s".asInstanceOf[$instType]"
