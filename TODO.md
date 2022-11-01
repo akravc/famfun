@@ -54,4 +54,6 @@
 
 - [x] Ensure wildcards work.
 
+- [ ] Make wildcards englobe inherited constructors.
+
 - [ ] Figure out implicit resolution, and why None still happen at codegen.
