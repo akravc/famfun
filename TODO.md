@@ -59,3 +59,5 @@
 - [x] Figure out implicit resolution, and why None still happen at codegen.
 
 - [ ] Revisit case delegation hack in codegen.
+
+- [ ] Try to stub the remaining functions in the STLC case study
