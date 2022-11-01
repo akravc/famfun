@@ -58,6 +58,8 @@
 
 - [x] Figure out implicit resolution, and why None still happen at codegen.
 
+- [ ] Nested families do not have implicit resolution figured out. There would be a cycle.
+
 - [ ] Revisit case delegation hack in codegen.
 
 - [ ] Try to stub the remaining functions in the STLC case study
