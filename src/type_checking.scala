@@ -1,6 +1,7 @@
 import rep.*
 import PrettyPrint.*
 import MapOps.*
+import ListOps.eitherFromList
 import OptionOps.lastSome
 
 import scala.annotation.tailrec
@@ -694,7 +695,7 @@ object type_checking {
       enclosingLkg <- getCompleteLinkage(pref)
       // I
       incompleteCurLkg <- enclosingLkg.nested.get(fam).fold(Left(s"TODO no such path $path"))(Right.apply)
-      _ = resolveImplicitPathsInSigs(incompleteCurLkg)
+      _ <- resolveImplicitPathsInSigs(incompleteCurLkg)
       // L'
       optSupLkg <- incompleteCurLkg.sup match {
         case None => Right(None)
@@ -781,46 +782,45 @@ object type_checking {
     (x :: xs.reverse.tail).reverse
   }
 
-  def resolveImplicitPathsInSigs(l: Linkage): Unit = {
+  def resolveImplicitPathsInSigs(l: Linkage): Either[String, Unit] = {
     val curPath: Path = l.path
-    // Resolve paths in type fields
-    l.types.values.foreach {
-      case TypeDefn(name, marker, typeBody) => {
-        typeBody match {
-          case DefnBody(Some(RecType(fields)), extendsFrom, furtherBindsFrom, _) =>
-            fields.values.foreach(resolveImplicitPathsInType(l))
-          case _ => ()
-        }
-        typeBody.allDefns.foreach{case RecType(fields) =>
-          fields.values.foreach(resolveImplicitPathsInType(l))}
+    for {
+      _ <- traverseMap(l.types) {
+        case TypeDefn(name, marker, typeBody) => for {
+          _ <- typeBody match {
+            case DefnBody(Some(RecType(fields)), extendsFrom, furtherBindsFrom, _) =>
+              traverseMap(fields)(resolveImplicitPathsInType(l))
+            case _ => Right(())
+          }
+          _ <- eitherFromList(typeBody.allDefns.map{case RecType(fields) =>
+            traverseMap(fields)(resolveImplicitPathsInType(l))})
+        } yield ()
       }
-    }
-
-    l.adts.values.foreach {
-      case AdtDefn(name, marker, adtBody) => {
-        adtBody match {
+      _ <- traverseMap(l.adts) {
+      case AdtDefn(name, marker, adtBody) => for {
+        _ <- adtBody match {
           case DefnBody(Some(ctors), extendsFrom, furtherBindsFrom, _) =>
-            ctors.values.foreach {
-              _.fields.values.foreach(resolveImplicitPathsInType(l))
+            traverseMap(ctors) { c =>
+              traverseMap(c.fields)(resolveImplicitPathsInType(l))
             }
-          case _ => ()
+          case _ => Right(())
         }
-        adtBody.allDefns.foreach(_.values.foreach {
-          _.fields.values.foreach(resolveImplicitPathsInType(l))
-        })
+        _ <- eitherFromList(adtBody.allDefns.map{d => traverseMap(d) { x =>
+          traverseMap(x.fields)(resolveImplicitPathsInType(l))
+        }})
+      } yield ()
       }
-    }
-
-    l.funs.values.foreach {
-      case FunDefn(name, t, _) => resolveImplicitPathsInType(l)(t)
-    }
-
-    l.depot.values.foreach {
-      case CasesDefn(name, matchType, t, ts, _, _) =>
-        resolveImplicitPathsInType(l)(matchType)
-        resolveImplicitPathsInType(l)(t)
-        ts.foreach(resolveImplicitPathsInType(l))
-    }
+      _ <- traverseMap(l.funs) {
+        case FunDefn(name, t, _) => resolveImplicitPathsInType(l)(t)
+      }
+      _ <- traverseMap(l.depot) {
+        case CasesDefn(name, matchType, t, ts, _, _) => for {
+          _ <- resolveImplicitPathsInType(l)(matchType)
+          _ <- resolveImplicitPathsInType(l)(t)
+          _ <- eitherFromList(ts.map(resolveImplicitPathsInType(l)))
+        } yield ()
+     }
+    } yield ()
   }
 
   // Recursively substitutes instances of a self by a path in type
