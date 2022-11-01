@@ -713,66 +713,57 @@ object type_checking {
           case FunType(_, RecType(fields)) if fields.contains("_") => true
           case _ => false
         }))
-        if (casesDefn.casesBody match {
-          case DefnBody(Some(_), _, _, _) => false
-          case _ => true
-        }) {
-          val adt = lkg.adts(casesDefn.matchType.name)
-          val constructors = adt.adtBody match {
+        for {
+          wildcardCase <- casesDefn.casesBody match {
+            case DefnBody(Some(Lam(_, _, Rec(fields))), _, _, _) => fields.get("_").toRight("expected _ case in body").map(Some.apply)
+            case DefnBody(Some(x), _, _, _) => Left(s"unexpected shape $x")
+            case DefnBody(None, _, _, _) => Right(None)
+          }
+          (wildcardVar, wildcardBody) = wildcardCase match {
+            case Some(Lam(v, _, body)) => (Some(v), Some(body))
+            case None => (None, None)
+          }
+          presentConstructors = casesDefn.casesBody match {
+            case DefnBody(Some(Lam(_, _, Rec(fields))), _, _, _) => fields.keys.toSet - "_"
+            case _ => Set.empty
+          }
+          adt <- lkg.adts.get(casesDefn.matchType.name).toRight(s"expected local ADT ${casesDefn.matchType.name}")
+          constructors = adt.adtBody match {
             case DefnBody(Some(body), _, _, _) => body
             case DefnBody(None, _, _, allDefns) => allDefns.last
           }
-          val (context, returnType, presentFields) = casesDefn.t match {
+          unfoldedCases = (wildcardVar, wildcardBody) match {
+            case (Some(v), Some(b)) => 
+              for {
+                (c,t) <- constructors
+                if !presentConstructors.contains(c)
+              } yield (c -> Lam(v, t, b))
+            case _ => Set.empty
+          }
+          (context, returnType, presentFields) = casesDefn.t match {
             case FunType(c, RecType(fields)) => (c,
               fields("_") match { case FunType(_, r) => r },
               fields - "_")
           }
-          val unfoldedTypes = for {
+          unfoldedTypes = for {
             (c,t) <- constructors
-            if !presentFields.contains(c)
+            if !presentConstructors.contains(c)
           } yield (c -> FunType(t, returnType))
-          val newT = FunType(context, RecType(presentFields ++ unfoldedTypes))
-          Right(casesDefn match {
-            case CasesDefn(name, matchType, oldTs, ts, marker, body) =>
-            CasesDefn(name, matchType, newT, replaceLast(ts, newT, oldTs), marker, body)
-          })
-        } else for {
-        wildcardCase <- casesDefn.casesBody match {
-          case DefnBody(Some(Lam(_, _, Rec(fields))), _, _, _) => fields.get("_").toRight("expected _ case in body")
-        }
-        (wildcardVar, wildcardBody) = wildcardCase match {
-          case Lam(v, _, body) => (v, body)
-        }
-        presentConstructors = casesDefn.casesBody match {
-          case DefnBody(Some(Lam(_, _, Rec(fields))), _, _, _) => fields.keys.toSet - "_"
-        }
-        adt <- lkg.adts.get(casesDefn.matchType.name).toRight(s"expected local ADT ${casesDefn.matchType.name}")
-        constructors = adt.adtBody match {
-          case DefnBody(Some(body), _, _, _) => body
-        }
-        unfoldedCases = for {
-          (c,t) <- constructors
-          if !presentConstructors.contains(c)
-        } yield (c -> Lam(wildcardVar, t, wildcardBody))
-        (context, returnType, presentFields) = casesDefn.t match {
-          case FunType(c, RecType(fields)) => (c,
-            fields("_") match { case FunType(_, r) => r },
-            fields - "_")
-        }
-        unfoldedTypes = for {
-          (c,t) <- constructors
-          if !presentConstructors.contains(c)
-        } yield (c -> FunType(t, returnType))
-        newT = FunType(context, RecType(presentFields ++ unfoldedTypes))
-        newBody = casesDefn.casesBody match {
-          case DefnBody(Some(Lam(v, t, Rec(fields))), _, _, _) =>
-            Lam(v, t, Rec((fields - "_") ++ unfoldedCases))
-        }
-        newCasesDefn = casesDefn match {
-          case CasesDefn(name, matchType, oldTs, ts, marker, DefnBody(Some(oldBody), extendsFrom, furtherBindsFrom, allDefns)) =>
-            CasesDefn(name, matchType, newT, replaceLast(ts, newT, oldTs), marker, DefnBody(Some(newBody), extendsFrom, furtherBindsFrom, replaceLast(allDefns, newBody, oldBody)))
-        }
-      } yield newCasesDefn
+          newT = FunType(context, RecType(presentFields ++ unfoldedTypes))
+          newBody = casesDefn.casesBody match {
+            case DefnBody(Some(Lam(v, t, Rec(fields))), _, _, _) =>
+              Some(Lam(v, t, Rec((fields - "_") ++ unfoldedCases)))
+            case _ => None
+          }
+          newCasesDefn = casesDefn match {
+            case CasesDefn(name, matchType, oldTs, ts, marker, defn) =>
+              CasesDefn(name, matchType, newT, replaceLast(ts, newT, oldTs), marker, (newBody, defn) match {
+                case (Some(newBody), DefnBody(Some(oldBody), extendsFrom, furtherBindsFrom, allDefns)) =>
+                  DefnBody(Some(newBody), extendsFrom, furtherBindsFrom, replaceLast(allDefns, newBody, oldBody))
+                case _ => defn
+              })
+          }
+        } yield newCasesDefn
       else Right(casesDefn)
     }
   } yield (lkg.copy(depot = depot))
