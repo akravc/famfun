@@ -160,7 +160,7 @@ Family IfExt extends BaseComp {
     type Val += Int{i: N}
     type Exp += EIf{v: Val, e1: Exp, e2: Exp}
 
-    // TODO: not sure why the self paths are necessary on the match types
+    // TODO: self paths are necessary on the match types
 
     def eval(fs: ListFun): self(self(IfExt).IL).Exp -> OptionVal +=
        case _ = OptionVal(None{}) // ... TODO EIf case
