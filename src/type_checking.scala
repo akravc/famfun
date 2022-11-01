@@ -1151,7 +1151,7 @@ object type_checking {
         // The result `DefnBody` is instead marked with information about where it inherits from,
         // which is used to look up those other cases recursively
       } yield CasesDefn(casesName, curMatchType, resultT, prevTs ++ curTs, PlusEq, mergeDefnBody(prevCasesDefn, curCasesDefn))
-      case x => Left(s"Invalid cases definition: expected += and ${print_type(concretizeType(x._1.matchType))} == ${print_type(concretizeType(x._2.matchType))}")
+      case x => Left(s"Invalid cases definition ${x._1.name}: expected += and ${print_type(concretizeType(x._1.matchType))} == ${print_type(concretizeType(x._2.matchType))}")
     }
 
   // forall A,
