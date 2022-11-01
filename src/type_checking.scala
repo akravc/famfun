@@ -13,13 +13,16 @@ object type_checking {
     cache += Sp(Prog) -> progLkg
   }
 
-  // TODO: what is this "path" here? it's not self or super
   def resolvedImplicitPathFor[A](getDefns: Linkage => Map[String, A])(curLkg: Linkage, name: String): Either[String, Path] = curLkg.path match {
     case Sp(Prog) => Left(s"Unable to resolve implicit path for $name")
     case Sp(sp) => throw new Exception("path of Linkage should never be a self path")
     case AbsoluteFamily(pref, _) =>
       getDefns(curLkg).get(name) match {
-        case None => getCompleteLinkage(pref).flatMap(nextLkg => resolvedImplicitPathFor(getDefns)(nextLkg, name))
+        case None =>
+          getCompleteLinkage(pref).flatMap(nextLkg => resolvedImplicitPathFor(getDefns)(nextLkg, name)).orElse(curLkg.sup match {
+            case None => Left(s"Unable to resolve implicit path for $name")
+            case Some(supPath) => getCompleteLinkage(supPath).flatMap(nextLkg => resolvedImplicitPathFor(getDefns)(nextLkg, name).map(subSelfInPath(curLkg.self,nextLkg.self)))
+          })
         case Some(_) => Right(Sp(curLkg.self))
       }
   }
@@ -308,10 +311,12 @@ object type_checking {
       resolvedPath <- resolveImplicitPathForType(curLkg, name).orElse(resolveImplicitPathForAdt(curLkg, name))
     } yield { toResolve.path = Some(resolvedPath); t }
     case FunType(input, output) => for {
-      resolvedInput <- resolveImplicitPathsInType(curLkg)(input)
-      resolvedOutput <- resolveImplicitPathsInType(curLkg)(output)
-    } yield FunType(resolvedInput, resolvedOutput)
-    case RecType(fields) => traverseMap(fields)(resolveImplicitPathsInType(curLkg)).map(RecType.apply)
+      _ <- resolveImplicitPathsInType(curLkg)(input)
+      _ <- resolveImplicitPathsInType(curLkg)(output)
+    } yield t
+    case RecType(fields) => for {
+      _ <- traverseMap(fields)(resolveImplicitPathsInType(curLkg))
+    } yield t
     case _ => Right(t)
   }
   def resolveImplicitPathsInExprShallow(curLkg: Linkage)(e: Expression): Either[String, Expression] = e match {
@@ -335,8 +340,8 @@ object type_checking {
     } yield { toResolve.path = Some(resolvedPath); e }
     case _ => Right(e)
   }
-    def typeOfExpression(curLkg: Linkage, G: Map[String, Type])(e: Expression): Either[String, Type] =
-      resolveImplicitPathsInExprShallow(curLkg)(e).flatMap { _ =>
+  def typeOfExpression(curLkg: Linkage, G: Map[String, Type])(e: Expression): Either[String, Type] =
+    resolveImplicitPathsInExprShallow(curLkg)(e).flatMap { _ =>
       e match {
         // _________________ T_Num
         // K, G |- n : N
@@ -814,7 +819,7 @@ object type_checking {
       case CasesDefn(name, matchType, t, ts, _, _) =>
         resolveImplicitPathsInType(l)(matchType)
         resolveImplicitPathsInType(l)(t)
-        ts.map(resolveImplicitPathsInType(l))
+        ts.foreach(resolveImplicitPathsInType(l))
     }
   }
 
