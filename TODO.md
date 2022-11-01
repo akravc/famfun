@@ -56,6 +56,6 @@
 
 - [ ] Make wildcards englobe inherited constructors.
 
-- [ ] Figure out implicit resolution, and why None still happen at codegen.
+- [x] Figure out implicit resolution, and why None still happen at codegen.
 
 - [ ] Revisit case delegation hack in codegen.
