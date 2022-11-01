@@ -91,6 +91,7 @@ Family BaseComp {
       case U{} = OptionVal(None{});
       case Var{x: String} = OptionVal(None{})
 
+    // TODO: try overwriting
     def subst(y: String, v0: Val): Exp -> Exp =
       case ELet{x: String, v: Val, e: Exp} =
         if x==y then Exp(ELet{x=x, v=substVal(y, v0, v), e=e}) else Exp(ELet{x=x, v=substVal(y, v0, v), e=subst(y, v0, e)});
