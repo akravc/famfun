@@ -805,8 +805,8 @@ object type_checking {
             }
           case _ => Right(())
         }
-        _ <- eitherFromList(adtBody.allDefns.map{d => traverseMap(d) { x =>
-          traverseMap(x.fields)(resolveImplicitPathsInType(l))
+        _ <- eitherFromList(adtBody.allDefns.map{ctors => traverseMap(ctors) { c =>
+          traverseMap(c.fields)(resolveImplicitPathsInType(l))
         }})
       } yield ()
       }
