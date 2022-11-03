@@ -1130,7 +1130,7 @@ object type_checking {
     unionWithM(depot1, depot2) {
       case ( CasesDefn(casesName, prevMatchType, prevT, prevTs, _, prevCasesDefn)
            , CasesDefn(_casesName, curMatchType, curT, curTs, PlusEq, curCasesDefn)
-           ) if concretizeType(prevMatchType) == concretizeType(curMatchType) => for {
+           ) if sameFamType(prevMatchType, curMatchType) => for {
         resultT <- (prevT, curT) match {
           case (RecType(_), RecType(_)) => Right(curT)
           case (FunType(RecType(prevFields), RecType(_)), FunType(RecType(curFields), curOutT@RecType(_))) =>
@@ -1144,6 +1144,11 @@ object type_checking {
       } yield CasesDefn(casesName, curMatchType, resultT, prevTs ++ curTs, PlusEq, mergeDefnBody(prevCasesDefn, curCasesDefn))
       case x => Left(s"Invalid cases definition ${x._1.name}: expected += and ${print_type(concretizeType(x._1.matchType))} == ${print_type(concretizeType(x._2.matchType))}")
     }
+
+  def sameFamType(ty1: FamType, ty2: FamType): Boolean = ty1.name == ty2.name && ((ty1.path, ty2.path) match {
+    case (Some(p1), Some(p2)) => concretizePath(p1)==concretizePath(p2)
+    case _ => true
+  })
 
   // forall A,
   //     L'.A in L'.NESTED -->

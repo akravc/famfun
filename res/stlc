@@ -160,21 +160,19 @@ Family IfExt extends BaseComp {
     type Val += Int{i: N}
     type Exp += EIf{v: Val, e1: Exp, e2: Exp}
 
-    // TODO: self paths are necessary on the match types
-
-    def eval(fs: ListFun): self(self(IfExt).IL).Exp -> OptionVal +=
+    def eval(fs: ListFun): Exp -> OptionVal +=
        case _ = OptionVal(None{}) // ... TODO EIf case
 
-    def apply(fs: ListFun, vs: ListVal): self(self(IfExt).IL).Val -> OptionVal +=
+    def apply(fs: ListFun, vs: ListVal): Val -> OptionVal +=
       case Int{i: N} = OptionVal(None{})
 
-    def subst(y: String, v0: Val): self(self(IfExt).IL).Exp -> Exp +=
+    def subst(y: String, v0: Val): Exp -> Exp +=
       case EIf{v: Val, e1: Exp, e2: Exp} = Exp(EIf{v = substVal(y, v0, v), e1 = subst(y, v0, e1), e2 = subst(y, v0, e2)})
 
-    def substVal(y: String, v0: Val): self(self(IfExt).IL).Val -> Val +=
+    def substVal(y: String, v0: Val): Val -> Val +=
       case Int{i: N} = Val(Int{i = i})
 
-   def unpack(fs: ListFun, alpha: String, x: String, e: Exp): self(self(IfExt).IL).Val -> OptionVal +=
+   def unpack(fs: ListFun, alpha: String, x: String, e: Exp): Val -> OptionVal +=
       case _ = OptionVal(None{})
   }
 }
