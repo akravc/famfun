@@ -432,13 +432,17 @@ object code_generation {
     val inheritedClauses: List[String] = withRelativeMode(true)(
       // TODO: hacky logic! needed for wrapper4
       //List(casesDefn.casesBody.extendsFrom, casesDefn.casesBody.furtherBindsFrom)
-      List(findExtends(curPath), findFurtherBinds(curPath))
-        .collect { case Some(inheritPath) =>
-          val inheritPathCode = pathIdentifier(curPath)(inheritPath)
-          if (curPath == matchTypePath) {
-            List(s"""case $matchTypePathId.$inheritPathCode$$$$${matchType.name}(inherited) =>
-                 |  $inheritPathCode.Family.${casesDefn.name}$$Impl(${generateConflictingSelfArgs(curPath)(inheritPath)})(inherited)($envParamName)""".stripMargin)
-          } else {
+      if (curPath == matchTypePath) {
+        List(findExtends(matchTypePath), findFurtherBinds(matchTypePath))
+          .collect { case Some(inheritPath) =>
+            val inheritPathCode = pathIdentifier(curPath)(inheritPath)
+            s"""case $matchTypePathId.$inheritPathCode$$$$${matchType.name}(inherited) =>
+             |  $inheritPathCode.Family.${casesDefn.name}$$Impl(${generateConflictingSelfArgs(curPath)(inheritPath)})(inherited)($envParamName)""".stripMargin
+          }
+      } else {
+        List(findExtends(curPath), findFurtherBinds(curPath))
+          .collect { case Some(inheritPath) =>
+            val inheritPathCode = pathIdentifier(curPath)(inheritPath)
             List(findExtends(matchTypePath), findFurtherBinds(matchTypePath))
               .collect { case Some(inheritMatchPath) =>
                 val matchInheritPathCode = pathIdentifier(inheritMatchPath)(inheritMatchPath)
@@ -446,7 +450,9 @@ object code_generation {
                  |  $inheritPathCode.Family.${casesDefn.name}$$Impl(${generateConflictingSelfArgs(curPath)(inheritPath)})(inherited)($envParamName)""".stripMargin
               }
           }
-        }).flatten.toSet.toList
+          .flatten.toSet.toList
+      })
+
 
     val caseClauses: List[String] = definedClauses ++ inheritedClauses
 
