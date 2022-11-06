@@ -580,7 +580,7 @@ object type_checking {
           } yield result }
           defaults <- lkg.defaults.get(typeName).fold(Right(Map.empty))(collectAllDefaults)
           _ <- traverseWithKeyMap(allTypeFields) { (f: String, t: Type) =>
-            rec.fields.get(f).fold(defaults.get(f).fold(Left(s"Expected field $f")){x => Right(())}){x => Right(())}
+            if (rec.fields.contains(f) || defaults.contains(f)) Right(()) else Left(s"Expected field $f")
           }
         } yield famType
 
