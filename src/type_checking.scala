@@ -578,6 +578,10 @@ object type_checking {
             isSub <-isSubtype(eType, fieldType)
             result <- if isSub then Right(()) else Left("TODO field types in instance don't match")
           } yield result }
+          defaults <- lkg.defaults.get(typeName).fold(Right(Map.empty))(collectAllDefaults)
+          _ <- traverseWithKeyMap(allTypeFields) { (f: String, t: Type) =>
+            rec.fields.get(f).fold(defaults.get(f).fold(Left(s"Expected field $f")){x => Right(())}){x => Right(())}
+          }
         } yield famType
 
         //  R = \overline{C' {(f': T')*}} in {{a}}

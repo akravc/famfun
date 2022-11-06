@@ -1310,15 +1310,14 @@ Family Ext extends Base {
     assertResult(Right(()))(typecheckProcess(prog))
   }
 
-  // TODO(now)
-  ignore("default handling: bad") {
+  test("default handling: bad") {
     val prog : String =
       ("Family Base {" +
         "type T = {x: N, b: B}" +
         "val f: N -> T  = lam (k: N). T({x=k})"+
         "}"
         );
-    assertResult(Left(""))(typecheckProcess(prog))
+    assert(isLeft(typecheckProcess(prog)))
   }
 
   /* ==================================== TYPING EXAMPLE PROGRAMS ==================================== */
