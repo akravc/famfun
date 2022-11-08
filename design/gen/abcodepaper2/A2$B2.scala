@@ -53,7 +53,7 @@ object A2$B2 {
       A1$B2.Family.f$Impl(self$1, self$)
   
     // Cases implementations
-    def evc(matched: self$.Exp): (Unit => Int) = evc$Impl(A2.Family, self$)(matched)
+    def evc(matched: self$.Exp): (Unit => Int) = evc$Impl(A2.Family, self$)(matched.asInstanceOf[A2$B2.Exp])
     def evc$Impl(self$1: A2.Interface, self$: A2$B2.Interface)(matched: A2$B2.Exp): (Unit => Int) = (unit: Unit) => matched match {
       case matched@A2$B2.EPlus(_, _) =>
         val x: A2$B2.EPlus[self$.Exp] = matched.asInstanceOf[A2$B2.EPlus[self$.Exp]]
