@@ -349,9 +349,10 @@ object code_generation {
     val (s, t) = withForgetMode(true)(generateCodeFunSignature(curPath)(None)(funDefn))
     val (sImpl, tImpl) = withRelativeMode(true)(generateCodeFunSignature(curPath)(Some(curPath))(funDefn))
     val cast = if (t==tImpl) "" else s".asInstanceOf[$t]"
+    val implBodyCast = if (t==tImpl) implBody else s"($implBody).asInstanceOf[$tImpl]"
     s"""override $s = $body$cast
        |$sImpl =
-       |${indentBy(1)(implBody)}""".stripMargin
+       |${indentBy(1)(implBodyCast)}""".stripMargin
   }
 
   // When optSelf is Some(_), generates the signature for the $Impl function
