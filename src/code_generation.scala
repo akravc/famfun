@@ -570,13 +570,19 @@ object code_generation {
     }.mkString("\n")
   }
 
+  def forgetPath(p: Path, pid: String): Boolean =
+    pid == "Any" || (forgetMode && (p match {
+      case AbsoluteFamily(_, _) => pid.contains("$")
+      case _ => false
+    }))
+
   def generateCodeType(curPath: Path)(t: Type): String = t match {
     case NType => "Int"
     case BType => "Boolean"
     case StringType => "String"
     case FamType(Some(p), name) => {
       val pid = pathIdentifier(curPath)(p)
-      if (pid=="Any") "Any" else s"$pid.$name"
+      if (forgetPath(p, pid)) "Any" else s"$pid.$name"
     }
     case FamType(None, name) => throw new Exception(s"Should not have None paths after name resolution ($name)")
     case FunType(input, output) => s"(${generateCodeType(curPath)(input)} => ${generateCodeType(curPath)(output)})"
