@@ -4,6 +4,8 @@
 null/
 project/
 target/
+.metals
+.bloop
 *~undo-tree~
 *~
 \#*\#
